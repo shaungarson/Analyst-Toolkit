@@ -1,0 +1,21 @@
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Backend
+backend/venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.pytest_cache/
+
+# Env / secrets
+.env
+.env.local
+
+# Editor / OS
+.vscode/
+.DS_Store
+
+# Tooling caches / local settings
+.vite/
+.claude/settings.local.json
