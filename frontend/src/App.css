@@ -1,0 +1,35 @@
+.app-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.app-nav-title {
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.app-nav-tabs {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.app-nav-tabs button {
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.app-nav-tabs button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}

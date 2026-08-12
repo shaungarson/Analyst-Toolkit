@@ -1,4 +1,4 @@
-.underwriting {
+.feature-page {
   max-width: 900px;
   margin: 0 auto;
   padding: 2rem 1.5rem 4rem;
@@ -9,20 +9,20 @@
   margin-bottom: 1.5rem;
 }
 
-.underwriting-form fieldset {
+.feature-page form fieldset {
   border: 1px solid var(--border);
   border-radius: 8px;
   margin-bottom: 1rem;
   padding: 1rem 1.25rem 1.25rem;
 }
 
-.underwriting-form legend {
+.feature-page form legend {
   color: var(--text-h);
   font-weight: 600;
   padding: 0 0.5rem;
 }
 
-.underwriting-form label {
+.feature-page form label {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
@@ -30,7 +30,7 @@
   margin-bottom: 0.75rem;
 }
 
-.underwriting-form input {
+.feature-page form input {
   padding: 0.5rem 0.6rem;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -45,7 +45,7 @@
   margin-top: 0.5rem;
 }
 
-button {
+.feature-page button {
   padding: 0.6rem 1.2rem;
   border-radius: 6px;
   border: 1px solid var(--accent);
@@ -55,12 +55,12 @@ button {
   cursor: pointer;
 }
 
-button.secondary {
+.feature-page button.secondary {
   background: transparent;
   color: var(--accent);
 }
 
-button:disabled {
+.feature-page button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }

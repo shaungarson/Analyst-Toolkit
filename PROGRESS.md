@@ -1,30 +1,39 @@
 # Analyst Toolkit — Progress
 
 ## Current Phase
-Phase 2 — Real Estate Underwriting MVP (V1 scope complete)
+Phase 3 — DCF Valuation MVP (V1 scope complete)
 
 ## Done
 * React + Vite frontend scaffolded (`frontend/`)
 * FastAPI backend scaffolded (`backend/`), with a Python venv and pinned `requirements.txt`
 * Local dev setup confirmed end-to-end: frontend calls backend via a Vite dev proxy on `/api/*`
 * Git repo initialized
-* Real estate underwriting calculation module (`backend/app/calculations/real_estate.py`): cap
-  rate, monthly-amortized debt schedule, cash-on-cash, IRR, equity multiple, exit valuation —
-  all pure functions, separate from the API layer
-* `POST /api/real-estate/underwrite` endpoint with Pydantic input validation
-* 9 backend tests with hand-verifiable expected values (`backend/tests/test_real_estate.py`),
-  all passing
-* Real estate underwriting form in the frontend (`frontend/src/features/real-estate/`): inputs
-  for acquisition/financing/hold/exit, a one-click worked example, results display, and the
-  full amortization schedule table
-* Verified end-to-end in the browser with the worked example deal
+* **Real Estate Underwriting MVP** (Phase 2, committed): cap rate, monthly-amortized debt
+  schedule, cash-on-cash, IRR, equity multiple, exit valuation, with a working form and 9
+  hand-verified backend tests
+* **DCF Valuation MVP** (Phase 3): unlevered FCF projected from a base year at a flat growth
+  rate, end-of-year discounting, Gordon Growth terminal value, enterprise/equity value bridge,
+  value per share — all pure functions in `backend/app/calculations/dcf.py`
+* `POST /api/dcf/valuation` endpoint, with Pydantic validation that rejects WACC ≤ terminal
+  growth rate (undefined/negative terminal value otherwise)
+* 7 more backend tests (16 total), including a zero-growth case that collapses to a simple
+  perpetuity formula as an independent hand check
+* DCF valuation form in the frontend (`frontend/src/features/dcf/`): forecast/discount-rate/
+  bridge inputs, a one-click worked example, results display, and the forecast/discounting table
+* Shared formatting helpers (`frontend/src/lib/format.js`) and shared form/results styling
+  (`frontend/src/styles/feature-form.css`) factored out once a second module needed them
+* Simple tab-based navigation between Real Estate and DCF (no router dependency yet — not
+  needed until deep-linking/URLs matter)
+* Verified end-to-end in the browser: both modules' worked examples, cross-checked by hand
+  against the displayed results
 
 ## In Progress
 * (nothing yet)
 
 ## Near-Term Next Steps
-* Git commit for the Phase 2 real estate MVP
-* Start Phase 3: DCF Valuation MVP (Section 3 V1 scope)
+* Git commit for the Phase 3 DCF MVP
+* Decide next: Phase 4 (professional utility — scenario saving, export, print) or continue
+  building out Phase 5 validation/edge cases for the two existing modules first
 
 ## Deferred (intentionally, for now)
 * Real estate: multi-year cash flows, rent/NOI growth, acquisition/disposition costs, refinancing, multiple debt tranches, sensitivity analysis, scenario comparison, waterfalls/promotes
@@ -63,3 +72,13 @@ Flagged to the user as a genuine convention choice (Section 7). Chosen because i
 
 **2026-08-12 — Real estate V1 exit valuation uses flat going-in NOI, no acquisition/disposition costs**
 Since NOI growth is out of scope for V1, exit-year NOI is modeled as identical to going-in NOI (not a forward-looking grown NOI, which is the more common real-world convention). Sale proceeds and initial equity are computed with no transaction costs deducted, consistent with those being explicitly deferred items. Both are stated as visible assumptions in the results UI so they're never silently baked in.
+
+**2026-08-12 — DCF discounting: end-of-year convention, not mid-year**
+Alternatives considered: mid-year convention (each year's cash flow discounted as if received at the midpoint, standard in professional banking models, typically increases valuation a few percent).
+Flagged to the user as a genuine convention choice (Section 7) — clarified in plain terms (it only changes the exponent n in CF/(1+r)^n, not the formula itself) before deciding. Chosen: end-of-year, for V1 simplicity; mid-year is a natural enhancement to revisit later since it's more realistic.
+
+**2026-08-12 — DCF V1 forecast uses a single flat FCF growth rate, not revenue-driver modeling**
+Since revenue-driver/margin/CapEx build-up is explicitly deferred (Section 3), the explicit forecast period grows the base-year FCF at one flat annual rate, separate from (and typically higher than) the terminal growth rate used in the Gordon Growth terminal value. This mirrors real estate's "flat NOI" simplification and is stated as a visible assumption in the results UI.
+
+**2026-08-12 — Shared frontend styling/formatting factored out once DCF needed it**
+`currency`/`percent` helpers moved to `frontend/src/lib/format.js`, and the form/results CSS (fieldset layout, metric tiles, table styling) moved to `frontend/src/styles/feature-form.css` under a generic `.feature-page` wrapper class. Not done speculatively — done at the point a second module actually needed the same patterns, per Section 16.

@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import './RealEstateUnderwriting.css'
+import { currency, percent } from '../../lib/format'
+import '../../styles/feature-form.css'
 
 const EXAMPLE = {
   purchasePrice: '10000000',
@@ -20,11 +21,6 @@ const EMPTY = {
   holdPeriodYears: '',
   exitCapRate: '',
 }
-
-const currency = (n) =>
-  n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
-
-const percent = (n) => `${(n * 100).toFixed(2)}%`
 
 function RealEstateUnderwriting() {
   const [form, setForm] = useState(EMPTY)
@@ -75,7 +71,7 @@ function RealEstateUnderwriting() {
   }
 
   return (
-    <div className="underwriting">
+    <div className="feature-page">
       <h1>Real Estate Underwriting</h1>
       <p className="subtitle">
         Single-period acquisition model: purchase price, financing, and a five-year-style hold
