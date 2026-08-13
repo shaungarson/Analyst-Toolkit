@@ -1,4 +1,5 @@
 import pytest
+from pydantic import ValidationError
 
 from app.calculations.real_estate import (
     amortization_schedule,
@@ -8,6 +9,17 @@ from app.calculations.real_estate import (
     exit_value,
     irr,
     underwrite_real_estate,
+)
+from app.schemas.real_estate import RealEstateInputs
+
+VALID_INPUTS = dict(
+    purchase_price=1_000_000,
+    going_in_noi=80_000,
+    ltv=0.65,
+    interest_rate=0.06,
+    amortization_years=30,
+    hold_period_years=5,
+    exit_cap_rate=0.08,
 )
 
 
@@ -88,3 +100,17 @@ def test_underwrite_no_debt_matches_hand_computed_irr_and_multiple():
     assert result["exit"]["gross_sale_price"] == pytest.approx(1_000_000)
     assert result["irr"] == pytest.approx(0.08, abs=1e-6)
     assert result["equity_multiple"] == pytest.approx(1.08, abs=1e-6)
+
+
+def test_ltv_of_100_percent_is_rejected():
+    # LTV == 1.0 would make initial equity exactly zero, which blows up cash-on-cash
+    # and equity multiple (division by zero) - this must be caught at the input layer.
+    with pytest.raises(ValidationError):
+        RealEstateInputs(**{**VALID_INPUTS, "ltv": 1.0})
+
+
+def test_zero_interest_rate_is_a_valid_input():
+    # Interest-free financing is unusual but not invalid, and the amortization math
+    # already handles it correctly (see test_amortization_zero_interest_is_straight_line).
+    inputs = RealEstateInputs(**{**VALID_INPUTS, "interest_rate": 0.0})
+    assert inputs.interest_rate == 0.0

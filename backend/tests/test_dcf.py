@@ -65,3 +65,20 @@ def test_wacc_must_exceed_terminal_growth_rate():
             net_debt=0,
             diluted_shares_outstanding=10,
         )
+
+
+def test_terminal_growth_rate_capped_at_a_realistic_level():
+    # A terminal growth rate above ~6% implies the company eventually outgrows the
+    # entire economy forever - a well-known DCF red flag, almost always a typo rather
+    # than a deliberate assumption. Reject it at the input layer rather than silently
+    # producing a wildly inflated valuation.
+    with pytest.raises(ValidationError):
+        DCFInputs(
+            base_year_fcf=100,
+            fcf_growth_rate=0.05,
+            forecast_years=5,
+            wacc=0.50,
+            terminal_growth_rate=0.50,
+            net_debt=0,
+            diluted_shares_outstanding=10,
+        )

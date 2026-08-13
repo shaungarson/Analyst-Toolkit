@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { currency } from '../../lib/format'
 import { downloadCsv } from '../../lib/csv'
+import { friendlyErrorMessage, parseErrorResponse } from '../../lib/apiError'
 import ScenarioManager from '../../components/ScenarioManager'
 import '../../styles/feature-form.css'
 
@@ -89,12 +90,11 @@ function DcfValuation() {
         body: JSON.stringify(payload),
       })
       if (!res.ok) {
-        const body = await res.json().catch(() => null)
-        throw new Error(body?.detail?.[0]?.msg || 'Calculation failed. Check your inputs.')
+        throw new Error(await parseErrorResponse(res))
       }
       setResults(await res.json())
     } catch (err) {
-      setError(err.message)
+      setError(friendlyErrorMessage(err))
       setResults(null)
     } finally {
       setLoading(false)
@@ -166,6 +166,8 @@ function DcfValuation() {
             <input
               type="number"
               required
+              min="-5"
+              max="6"
               step="any"
               value={form.terminalGrowthRate}
               onChange={handleChange('terminalGrowthRate')}

@@ -6,7 +6,13 @@ class DCFInputs(BaseModel):
     fcf_growth_rate: float = Field(ge=-0.5, le=1, description="Flat annual growth during the forecast period")
     forecast_years: int = Field(gt=0, le=15)
     wacc: float = Field(gt=0, le=1)
-    terminal_growth_rate: float = Field(ge=-0.05, le=1)
+    terminal_growth_rate: float = Field(
+        ge=-0.05,
+        le=0.06,
+        description="Perpetual growth rate. Capped at 6% — a company can't outgrow the "
+        "long-run economy forever, so higher values are treated as almost always a modeling "
+        "error rather than a deliberate assumption.",
+    )
     net_debt: float = Field(description="Total debt less cash; negative if net cash")
     diluted_shares_outstanding: float = Field(gt=0)
 

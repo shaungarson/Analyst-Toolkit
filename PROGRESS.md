@@ -1,7 +1,7 @@
 # Analyst Toolkit — Progress
 
 ## Current Phase
-Phase 4 — Professional Utility (complete: scenario saving, CSV export, print output)
+Phase 5 — Validation (complete: edge cases and error handling for both modules)
 
 ## Done
 * React + Vite frontend scaffolded (`frontend/`)
@@ -44,12 +44,33 @@ Phase 4 — Professional Utility (complete: scenario saving, CSV export, print o
   match the DOM; a manual Ctrl+P spot-check is still worth doing since this environment can't
   render print media for a screenshot.
 
+* **Phase 5 — edge cases and error handling.** A review pass over both modules' input
+  validation turned up two real bugs, not just polish:
+  - Real estate: LTV of exactly 100% made initial equity exactly zero, which crashed the
+    backend with an unhandled `ZeroDivisionError` (raw 500 response) instead of a clean
+    error. Fixed by constraining `ltv` to strictly below 1 in the Pydantic schema.
+  - Real estate: the API rejected a 0% interest rate even though the amortization math
+    already handled it correctly (and the frontend's own input already allowed 0) — the
+    schema was stricter than it needed to be. Fixed by allowing `interest_rate == 0`.
+  - DCF: `terminal_growth_rate` allowed up to 100%, which is economically nonsensical for a
+    perpetuity (a company can't outgrow the economy forever) and could silently produce a
+    wildly inflated valuation from a simple input typo. Capped at 6%.
+  - Added 5 new backend tests covering these bounds (19 total).
+  - Frontend: distinguished "the backend rejected your input" (shows the specific reason)
+    from "the backend is unreachable" (shows a clear "make sure it's running" message) —
+    previously both cases showed the same generic "Calculation failed" text. This mattered
+    more than expected: because requests go through Vite's dev proxy, a backend outage
+    shows up as an HTTP 502 with an unparseable body, not a raw network failure, so the
+    two cases needed to be told apart explicitly rather than relying on a try/catch alone.
+  - Verified all of this live in the browser, including temporarily stopping the backend
+    to confirm the "unreachable" message actually appears, not just that it compiles.
+
 ## In Progress
 * (nothing yet)
 
 ## Near-Term Next Steps
-* Git commit for CSV export and print output (closes out Phase 4)
-* Decide next: Phase 5 (validation — edge cases, error handling) or Phase 6 (UX & visual design pass)
+* Git commit for Phase 5 validation work
+* Start Phase 6: UX & visual design pass
 
 ## Deferred (intentionally, for now)
 * Real estate: multi-year cash flows, rent/NOI growth, acquisition/disposition costs, refinancing, multiple debt tranches, sensitivity analysis, scenario comparison, waterfalls/promotes
@@ -101,3 +122,9 @@ Since revenue-driver/margin/CapEx build-up is explicitly deferred (Section 3), t
 
 **2026-08-13 — CSV export is client-side only, no backend endpoint**
 The results data needed for export already lives in the frontend (it's what's rendered on screen), so building a CSV file in the browser and triggering a download needs no round-trip to the backend. Keeps the backend stateless per Section 10 and avoids adding an export endpoint for no real benefit.
+
+**2026-08-13 — DCF terminal growth rate capped at 6%, not left fully open**
+Unlike the WACC/mid-year/flat-growth items above, this wasn't flagged as a convention question first — it's a straightforward validation fix (Section 5 autonomy), not a methodology choice with two legitimate answers. A terminal growth rate above long-run economic growth is essentially always a modeling error, not a deliberate assumption, since it implies the company eventually outgrows the entire economy forever. Mentioned here for visibility in case a future scenario genuinely needs a higher figure — the bound can be revisited if so.
+
+**2026-08-13 — uvicorn --reload is unreliable in this dev environment**
+Twice in one session, editing backend files (new routers, then schema validation fixes) didn't take effect despite WatchFiles logging "Reloading..." — the server kept serving stale code until fully killed and restarted. Now treating a full restart as the default after any backend change, rather than trusting --reload. Saved as a standing memory so future sessions don't lose time re-discovering this.

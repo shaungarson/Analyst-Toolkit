@@ -4,8 +4,8 @@ from pydantic import BaseModel, Field
 class RealEstateInputs(BaseModel):
     purchase_price: float = Field(gt=0)
     going_in_noi: float = Field(gt=0)
-    ltv: float = Field(gt=0, le=1, description="Loan-to-value, e.g. 0.65 for 65%")
-    interest_rate: float = Field(gt=0, le=1, description="Annual rate, e.g. 0.06 for 6%")
+    ltv: float = Field(gt=0, lt=1, description="Loan-to-value, e.g. 0.65 for 65%. Must be below 1 (100%) so initial equity is never zero.")
+    interest_rate: float = Field(ge=0, le=1, description="Annual rate, e.g. 0.06 for 6%. 0 is a valid input (interest-free financing).")
     amortization_years: int = Field(gt=0, le=50)
     hold_period_years: int = Field(gt=0, le=30)
     exit_cap_rate: float = Field(gt=0, le=1, description="e.g. 0.065 for 6.5%")
