@@ -9,20 +9,31 @@ class RealEstateInputs(BaseModel):
     amortization_years: int = Field(gt=0, le=50)
     hold_period_years: int = Field(gt=0, le=30)
     exit_cap_rate: float = Field(gt=0, le=1, description="e.g. 0.065 for 6.5%")
+    noi_growth_rate: float = Field(
+        ge=-0.10, le=0.15, description="Flat annual NOI growth rate applied from Year 2 onward"
+    )
+    acquisition_cost_pct: float = Field(
+        ge=0, le=0.10, description="Acquisition costs as a % of purchase price, e.g. 0.02 for 2%"
+    )
+    disposition_cost_pct: float = Field(
+        ge=0, le=0.10, description="Disposition costs as a % of gross sale price, e.g. 0.02 for 2%"
+    )
 
 
-class AmortizationYear(BaseModel):
+class AnnualScheduleYear(BaseModel):
     year: int
-    beginning_balance: float
+    noi: float
     interest: float
     principal: float
     debt_service: float
-    ending_balance: float
+    cash_flow_to_equity: float
+    ending_loan_balance: float
 
 
 class ExitSummary(BaseModel):
     exit_noi: float
     gross_sale_price: float
+    disposition_costs: float
     remaining_loan_balance: float
     net_sale_proceeds: float
 
@@ -30,11 +41,11 @@ class ExitSummary(BaseModel):
 class RealEstateResults(BaseModel):
     going_in_cap_rate: float
     loan_amount: float
+    acquisition_costs: float
     initial_equity: float
     annual_debt_service: float
     cash_on_cash_year_1: float
-    amortization_schedule: list[AmortizationYear]
-    annual_cash_flows: list[float]
+    annual_schedule: list[AnnualScheduleYear]
     exit: ExitSummary
     irr: float | None
     equity_multiple: float

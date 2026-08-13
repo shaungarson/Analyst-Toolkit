@@ -14,6 +14,9 @@ const EXAMPLE = {
   amortizationYears: '30',
   holdPeriodYears: '5',
   exitCapRate: '6.75',
+  noiGrowthRate: '3',
+  acquisitionCostPct: '1.5',
+  dispositionCostPct: '2',
 }
 
 const EMPTY = {
@@ -24,6 +27,9 @@ const EMPTY = {
   amortizationYears: '',
   holdPeriodYears: '',
   exitCapRate: '',
+  noiGrowthRate: '',
+  acquisitionCostPct: '',
+  dispositionCostPct: '',
 }
 
 function RealEstateUnderwriting() {
@@ -55,23 +61,34 @@ function RealEstateUnderwriting() {
       ['Metric', 'Value'],
       ['Going-in Cap Rate', percent(results.going_in_cap_rate)],
       ['Loan Amount', results.loan_amount],
+      ['Acquisition Costs', results.acquisition_costs],
       ['Initial Equity', results.initial_equity],
-      ['Annual Debt Service', results.annual_debt_service],
+      ['Annual Debt Service (Yr 1)', results.annual_debt_service],
       ['Cash-on-Cash (Yr 1)', percent(results.cash_on_cash_year_1)],
       ['IRR', results.irr === null ? 'n/a' : percent(results.irr)],
       ['Equity Multiple', `${results.equity_multiple.toFixed(2)}x`],
       ['Exit Sale Price', results.exit.gross_sale_price],
+      ['Disposition Costs', results.exit.disposition_costs],
       ['Net Sale Proceeds', results.exit.net_sale_proceeds],
       [],
-      ['Debt Amortization Schedule'],
-      ['Year', 'Beginning Balance', 'Interest', 'Principal', 'Debt Service', 'Ending Balance'],
-      ...results.amortization_schedule.map((row) => [
+      ['Annual Cash Flow Schedule'],
+      [
+        'Year',
+        'NOI',
+        'Interest',
+        'Principal',
+        'Debt Service',
+        'Cash Flow to Equity',
+        'Ending Loan Balance',
+      ],
+      ...results.annual_schedule.map((row) => [
         row.year,
-        row.beginning_balance,
+        row.noi,
         row.interest,
         row.principal,
         row.debt_service,
-        row.ending_balance,
+        row.cash_flow_to_equity,
+        row.ending_loan_balance,
       ]),
     ]
     downloadCsv('real-estate-underwriting.csv', rows)
@@ -90,6 +107,9 @@ function RealEstateUnderwriting() {
         amortization_years: Number(form.amortizationYears),
         hold_period_years: Number(form.holdPeriodYears),
         exit_cap_rate: Number(form.exitCapRate) / 100,
+        noi_growth_rate: Number(form.noiGrowthRate) / 100,
+        acquisition_cost_pct: Number(form.acquisitionCostPct) / 100,
+        disposition_cost_pct: Number(form.dispositionCostPct) / 100,
       }
       const res = await fetch(`${API_BASE}/api/real-estate/underwrite`, {
         method: 'POST',
@@ -112,7 +132,7 @@ function RealEstateUnderwriting() {
     <div className="feature-page">
       <h1>Real Estate Underwriting</h1>
       <p className="subtitle">
-        Single-period acquisition model: purchase price, financing, and a five-year-style hold
+        Multi-year acquisition model: purchase price, financing, NOI growth, and a hold period
         through exit.
       </p>
 
@@ -139,6 +159,18 @@ function RealEstateUnderwriting() {
               step="any"
               value={form.goingInNoi}
               onChange={handleChange('goingInNoi')}
+            />
+          </label>
+          <label>
+            Acquisition Costs (% of Purchase Price)
+            <input
+              type="number"
+              required
+              min="0"
+              max="10"
+              step="any"
+              value={form.acquisitionCostPct}
+              onChange={handleChange('acquisitionCostPct')}
             />
           </label>
         </fieldset>
@@ -198,6 +230,18 @@ function RealEstateUnderwriting() {
             />
           </label>
           <label>
+            NOI Growth Rate (%/yr, from Year 2 on)
+            <input
+              type="number"
+              required
+              min="-10"
+              max="15"
+              step="any"
+              value={form.noiGrowthRate}
+              onChange={handleChange('noiGrowthRate')}
+            />
+          </label>
+          <label>
             Exit Cap Rate (%)
             <input
               type="number"
@@ -207,6 +251,18 @@ function RealEstateUnderwriting() {
               step="any"
               value={form.exitCapRate}
               onChange={handleChange('exitCapRate')}
+            />
+          </label>
+          <label>
+            Disposition Costs (% of Sale Price)
+            <input
+              type="number"
+              required
+              min="0"
+              max="10"
+              step="any"
+              value={form.dispositionCostPct}
+              onChange={handleChange('dispositionCostPct')}
             />
           </label>
         </fieldset>
@@ -249,11 +305,15 @@ function RealEstateUnderwriting() {
               <span className="value">{currency(results.loan_amount)}</span>
             </div>
             <div className="metric">
+              <span className="label">Acquisition Costs</span>
+              <span className="value">{currency(results.acquisition_costs)}</span>
+            </div>
+            <div className="metric">
               <span className="label">Initial Equity</span>
               <span className="value">{currency(results.initial_equity)}</span>
             </div>
             <div className="metric">
-              <span className="label">Annual Debt Service</span>
+              <span className="label">Annual Debt Service (Yr 1)</span>
               <span className="value">{currency(results.annual_debt_service)}</span>
             </div>
             <div className="metric">
@@ -275,33 +335,39 @@ function RealEstateUnderwriting() {
               <span className="value">{currency(results.exit.gross_sale_price)}</span>
             </div>
             <div className="metric">
+              <span className="label">Disposition Costs</span>
+              <span className="value">{currency(results.exit.disposition_costs)}</span>
+            </div>
+            <div className="metric">
               <span className="label">Net Sale Proceeds</span>
               <span className="value">{currency(results.exit.net_sale_proceeds)}</span>
             </div>
           </div>
 
-          <h3>Debt Amortization Schedule</h3>
+          <h3>Annual Cash Flow Schedule</h3>
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
                   <th>Year</th>
-                  <th>Beginning Balance</th>
+                  <th>NOI</th>
                   <th>Interest</th>
                   <th>Principal</th>
                   <th>Debt Service</th>
-                  <th>Ending Balance</th>
+                  <th>Cash Flow to Equity</th>
+                  <th>Ending Loan Balance</th>
                 </tr>
               </thead>
               <tbody>
-                {results.amortization_schedule.map((row) => (
+                {results.annual_schedule.map((row) => (
                   <tr key={row.year}>
                     <td>{row.year}</td>
-                    <td>{currency(row.beginning_balance)}</td>
+                    <td>{currency(row.noi)}</td>
                     <td>{currency(row.interest)}</td>
                     <td>{currency(row.principal)}</td>
                     <td>{currency(row.debt_service)}</td>
-                    <td>{currency(row.ending_balance)}</td>
+                    <td>{currency(row.cash_flow_to_equity)}</td>
+                    <td>{currency(row.ending_loan_balance)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -309,10 +375,12 @@ function RealEstateUnderwriting() {
           </div>
 
           <p className="assumptions">
-            Modeling assumptions: NOI held flat over the hold period (no growth modeled yet);
-            debt amortizes with level monthly payments; no acquisition or disposition costs are
-            included; exit value is based on the same flat NOI capitalized at the exit cap rate;
-            IRR is computed on annual, end-of-year equity cash flows.
+            Modeling assumptions: NOI grows at one flat annual rate starting in Year 2 (Year 1
+            is the unescalated going-in NOI); debt amortizes with level monthly payments and is
+            unaffected by growth; acquisition and disposition costs are flat percentages, not
+            itemized; exit value is based on NOI one year past the end of the hold period (the
+            income the buyer is purchasing), capitalized at the exit cap rate; IRR is computed
+            on annual, end-of-year equity cash flows.
           </p>
         </div>
       )}

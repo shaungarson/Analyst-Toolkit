@@ -1,7 +1,8 @@
 # Analyst Toolkit — Progress
 
 ## Current Phase
-Phase 7 — Deployment (complete: app is live)
+Phase 8 — Advanced Analyst Features (real estate multi-year model complete; sensitivity
+analysis and scenario comparison still to come)
 
 ## Live Links
 * App: https://analyst-toolkit-ecru.vercel.app
@@ -118,12 +119,43 @@ Phase 7 — Deployment (complete: app is live)
     minutes idle, so the first request after a quiet period takes 30-60s to wake up. Not a
     bug — just how free hosting behaves. Worth a heads-up if demoing live.
 
+* **Phase 8 — real estate multi-year model.** Agreed order for the rest of Phase 8 with the
+  user: (1) real estate multi-year growth [this], (2) real estate sensitivity analysis, (3)
+  DCF WACC × terminal-growth sensitivity, (4) scenario comparison. Structure was explained
+  in plain language and explicitly agreed before any code was written, per the user's
+  request.
+  - NOI now grows at one flat annual rate from Year 2 onward (Year 1 stays the unescalated
+    going-in NOI, consistent with what "going-in cap rate" actually means).
+  - Added acquisition costs (% of purchase price, added to equity required) and disposition
+    costs (% of sale price, deducted from sale proceeds) — both previously deferred.
+  - Fixed a simplification flagged back in the V1 decision log: exit value now uses NOI one
+    year past the end of the hold period (what the buyer is actually purchasing), not the
+    flat going-in NOI. This was "free" to fix once growth was modeled — no new input needed.
+  - The debt amortization math itself didn't change at all — growth only affects NOI, not
+    the loan schedule, so `amortization_schedule()` was untouched.
+  - Restructured the results around one combined `annual_schedule` (year, NOI, interest,
+    principal, debt service, cash flow to equity, ending loan balance) instead of two
+    separate tables, so growth is visible and auditable year-by-year, not just baked into
+    the aggregate IRR.
+  - 8 new/updated backend tests (24 total), including a fully hand-computed scenario with
+    growth and costs together — the IRR in that test was solved independently by hand via
+    the quadratic formula (not by trusting the code), and matched the computed result to
+    within the stated tolerance.
+  - On the example deal: IRR moved from 5.62% (flat V1 model) to 11.4% and equity multiple
+    from 1.28x to 1.65x once growth and the corrected exit convention were modeled — a
+    substantial, expected change, not a sign of a mistake.
+  - Verified end-to-end in the browser (not just via curl): the CSV export was checked by
+    intercepting the actual generated file content, and the DCF module was re-verified
+    unaffected as a smoke test.
+
 ## In Progress
-* (nothing yet)
+* Phase 8 continues: real estate sensitivity analysis next
 
 ## Near-Term Next Steps
-* Decide next: Phase 8 (deferred advanced features) or README polish now that there's a
-  live link to put in it (Section 14)
+* Real estate sensitivity analysis (e.g. IRR across exit cap rate × hold period)
+* DCF WACC × terminal-growth sensitivity analysis
+* Scenario comparison (viewing saved scenarios side by side)
+* README polish once Phase 8 settles, now that there's a live link to put in it (Section 14)
 
 ## Recent verification notes
 * 2026-08-13 — user manually resized the browser window and toggled OS dark mode; both held
@@ -131,8 +163,11 @@ Phase 7 — Deployment (complete: app is live)
   adequately covered without further dedicated work for now.
 
 ## Deferred (intentionally, for now)
-* Real estate: multi-year cash flows, rent/NOI growth, acquisition/disposition costs, refinancing, multiple debt tranches, sensitivity analysis, scenario comparison, waterfalls/promotes
-* DCF: historical financials, revenue-driver forecasts, margin/working-capital/CapEx modeling, WACC build-up, comparable-company inputs, scenario analysis
+* Real estate: refinancing, multiple debt tranches, sensitivity analysis (next up), scenario
+  comparison (next up), waterfalls/promotes. (Multi-year cash flows, rent/NOI growth, and
+  acquisition/disposition costs are done as of 2026-08-13.)
+* DCF: historical financials, revenue-driver forecasts, margin/working-capital/CapEx modeling, WACC build-up, comparable-company inputs, sensitivity analysis (next up), scenario comparison (next up)
+* Long-term (Phase 9, not scoped/scheduled): document extraction (OMs/rent rolls/T12s), auto-structuring inputs, missing/inconsistent data detection, AI-generated scenarios, risk flagging, sensitivity interpretation, IC-style commentary, professional export formats — see CLAUDE.md Section 8
 * TypeScript adoption
 * Backend / database / auth / cloud storage
 * AI analyst features (Phase 9)
@@ -194,3 +229,13 @@ Chosen because the target audience (PE, real estate asset management, recruiters
 **2026-08-13 — Deployment stack: GitHub + Render (backend) + Vercel (frontend)**
 Alternatives considered: Railway or Fly.io for the backend (also viable, more setup complexity for no clear benefit at this scale); GitHub Pages for the frontend (free, but awkward for a Vite SPA and doesn't solve the backend hosting problem at all).
 Chosen as the most common, best-documented free-tier pairing for exactly this shape of project (static frontend + small Python API, no database). Flagged to the user first since it meant creating external accounts and pushing code somewhere public — a Section 5 stop-and-ask situation. I handled all code-side prep (configurable CORS, configurable API base URL); the user did every account-creation and deploy-button step themselves, since I can't hold credentials or create accounts on anyone's behalf.
+
+**2026-08-13 — Long-term product direction clarified: modeling engine is the foundation, AI workflow automation is the differentiator**
+The user explicitly does not want Analyst Toolkit to evolve into "just" an increasingly complex financial calculator or Excel replacement. Long-term vision: an AI-powered analyst workflow tool — raw deal/company information → structured assumptions → financial model → scenarios/sensitivities → risks/insights → decision-ready summary/export — where AI and automation progressively reduce the manual effort between those stages (document extraction from OMs/rent rolls/T12s, auto-structuring inputs, flagging missing/inconsistent data, scenario generation, risk flagging, sensitivity interpretation, IC-style commentary, professional export). None of this is scoped or scheduled — it's Phase 9, explicitly gated on the modeling engine (Phase 8) being solid first. Captured in CLAUDE.md Sections 1 and 8 so it persists as durable project direction, not just session context.
+
+**2026-08-13 — Phase 8 order agreed: real estate multi-year growth → real estate sensitivity → DCF WACC×terminal-growth sensitivity → scenario comparison**
+Chosen (with the user) because real estate's flat-NOI assumption was the single most-flagged simplification across Phases 2–5, and sensitivity analysis is a defining feature of real analyst work that's relatively contained to build well — both close real credibility gaps for low relative complexity. Bigger items (waterfalls/promotes, multiple debt tranches, full WACC build-up, comparable-company inputs) are deliberately left for later, separately scoped efforts rather than folded into this pass.
+
+**2026-08-13 — Real estate multi-year growth: flat rate from Year 2, forward-looking exit NOI, flat-% costs**
+Alternatives considered: per-lease/rollover-level rent modeling (too heavy for this stage — genuinely valuable only once real document data feeds it, which is a Phase 9 concern); itemized acquisition/disposition cost line items instead of one flat percentage each (more precision than the model needs right now).
+The structure was explained in plain language and explicitly agreed with the user before writing any code, per their request: one flat NOI growth rate from Year 2 onward (Year 1 = going-in NOI, unescalated, consistent with what "going-in cap rate" means), one flat acquisition-cost percentage added to required equity, one flat disposition-cost percentage deducted from sale proceeds, and — the one methodology bug this fixes for free — exit value now uses NOI one year past the end of the hold period instead of the flat going-in NOI, which was flagged as a known simplification back in the V1 decision log. Debt amortization math is completely unchanged; growth only touches the NOI side.

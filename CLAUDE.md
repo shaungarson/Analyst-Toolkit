@@ -8,6 +8,8 @@ Target reaction: **"This person knows how to use AI to build tools that could ma
 
 It should also be genuinely useful, and structured so it can grow into something more sophisticated later.
 
+**Long-term product direction:** the financial modeling engine (Phases 2–3, 8) is the foundation, not the end state — Analyst Toolkit should not evolve into "just" an increasingly complex financial calculator or an Excel replacement. The eventual differentiator is an AI-powered analyst *workflow* tool: reducing the repetitive manual effort between raw information and a decision-ready analysis, built on top of a modeling core that's rigorous enough for a real analyst to trust. See Phase 9 (Section 8) for the mental model and future capability list — none of it is scoped or scheduled yet; it does not block current work.
+
 ---
 
 ## 2. Tech Stack (Decided)
@@ -95,8 +97,22 @@ Treat calculations as core logic, not UI output:
 5. **Validation** — financial tests, input validation, edge cases, error handling
 6. **UX & Visual Design** — hierarchy, navigation, typography, charts, responsive behavior (don't lock into the current prototype's visual identity early)
 7. **Deployment** — polished live version, shareable link
-8. **Advanced Analyst Features** — the deferred items from Section 3
-9. **AI Analyst Features** — result explanations, risk flags, sensitivity interpretation, scenario comparison, IC-style commentary. Does not block the recruiter-ready version.
+8. **Advanced Analyst Features** — the deferred items from Section 3. This is where financial modeling depth gets built out (multi-year cash flows, growth assumptions, sensitivity analysis, scenario comparison, WACC build-up, etc.) — the foundation the Phase 9 vision below depends on.
+9. **AI Analyst Features (long-term differentiator — not scoped or scheduled; do not build until explicitly instructed)** — the eventual product direction, once the modeling engine is mature:
+
+   Mental model: raw deal/company information → structured assumptions → financial model → scenarios/sensitivities → risks/insights → decision-ready summary/export. Over time, AI and workflow automation should reduce the manual effort between those stages.
+
+   Example future capabilities (illustrative, not a spec):
+   * Importing/extracting data from source documents (OMs, rent rolls, T12s, financial statements) into structured model inputs
+   * Automatically structuring raw inputs for the model
+   * Identifying missing or inconsistent information in provided data
+   * Generating and comparing scenarios
+   * Flagging underwriting or valuation risks
+   * Interpreting sensitivity results in plain language
+   * Generating investment summaries or IC-style commentary
+   * Exporting analysis into professional formats
+
+   Does not block the recruiter-ready version.
 
 ---
 

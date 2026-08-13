@@ -1,11 +1,16 @@
-"""Real estate underwriting calculations (V1 scope).
+"""Real estate underwriting calculations (multi-year V2 scope).
 
 Modeling assumptions, explicit by design:
-- NOI is held flat over the hold period (no rent/NOI growth — deferred, see CLAUDE.md Section 3).
+- NOI grows at a single flat annual rate for the whole hold period, starting in Year 2
+  (Year 1 is the going-in NOI, unescalated — that's what "going-in" means and what sizes the
+  going-in cap rate). No per-lease/rollover modeling, no separate expense-growth assumption.
 - Debt amortizes with level monthly payments and monthly compounding (standard commercial
-  mortgage convention), rolled up into annual totals for the schedule and cash flows.
-- No acquisition or disposition costs are modeled (deferred).
-- Exit value uses the same flat NOI as going-in NOI, capitalized at the exit cap rate.
+  mortgage convention), rolled up into annual totals. Growth doesn't affect the debt schedule.
+- Acquisition and disposition costs are single flat percentages (of purchase price and gross
+  sale price respectively), not itemized line items.
+- Exit value is based on NOI one year past the end of the hold period (the income the buyer
+  is purchasing), not the flat going-in NOI — the standard convention now that growth is
+  modeled explicitly.
 - IRR is computed on annual, end-of-year equity cash flows (standard underwriting convention).
 """
 
@@ -14,6 +19,11 @@ import numpy_financial as npf
 
 def cap_rate(noi, price):
     return noi / price
+
+
+def project_noi(going_in_noi, growth_rate, hold_period_years):
+    """Year 1 = going-in NOI unescalated; growth applies from Year 2 onward."""
+    return [going_in_noi * (1 + growth_rate) ** t for t in range(hold_period_years)]
 
 
 def amortization_schedule(loan_amount, annual_rate, amortization_years, hold_period_years):
@@ -91,20 +101,42 @@ def underwrite_real_estate(
     amortization_years,
     hold_period_years,
     exit_cap_rate,
+    noi_growth_rate,
+    acquisition_cost_pct,
+    disposition_cost_pct,
 ):
     loan_amount = round(purchase_price * ltv, 2)
-    initial_equity = round(purchase_price - loan_amount, 2)
+    acquisition_costs = round(purchase_price * acquisition_cost_pct, 2)
+    initial_equity = round(purchase_price - loan_amount + acquisition_costs, 2)
 
-    schedule, _ = amortization_schedule(
+    debt_schedule, _ = amortization_schedule(
         loan_amount, interest_rate, amortization_years, hold_period_years
     )
+    noi_by_year = project_noi(going_in_noi, noi_growth_rate, hold_period_years)
 
-    annual_cash_flows = [round(going_in_noi - row["debt_service"], 2) for row in schedule]
+    annual_schedule = []
+    annual_cash_flows = []
+    for debt_row, noi in zip(debt_schedule, noi_by_year):
+        noi = round(noi, 2)
+        cf = round(noi - debt_row["debt_service"], 2)
+        annual_cash_flows.append(cf)
+        annual_schedule.append(
+            {
+                "year": debt_row["year"],
+                "noi": noi,
+                "interest": debt_row["interest"],
+                "principal": debt_row["principal"],
+                "debt_service": debt_row["debt_service"],
+                "cash_flow_to_equity": cf,
+                "ending_loan_balance": debt_row["ending_balance"],
+            }
+        )
 
-    exit_noi = going_in_noi
+    exit_noi = round(going_in_noi * (1 + noi_growth_rate) ** hold_period_years, 2)
     gross_sale_price = round(exit_value(exit_noi, exit_cap_rate), 2)
-    remaining_loan_balance = schedule[-1]["ending_balance"]
-    net_sale_proceeds = round(gross_sale_price - remaining_loan_balance, 2)
+    disposition_costs = round(gross_sale_price * disposition_cost_pct, 2)
+    remaining_loan_balance = annual_schedule[-1]["ending_loan_balance"]
+    net_sale_proceeds = round(gross_sale_price - disposition_costs - remaining_loan_balance, 2)
 
     equity_cash_flows = [-initial_equity]
     for i, cf in enumerate(annual_cash_flows):
@@ -117,14 +149,15 @@ def underwrite_real_estate(
     return {
         "going_in_cap_rate": cap_rate(going_in_noi, purchase_price),
         "loan_amount": loan_amount,
+        "acquisition_costs": acquisition_costs,
         "initial_equity": initial_equity,
-        "annual_debt_service": schedule[0]["debt_service"] if schedule else 0.0,
+        "annual_debt_service": annual_schedule[0]["debt_service"] if annual_schedule else 0.0,
         "cash_on_cash_year_1": cash_on_cash(annual_cash_flows[0], initial_equity),
-        "amortization_schedule": schedule,
-        "annual_cash_flows": annual_cash_flows,
+        "annual_schedule": annual_schedule,
         "exit": {
             "exit_noi": exit_noi,
             "gross_sale_price": gross_sale_price,
+            "disposition_costs": disposition_costs,
             "remaining_loan_balance": remaining_loan_balance,
             "net_sale_proceeds": net_sale_proceeds,
         },
