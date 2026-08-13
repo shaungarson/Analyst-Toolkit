@@ -1,7 +1,7 @@
 # Analyst Toolkit — Progress
 
 ## Current Phase
-Phase 3 — DCF Valuation MVP (V1 scope complete)
+Phase 4 — Professional Utility (scenario saving done, export/print not yet started)
 
 ## Done
 * React + Vite frontend scaffolded (`frontend/`)
@@ -27,13 +27,19 @@ Phase 3 — DCF Valuation MVP (V1 scope complete)
 * Verified end-to-end in the browser: both modules' worked examples, cross-checked by hand
   against the displayed results
 
+* **Local scenario saving** (Phase 4): save a named set of inputs to `localStorage` and reload
+  it later, for both modules. Built as one shared hook (`frontend/src/lib/useScenarios.js`) and
+  one shared UI component (`frontend/src/components/ScenarioManager.jsx`), each module supplies
+  its own storage key so the two modules' saved scenarios never mix. Verified in the browser:
+  save, full page reload (confirms real persistence, not just in-memory state), load back into
+  the form, delete.
+
 ## In Progress
 * (nothing yet)
 
 ## Near-Term Next Steps
-* Git commit for the Phase 3 DCF MVP
-* Decide next: Phase 4 (professional utility — scenario saving, export, print) or continue
-  building out Phase 5 validation/edge cases for the two existing modules first
+* Git commit for scenario saving
+* Continue Phase 4: CSV export of results, print/PDF-friendly output for both modules
 
 ## Deferred (intentionally, for now)
 * Real estate: multi-year cash flows, rent/NOI growth, acquisition/disposition costs, refinancing, multiple debt tranches, sensitivity analysis, scenario comparison, waterfalls/promotes

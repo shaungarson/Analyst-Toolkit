@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { currency } from '../../lib/format'
+import ScenarioManager from '../../components/ScenarioManager'
 import '../../styles/feature-form.css'
 
 const EXAMPLE = {
@@ -34,6 +35,12 @@ function DcfValuation() {
 
   const loadExample = () => {
     setForm(EXAMPLE)
+    setResults(null)
+    setError(null)
+  }
+
+  const loadScenario = (data) => {
+    setForm(data)
     setResults(null)
     setError(null)
   }
@@ -176,6 +183,8 @@ function DcfValuation() {
           </button>
         </div>
       </form>
+
+      <ScenarioManager storageKey="dcf" currentData={form} onLoad={loadScenario} />
 
       {error && <p className="error">{error}</p>}
 
