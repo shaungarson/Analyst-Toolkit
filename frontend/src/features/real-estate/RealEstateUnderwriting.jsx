@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { currency, percent } from '../../lib/format'
 import { downloadCsv } from '../../lib/csv'
 import { friendlyErrorMessage, parseErrorResponse } from '../../lib/apiError'
+import { API_BASE } from '../../lib/apiBase'
 import ScenarioManager from '../../components/ScenarioManager'
 import '../../styles/feature-form.css'
 
@@ -90,7 +91,7 @@ function RealEstateUnderwriting() {
         hold_period_years: Number(form.holdPeriodYears),
         exit_cap_rate: Number(form.exitCapRate) / 100,
       }
-      const res = await fetch('/api/real-estate/underwrite', {
+      const res = await fetch(`${API_BASE}/api/real-estate/underwrite`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

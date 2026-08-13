@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { currency } from '../../lib/format'
 import { downloadCsv } from '../../lib/csv'
 import { friendlyErrorMessage, parseErrorResponse } from '../../lib/apiError'
+import { API_BASE } from '../../lib/apiBase'
 import ScenarioManager from '../../components/ScenarioManager'
 import '../../styles/feature-form.css'
 
@@ -84,7 +85,7 @@ function DcfValuation() {
         net_debt: Number(form.netDebt),
         diluted_shares_outstanding: Number(form.dilutedSharesOutstanding),
       }
-      const res = await fetch('/api/dcf/valuation', {
+      const res = await fetch(`${API_BASE}/api/dcf/valuation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

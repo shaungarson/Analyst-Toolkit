@@ -1,8 +1,7 @@
 # Analyst Toolkit — Progress
 
 ## Current Phase
-Phase 6 — UX & Visual Design (color/typography direction chosen and applied; responsive
-behavior and charts not yet addressed)
+Phase 7 — Deployment (code prep done; account setup with the user in progress)
 
 ## Done
 * React + Vite frontend scaffolded (`frontend/`)
@@ -86,13 +85,37 @@ behavior and charts not yet addressed)
   - Verified computed styles (not just visual screenshots) in both light and dark mode, on
     both modules, to confirm the palette actually cascades correctly everywhere.
 
+* **Phase 7 — deployment code prep.** Plan (agreed with the user, since this touches
+  external accounts and public infrastructure — a Section 5 stop-and-ask item): GitHub to
+  hold the repo remotely, Vercel for the static frontend, Render for the Python backend.
+  - Backend: CORS origins now read from an `ALLOWED_ORIGINS` env var (comma-separated),
+    defaulting to `http://localhost:5173` so local dev is unaffected. `backend/.env.example`
+    documents it.
+  - Frontend: added `frontend/src/lib/apiBase.js` — an `API_BASE` constant from
+    `VITE_API_BASE_URL`, empty by default so requests stay relative and keep using the Vite
+    dev proxy locally. In production it'll be set to the live Render URL so the static
+    Vercel build can reach the backend directly (no proxy exists outside `vite dev`).
+    `frontend/.env.example` documents it.
+  - Verified: `npm run build` succeeds, all 19 backend tests still pass, and local dev mode
+    (both modules) works completely unchanged after the config changes.
+  - Account creation and the actual deploys are being done by the user directly (I can't
+    create accounts or hold credentials) — I'm walking through it step by step.
+
 ## In Progress
-* Phase 6 continues: responsive/mobile behavior and (if warranted) charts not yet addressed
+* Phase 7: GitHub repo creation → Render backend deploy → Vercel frontend deploy → final
+  CORS wiring, done interactively with the user
 
 ## Near-Term Next Steps
-* Git commit for the visual direction work
-* Decide: continue Phase 6 (responsive pass) now, or move to Phase 7 (deployment) and treat
-  further visual polish as ongoing
+* User creates the GitHub repo; I push the code
+* User deploys backend on Render, gets the live URL
+* User deploys frontend on Vercel with VITE_API_BASE_URL set to that Render URL
+* User sets ALLOWED_ORIGINS on Render to the Vercel URL, redeploys
+* Verify the live app end-to-end
+
+## Recent verification notes
+* 2026-08-13 — user manually resized the browser window and toggled OS dark mode; both held
+  up fine with no reported issues, so Phase 6's responsive-behavior item is considered
+  adequately covered without further dedicated work for now.
 
 ## Deferred (intentionally, for now)
 * Real estate: multi-year cash flows, rent/NOI growth, acquisition/disposition costs, refinancing, multiple debt tranches, sensitivity analysis, scenario comparison, waterfalls/promotes
