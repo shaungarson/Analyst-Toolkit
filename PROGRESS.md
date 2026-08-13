@@ -1,7 +1,12 @@
 # Analyst Toolkit — Progress
 
 ## Current Phase
-Phase 7 — Deployment (code prep done; account setup with the user in progress)
+Phase 7 — Deployment (complete: app is live)
+
+## Live Links
+* App: https://analyst-toolkit-ecru.vercel.app
+* API: https://analyst-toolkit.onrender.com
+* Source: https://github.com/shaungarson/Analyst-Toolkit
 
 ## Done
 * React + Vite frontend scaffolded (`frontend/`)
@@ -98,19 +103,27 @@ Phase 7 — Deployment (code prep done; account setup with the user in progress)
     `frontend/.env.example` documents it.
   - Verified: `npm run build` succeeds, all 19 backend tests still pass, and local dev mode
     (both modules) works completely unchanged after the config changes.
-  - Account creation and the actual deploys are being done by the user directly (I can't
-    create accounts or hold credentials) — I'm walking through it step by step.
+  - Account creation and the actual deploys were done by the user directly (I can't create
+    accounts or hold credentials) — walked through step by step, in order: GitHub repo
+    created and pushed, backend deployed on Render, frontend deployed on Vercel with
+    `VITE_API_BASE_URL` pointed at the Render URL, then `ALLOWED_ORIGINS` set on Render to
+    the Vercel URL to close the loop.
+  - Verified each stage independently rather than assuming success: backend health check
+    and a real calculation both tested directly against the Render URL via curl before
+    touching Vercel; confirmed via a CORS preflight check that the backend genuinely
+    rejected the Vercel origin before the ALLOWED_ORIGINS fix, and genuinely accepted it
+    after; then ran both modules' full worked examples against the actual live site in a
+    browser and confirmed the numbers matched what local dev and the backend tests produce.
+  - One free-tier quirk worth remembering: Render's free instance spins down after 15
+    minutes idle, so the first request after a quiet period takes 30-60s to wake up. Not a
+    bug — just how free hosting behaves. Worth a heads-up if demoing live.
 
 ## In Progress
-* Phase 7: GitHub repo creation → Render backend deploy → Vercel frontend deploy → final
-  CORS wiring, done interactively with the user
+* (nothing yet)
 
 ## Near-Term Next Steps
-* User creates the GitHub repo; I push the code
-* User deploys backend on Render, gets the live URL
-* User deploys frontend on Vercel with VITE_API_BASE_URL set to that Render URL
-* User sets ALLOWED_ORIGINS on Render to the Vercel URL, redeploys
-* Verify the live app end-to-end
+* Decide next: Phase 8 (deferred advanced features) or README polish now that there's a
+  live link to put in it (Section 14)
 
 ## Recent verification notes
 * 2026-08-13 — user manually resized the browser window and toggled OS dark mode; both held
@@ -177,3 +190,7 @@ Twice in one session, editing backend files (new routers, then schema validation
 **2026-08-13 — Visual direction: "Institutional" (navy/charcoal), chosen over "modern fintech"**
 Alternatives considered: a lighter, rounder "modern fintech" palette (indigo/emerald accents, softer corners) — a legitimate, more contemporary-feeling option, shown side by side as an actual mockup rather than described in words.
 Chosen because the target audience (PE, real estate asset management, recruiters, per Section 1) is more likely to read navy/charcoal conservatism as "understands finance culture" than a startup-fintech look would, which risks reading as generic-SaaS — the exact trap Section 15 warns against. Implemented as CSS custom properties so the choice is centralized and revisitable, not hand-picked per component.
+
+**2026-08-13 — Deployment stack: GitHub + Render (backend) + Vercel (frontend)**
+Alternatives considered: Railway or Fly.io for the backend (also viable, more setup complexity for no clear benefit at this scale); GitHub Pages for the frontend (free, but awkward for a Vite SPA and doesn't solve the backend hosting problem at all).
+Chosen as the most common, best-documented free-tier pairing for exactly this shape of project (static frontend + small Python API, no database). Flagged to the user first since it meant creating external accounts and pushing code somewhere public — a Section 5 stop-and-ask situation. I handled all code-side prep (configurable CORS, configurable API base URL); the user did every account-creation and deploy-button step themselves, since I can't hold credentials or create accounts on anyone's behalf.
