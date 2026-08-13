@@ -2,6 +2,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.calculations.dcf import (
+    dcf_sensitivity,
     discount_factor,
     present_value,
     project_fcf,
@@ -9,6 +10,16 @@ from app.calculations.dcf import (
     terminal_value,
 )
 from app.schemas.dcf import DCFInputs
+
+VALID_INPUTS = dict(
+    base_year_fcf=100,
+    fcf_growth_rate=0.05,
+    forecast_years=5,
+    wacc=0.10,
+    terminal_growth_rate=0.02,
+    net_debt=200,
+    diluted_shares_outstanding=100,
+)
 
 
 def test_present_value_hand_computed():
@@ -82,3 +93,46 @@ def test_terminal_growth_rate_capped_at_a_realistic_level():
             net_debt=0,
             diluted_shares_outstanding=10,
         )
+
+
+def test_dcf_sensitivity_center_cell_matches_base_case_value_per_share_exactly():
+    # Same principle as the real estate sensitivity grid: the center of the grid (delta
+    # 0, 0) must reproduce the exact same value per share as calling run_dcf directly
+    # with the base-case WACC and terminal growth rate.
+    base_result = run_dcf(**VALID_INPUTS)
+    sensitivity = dcf_sensitivity(**VALID_INPUTS)
+
+    assert VALID_INPUTS["terminal_growth_rate"] in sensitivity["terminal_growth_rates"]
+    center_col = sensitivity["terminal_growth_rates"].index(VALID_INPUTS["terminal_growth_rate"])
+
+    center_row = next(
+        row for row in sensitivity["rows"] if row["wacc"] == pytest.approx(VALID_INPUTS["wacc"])
+    )
+    assert center_row["value_per_share_by_growth"][center_col] == pytest.approx(
+        base_result["value_per_share"]
+    )
+
+
+def test_dcf_sensitivity_invalid_wacc_growth_combinations_are_null_not_crashes():
+    # A tight base-case spread (WACC 6.5%, terminal growth 5.5%) means some grid
+    # combinations push WACC to or below terminal growth - those must come back as null,
+    # not raise an exception or silently divide by zero/negative in the Gordon Growth
+    # formula.
+    sensitivity = dcf_sensitivity(
+        **{**VALID_INPUTS, "wacc": 0.065, "terminal_growth_rate": 0.055}
+    )
+    growth_idx = sensitivity["terminal_growth_rates"].index(0.06)
+    wacc_row = next(row for row in sensitivity["rows"] if row["wacc"] == pytest.approx(0.055))
+    assert wacc_row["value_per_share_by_growth"][growth_idx] is None
+
+    # But a comfortably wide combination in the same grid should still compute normally.
+    wide_row = next(row for row in sensitivity["rows"] if row["wacc"] == pytest.approx(0.075))
+    growth_low_idx = sensitivity["terminal_growth_rates"].index(0.045)
+    assert wide_row["value_per_share_by_growth"][growth_low_idx] is not None
+
+
+def test_dcf_sensitivity_grid_has_five_by_five_shape_in_the_typical_case():
+    sensitivity = dcf_sensitivity(**VALID_INPUTS)
+    assert len(sensitivity["rows"]) == 5
+    assert len(sensitivity["terminal_growth_rates"]) == 5
+    assert all(len(row["value_per_share_by_growth"]) == 5 for row in sensitivity["rows"])

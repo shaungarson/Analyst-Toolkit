@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { currency } from '../../lib/format'
+import { currency, percent } from '../../lib/format'
 import { downloadCsv } from '../../lib/csv'
 import { friendlyErrorMessage, parseErrorResponse } from '../../lib/apiError'
 import { API_BASE } from '../../lib/apiBase'
@@ -29,6 +29,7 @@ const EMPTY = {
 function DcfValuation() {
   const [form, setForm] = useState(EMPTY)
   const [results, setResults] = useState(null)
+  const [sensitivity, setSensitivity] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
 
@@ -39,12 +40,14 @@ function DcfValuation() {
   const loadExample = () => {
     setForm(EXAMPLE)
     setResults(null)
+    setSensitivity(null)
     setError(null)
   }
 
   const loadScenario = (data) => {
     setForm(data)
     setResults(null)
+    setSensitivity(null)
     setError(null)
   }
 
@@ -68,6 +71,19 @@ function DcfValuation() {
         row.present_value,
       ]),
     ]
+
+    if (sensitivity) {
+      rows.push(
+        [],
+        ['Sensitivity: Value per Share by WACC & Terminal Growth'],
+        ['WACC', ...sensitivity.terminal_growth_rates.map((g) => percent(g))],
+        ...sensitivity.rows.map((row) => [
+          percent(row.wacc),
+          ...row.value_per_share_by_growth.map((v) => (v === null ? 'n/a' : v)),
+        ]),
+      )
+    }
+
     downloadCsv('dcf-valuation.csv', rows)
   }
 
@@ -75,6 +91,7 @@ function DcfValuation() {
     e.preventDefault()
     setError(null)
     setLoading(true)
+    setSensitivity(null)
     try {
       const payload = {
         base_year_fcf: Number(form.baseYearFcf),
@@ -94,6 +111,21 @@ function DcfValuation() {
         throw new Error(await parseErrorResponse(res))
       }
       setResults(await res.json())
+
+      // Best-effort: the sensitivity grid is a supplementary view, so a failure here
+      // shouldn't block or overwrite the main valuation result the user asked for.
+      try {
+        const sensRes = await fetch(`${API_BASE}/api/dcf/sensitivity`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        if (sensRes.ok) {
+          setSensitivity(await sensRes.json())
+        }
+      } catch {
+        // Sensitivity grid is supplementary; leave it blank on failure.
+      }
     } catch (err) {
       setError(friendlyErrorMessage(err))
       setResults(null)
@@ -280,6 +312,58 @@ function DcfValuation() {
               </tbody>
             </table>
           </div>
+
+          {sensitivity && (
+            <>
+              <h3>Sensitivity: Value per Share by WACC &amp; Terminal Growth</h3>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>WACC</th>
+                      {sensitivity.terminal_growth_rates.map((g) => (
+                        <th key={g}>{percent(g)}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sensitivity.rows.map((row) => (
+                      <tr key={row.wacc}>
+                        <td>{percent(row.wacc)}</td>
+                        {row.value_per_share_by_growth.map((cellValue, i) => {
+                          const isBaseCase =
+                            Math.abs(row.wacc - Number(form.wacc) / 100) < 1e-6 &&
+                            Math.abs(
+                              sensitivity.terminal_growth_rates[i] -
+                                Number(form.terminalGrowthRate) / 100,
+                            ) < 1e-6
+                          return (
+                            <td
+                              key={i}
+                              className={isBaseCase ? 'sensitivity-base-case' : undefined}
+                            >
+                              {cellValue === null
+                                ? 'n/a'
+                                : cellValue.toLocaleString('en-US', {
+                                    style: 'currency',
+                                    currency: 'USD',
+                                  })}
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="assumptions">
+                Everything except WACC and terminal growth is held at the values above.
+                Combinations where WACC would fall at or below terminal growth are marked n/a
+                (undefined for the Gordon Growth formula). The highlighted cell matches your
+                base-case value per share exactly.
+              </p>
+            </>
+          )}
 
           <p className="assumptions">
             Modeling assumptions: explicit-period FCF is projected from the base year at a

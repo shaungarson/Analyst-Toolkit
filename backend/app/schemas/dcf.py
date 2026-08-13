@@ -37,3 +37,13 @@ class DCFResults(BaseModel):
     enterprise_value: float
     equity_value: float
     value_per_share: float
+
+
+class DcfSensitivityRow(BaseModel):
+    wacc: float
+    value_per_share_by_growth: list[float | None]
+
+
+class DcfSensitivityResults(BaseModel):
+    terminal_growth_rates: list[float]
+    rows: list[DcfSensitivityRow]

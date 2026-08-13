@@ -79,3 +79,56 @@ def run_dcf(
         "equity_value": round(eq_value, 2),
         "value_per_share": round(per_share, 2),
     }
+
+
+# Fixed deltas around the base case - not user-configurable, same reasoning as the real
+# estate sensitivity grid: a single "just show me the risk" view, not more inputs to fill in.
+WACC_DELTAS = [-0.01, -0.005, 0.0, 0.005, 0.01]
+TERMINAL_GROWTH_DELTAS = [-0.01, -0.005, 0.0, 0.005, 0.01]
+
+
+def dcf_sensitivity(
+    base_year_fcf,
+    fcf_growth_rate,
+    forecast_years,
+    wacc,
+    terminal_growth_rate,
+    net_debt,
+    diluted_shares_outstanding,
+):
+    """Value per share across a grid of WACC x terminal growth rate, holding everything
+    else at the base-case values. The center cell (delta 0, 0) always matches the base
+    case's own value per share exactly, since it's computed by the same run_dcf function.
+
+    Combinations where WACC <= terminal growth are mathematically invalid (the Gordon
+    Growth formula blows up or goes negative) and are marked null rather than computed.
+    """
+    wacc_values = sorted({round(wacc + d, 6) for d in WACC_DELTAS if 0 < wacc + d <= 1})
+    growth_values = sorted(
+        {
+            round(terminal_growth_rate + d, 6)
+            for d in TERMINAL_GROWTH_DELTAS
+            if -0.05 <= terminal_growth_rate + d <= 0.06
+        }
+    )
+
+    rows = []
+    for w in wacc_values:
+        value_per_share_by_growth = []
+        for g in growth_values:
+            if w <= g:
+                value_per_share_by_growth.append(None)
+                continue
+            result = run_dcf(
+                base_year_fcf=base_year_fcf,
+                fcf_growth_rate=fcf_growth_rate,
+                forecast_years=forecast_years,
+                wacc=w,
+                terminal_growth_rate=g,
+                net_debt=net_debt,
+                diluted_shares_outstanding=diluted_shares_outstanding,
+            )
+            value_per_share_by_growth.append(result["value_per_share"])
+        rows.append({"wacc": w, "value_per_share_by_growth": value_per_share_by_growth})
+
+    return {"terminal_growth_rates": growth_values, "rows": rows}

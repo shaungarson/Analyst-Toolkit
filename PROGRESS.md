@@ -1,8 +1,8 @@
 # Analyst Toolkit — Progress
 
 ## Current Phase
-Phase 8 — Advanced Analyst Features (real estate multi-year model and sensitivity analysis
-complete; DCF sensitivity and scenario comparison still to come)
+Phase 8 — Advanced Analyst Features (real estate multi-year model + sensitivity, and DCF
+sensitivity, all complete; scenario comparison still to come)
 
 ## Live Links
 * App: https://analyst-toolkit-ecru.vercel.app
@@ -166,14 +166,27 @@ complete; DCF sensitivity and scenario comparison still to come)
     result still displays fine — it's a supplementary view, not a dependency.
   - Verified end-to-end in the browser: grid renders, center-cell value and highlight both
     confirmed programmatically (not just visually), CSV export confirmed to include it.
+* **Phase 8 — DCF sensitivity analysis.** Same pattern as the real estate grid: a 5×5 table
+  of value per share by WACC (base ±100bps in 50bps steps) × terminal growth rate (same
+  deltas), reusing `run_dcf` in a loop.
+  - One real wrinkle real estate didn't have: WACC and terminal growth are coupled by the
+    `wacc > terminal_growth_rate` constraint, so unlike the independent-axis real estate
+    grid, some cells in a tight-spread base case are mathematically invalid (WACC at or
+    below terminal growth blows up the Gordon Growth formula) and must be marked `null`
+    rather than computed — verified with a test built specifically to produce that case
+    (narrow 6.5%/5.5% base spread), not just the comfortable default spread.
+  - Center cell verified to match the headline value per share exactly, same as real estate.
+  - 3 new backend tests (30 total across both modules).
+  - Verified end-to-end: center cell and highlight confirmed programmatically, CSV export
+    checked, and Real Estate re-verified unaffected as a smoke test.
 
 ## In Progress
-* Phase 8 continues: DCF WACC × terminal-growth sensitivity next
+* (nothing yet)
 
 ## Near-Term Next Steps
-* DCF WACC × terminal-growth sensitivity analysis
 * Scenario comparison (viewing saved scenarios side by side)
-* README polish once Phase 8 settles, now that there's a live link to put in it (Section 14)
+* README polish now that Phase 8's sensitivity work is done and there's a live link to put
+  in it (Section 14)
 
 ## Recent verification notes
 * 2026-08-13 — user manually resized the browser window and toggled OS dark mode; both held
@@ -184,7 +197,7 @@ complete; DCF sensitivity and scenario comparison still to come)
 * Real estate: refinancing, multiple debt tranches, scenario comparison (next up),
   waterfalls/promotes. (Multi-year cash flows, rent/NOI growth, acquisition/disposition
   costs, and sensitivity analysis are done as of 2026-08-13.)
-* DCF: historical financials, revenue-driver forecasts, margin/working-capital/CapEx modeling, WACC build-up, comparable-company inputs, sensitivity analysis (next up), scenario comparison (next up)
+* DCF: historical financials, revenue-driver forecasts, margin/working-capital/CapEx modeling, WACC build-up, comparable-company inputs, scenario comparison (next up). (Sensitivity analysis is done as of 2026-08-13.)
 * Long-term (Phase 9, not scoped/scheduled): document extraction (OMs/rent rolls/T12s), auto-structuring inputs, missing/inconsistent data detection, AI-generated scenarios, risk flagging, sensitivity interpretation, IC-style commentary, professional export formats — see CLAUDE.md Section 8
 * TypeScript adoption
 * Backend / database / auth / cloud storage
@@ -257,3 +270,7 @@ Chosen (with the user) because real estate's flat-NOI assumption was the single 
 **2026-08-13 — Real estate multi-year growth: flat rate from Year 2, forward-looking exit NOI, flat-% costs**
 Alternatives considered: per-lease/rollover-level rent modeling (too heavy for this stage — genuinely valuable only once real document data feeds it, which is a Phase 9 concern); itemized acquisition/disposition cost line items instead of one flat percentage each (more precision than the model needs right now).
 The structure was explained in plain language and explicitly agreed with the user before writing any code, per their request: one flat NOI growth rate from Year 2 onward (Year 1 = going-in NOI, unescalated, consistent with what "going-in cap rate" means), one flat acquisition-cost percentage added to required equity, one flat disposition-cost percentage deducted from sale proceeds, and — the one methodology bug this fixes for free — exit value now uses NOI one year past the end of the hold period instead of the flat going-in NOI, which was flagged as a known simplification back in the V1 decision log. Debt amortization math is completely unchanged; growth only touches the NOI side.
+
+**2026-08-13 — Sensitivity grids (real estate and DCF): fixed deltas, not user-configurable ranges**
+Alternatives considered: letting the user pick the delta range and step size for each axis (more flexible, but turns a "just show me the risk" view into another form to fill in).
+Chosen because both grids exist to answer one question fast — "how exposed am I to X and Y moving against me" — without adding input surface. Real estate grids exit cap rate and hold period independently since they're not coupled; DCF's WACC and terminal growth are coupled by the `wacc > terminal_growth_rate` constraint, so some grid cells there are marked null instead of computed when a tight base-case spread pushes a combination into invalid territory — deliberately tested with a narrow-spread scenario, not just the comfortable default. Both grids compute their center cell through the exact same function used for the headline result (`underwrite_real_estate` / `run_dcf`), and both are verified by dedicated tests to reproduce that headline number exactly, not just "look about right."
