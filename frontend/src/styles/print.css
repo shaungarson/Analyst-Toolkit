@@ -1,0 +1,57 @@
+@media print {
+  .app-nav,
+  form,
+  .scenarios,
+  .error,
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+    color: #000;
+  }
+
+  .feature-page {
+    max-width: 100%;
+    padding: 0;
+  }
+
+  .subtitle {
+    color: #444;
+  }
+
+  .results {
+    border-top: none;
+    margin-top: 1rem;
+    padding-top: 0;
+  }
+
+  .metric {
+    background: #fff;
+    border: 1px solid #ccc;
+    break-inside: avoid;
+  }
+
+  .metric .label {
+    color: #444;
+  }
+
+  .metric .value {
+    color: #000;
+  }
+
+  table {
+    font-size: 11px;
+  }
+
+  th,
+  td {
+    border-bottom: 1px solid #ccc;
+    color: #000;
+  }
+
+  .assumptions {
+    color: #444;
+  }
+}

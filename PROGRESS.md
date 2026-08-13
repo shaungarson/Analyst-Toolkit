@@ -1,7 +1,7 @@
 # Analyst Toolkit — Progress
 
 ## Current Phase
-Phase 4 — Professional Utility (scenario saving done, export/print not yet started)
+Phase 4 — Professional Utility (complete: scenario saving, CSV export, print output)
 
 ## Done
 * React + Vite frontend scaffolded (`frontend/`)
@@ -33,13 +33,23 @@ Phase 4 — Professional Utility (scenario saving done, export/print not yet sta
   its own storage key so the two modules' saved scenarios never mix. Verified in the browser:
   save, full page reload (confirms real persistence, not just in-memory state), load back into
   the form, delete.
+* **CSV export** (Phase 4): "Export CSV" button in the results header of both modules, downloads
+  summary metrics plus the full schedule table via a shared `frontend/src/lib/csv.js` helper —
+  no backend involved, since the data's already in the browser. Verified by intercepting the
+  generated blob in-browser and checking the actual CSV content, not just that the button doesn't
+  error.
+* **Print-friendly output** (Phase 4): a print stylesheet (`frontend/src/styles/print.css`) hides
+  the nav, input form, and scenario manager when printing, and forces light-background/dark-text
+  so it doesn't try to print a dark UI theme. Confirmed the stylesheet registers and its selectors
+  match the DOM; a manual Ctrl+P spot-check is still worth doing since this environment can't
+  render print media for a screenshot.
 
 ## In Progress
 * (nothing yet)
 
 ## Near-Term Next Steps
-* Git commit for scenario saving
-* Continue Phase 4: CSV export of results, print/PDF-friendly output for both modules
+* Git commit for CSV export and print output (closes out Phase 4)
+* Decide next: Phase 5 (validation — edge cases, error handling) or Phase 6 (UX & visual design pass)
 
 ## Deferred (intentionally, for now)
 * Real estate: multi-year cash flows, rent/NOI growth, acquisition/disposition costs, refinancing, multiple debt tranches, sensitivity analysis, scenario comparison, waterfalls/promotes
@@ -88,3 +98,6 @@ Since revenue-driver/margin/CapEx build-up is explicitly deferred (Section 3), t
 
 **2026-08-12 — Shared frontend styling/formatting factored out once DCF needed it**
 `currency`/`percent` helpers moved to `frontend/src/lib/format.js`, and the form/results CSS (fieldset layout, metric tiles, table styling) moved to `frontend/src/styles/feature-form.css` under a generic `.feature-page` wrapper class. Not done speculatively — done at the point a second module actually needed the same patterns, per Section 16.
+
+**2026-08-13 — CSV export is client-side only, no backend endpoint**
+The results data needed for export already lives in the frontend (it's what's rendered on screen), so building a CSV file in the browser and triggering a download needs no round-trip to the backend. Keeps the backend stateless per Section 10 and avoids adding an export endpoint for no real benefit.

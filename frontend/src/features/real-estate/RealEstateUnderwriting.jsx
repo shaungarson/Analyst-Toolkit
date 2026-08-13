@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { currency, percent } from '../../lib/format'
+import { downloadCsv } from '../../lib/csv'
 import ScenarioManager from '../../components/ScenarioManager'
 import '../../styles/feature-form.css'
 
@@ -43,6 +44,35 @@ function RealEstateUnderwriting() {
     setForm(data)
     setResults(null)
     setError(null)
+  }
+
+  const exportCsv = () => {
+    const rows = [
+      ['Real Estate Underwriting Results'],
+      [],
+      ['Metric', 'Value'],
+      ['Going-in Cap Rate', percent(results.going_in_cap_rate)],
+      ['Loan Amount', results.loan_amount],
+      ['Initial Equity', results.initial_equity],
+      ['Annual Debt Service', results.annual_debt_service],
+      ['Cash-on-Cash (Yr 1)', percent(results.cash_on_cash_year_1)],
+      ['IRR', results.irr === null ? 'n/a' : percent(results.irr)],
+      ['Equity Multiple', `${results.equity_multiple.toFixed(2)}x`],
+      ['Exit Sale Price', results.exit.gross_sale_price],
+      ['Net Sale Proceeds', results.exit.net_sale_proceeds],
+      [],
+      ['Debt Amortization Schedule'],
+      ['Year', 'Beginning Balance', 'Interest', 'Principal', 'Debt Service', 'Ending Balance'],
+      ...results.amortization_schedule.map((row) => [
+        row.year,
+        row.beginning_balance,
+        row.interest,
+        row.principal,
+        row.debt_service,
+        row.ending_balance,
+      ]),
+    ]
+    downloadCsv('real-estate-underwriting.csv', rows)
   }
 
   const handleSubmit = async (e) => {
@@ -196,7 +226,17 @@ function RealEstateUnderwriting() {
 
       {results && (
         <div className="results">
-          <h2>Results</h2>
+          <div className="results-header">
+            <h2>Results</h2>
+            <div className="results-actions no-print">
+              <button type="button" className="secondary" onClick={exportCsv}>
+                Export CSV
+              </button>
+              <button type="button" className="secondary" onClick={() => window.print()}>
+                Print
+              </button>
+            </div>
+          </div>
 
           <div className="metrics">
             <div className="metric">

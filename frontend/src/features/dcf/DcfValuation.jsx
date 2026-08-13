@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { currency } from '../../lib/format'
+import { downloadCsv } from '../../lib/csv'
 import ScenarioManager from '../../components/ScenarioManager'
 import '../../styles/feature-form.css'
 
@@ -43,6 +44,29 @@ function DcfValuation() {
     setForm(data)
     setResults(null)
     setError(null)
+  }
+
+  const exportCsv = () => {
+    const rows = [
+      ['DCF Valuation Results'],
+      [],
+      ['Metric', 'Value'],
+      ['Enterprise Value', results.enterprise_value],
+      ['Equity Value', results.equity_value],
+      ['Value per Share', results.value_per_share],
+      ['Terminal Value', results.terminal_value],
+      ['PV of Terminal Value', results.pv_terminal_value],
+      [],
+      ['Forecast & Discounting'],
+      ['Year', 'Unlevered FCF', 'Discount Factor', 'Present Value'],
+      ...results.forecast.map((row) => [
+        row.year,
+        row.fcf,
+        row.discount_factor,
+        row.present_value,
+      ]),
+    ]
+    downloadCsv('dcf-valuation.csv', rows)
   }
 
   const handleSubmit = async (e) => {
@@ -190,7 +214,17 @@ function DcfValuation() {
 
       {results && (
         <div className="results">
-          <h2>Results</h2>
+          <div className="results-header">
+            <h2>Results</h2>
+            <div className="results-actions no-print">
+              <button type="button" className="secondary" onClick={exportCsv}>
+                Export CSV
+              </button>
+              <button type="button" className="secondary" onClick={() => window.print()}>
+                Print
+              </button>
+            </div>
+          </div>
 
           <div className="metrics">
             <div className="metric">
