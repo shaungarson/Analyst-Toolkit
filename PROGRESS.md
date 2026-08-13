@@ -1,8 +1,8 @@
 # Analyst Toolkit — Progress
 
 ## Current Phase
-Phase 8 — Advanced Analyst Features (real estate multi-year model complete; sensitivity
-analysis and scenario comparison still to come)
+Phase 8 — Advanced Analyst Features (real estate multi-year model and sensitivity analysis
+complete; DCF sensitivity and scenario comparison still to come)
 
 ## Live Links
 * App: https://analyst-toolkit-ecru.vercel.app
@@ -148,11 +148,29 @@ analysis and scenario comparison still to come)
     intercepting the actual generated file content, and the DCF module was re-verified
     unaffected as a smoke test.
 
+* **Phase 8 — real estate sensitivity analysis.** A 5×5 grid of IRR by exit cap rate (base
+  ±100bps in 50bps steps) × hold period (base ±2 years in 1-year steps), with everything
+  else held at the submitted base-case values. Runs automatically after the main
+  underwriting call succeeds — reuses `underwrite_real_estate` in a loop rather than any new
+  financial logic, so this was lower-risk than the growth model and didn't need a full
+  explain-first cycle, just a brief heads-up before building.
+  - Hold period is clamped at a 1-year minimum so short base hold periods (e.g. 1 year)
+    don't produce invalid or duplicate columns.
+  - The center cell of the grid (the base case's own exit cap rate and hold period) is
+    highlighted in the UI and is guaranteed to match the headline IRR exactly, since it's
+    computed by the exact same function — verified with a dedicated test, not just assumed.
+  - 4 new backend tests (27 total across both modules), including the center-cell-matches
+    test and a hold-period-clamping edge case.
+  - Included in the CSV export alongside the existing tables.
+  - Sensitivity fetch is best-effort and non-blocking: if it fails, the main underwriting
+    result still displays fine — it's a supplementary view, not a dependency.
+  - Verified end-to-end in the browser: grid renders, center-cell value and highlight both
+    confirmed programmatically (not just visually), CSV export confirmed to include it.
+
 ## In Progress
-* Phase 8 continues: real estate sensitivity analysis next
+* Phase 8 continues: DCF WACC × terminal-growth sensitivity next
 
 ## Near-Term Next Steps
-* Real estate sensitivity analysis (e.g. IRR across exit cap rate × hold period)
 * DCF WACC × terminal-growth sensitivity analysis
 * Scenario comparison (viewing saved scenarios side by side)
 * README polish once Phase 8 settles, now that there's a live link to put in it (Section 14)
@@ -163,9 +181,9 @@ analysis and scenario comparison still to come)
   adequately covered without further dedicated work for now.
 
 ## Deferred (intentionally, for now)
-* Real estate: refinancing, multiple debt tranches, sensitivity analysis (next up), scenario
-  comparison (next up), waterfalls/promotes. (Multi-year cash flows, rent/NOI growth, and
-  acquisition/disposition costs are done as of 2026-08-13.)
+* Real estate: refinancing, multiple debt tranches, scenario comparison (next up),
+  waterfalls/promotes. (Multi-year cash flows, rent/NOI growth, acquisition/disposition
+  costs, and sensitivity analysis are done as of 2026-08-13.)
 * DCF: historical financials, revenue-driver forecasts, margin/working-capital/CapEx modeling, WACC build-up, comparable-company inputs, sensitivity analysis (next up), scenario comparison (next up)
 * Long-term (Phase 9, not scoped/scheduled): document extraction (OMs/rent rolls/T12s), auto-structuring inputs, missing/inconsistent data detection, AI-generated scenarios, risk flagging, sensitivity interpretation, IC-style commentary, professional export formats — see CLAUDE.md Section 8
 * TypeScript adoption

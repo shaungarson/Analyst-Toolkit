@@ -164,3 +164,52 @@ def underwrite_real_estate(
         "irr": irr(equity_cash_flows),
         "equity_multiple": equity_multiple(total_distributions, initial_equity),
     }
+
+
+# Fixed deltas around the base case - not user-configurable, to keep the sensitivity table
+# a single "just show me the risk" view rather than another set of inputs to fill in.
+CAP_RATE_DELTAS = [-0.01, -0.005, 0.0, 0.005, 0.01]
+HOLD_PERIOD_DELTAS = [-2, -1, 0, 1, 2]
+
+
+def real_estate_sensitivity(
+    purchase_price,
+    going_in_noi,
+    ltv,
+    interest_rate,
+    amortization_years,
+    hold_period_years,
+    exit_cap_rate,
+    noi_growth_rate,
+    acquisition_cost_pct,
+    disposition_cost_pct,
+):
+    """IRR across a grid of exit cap rate x hold period, holding everything else at the
+    base-case values. The center cell (delta 0, 0) always matches the base case's own IRR
+    exactly, since it's computed by the same underwrite_real_estate function.
+    """
+    hold_periods = sorted({max(1, hold_period_years + d) for d in HOLD_PERIOD_DELTAS})
+    exit_cap_rates = sorted(
+        {round(exit_cap_rate + d, 6) for d in CAP_RATE_DELTAS if exit_cap_rate + d > 0}
+    )
+
+    rows = []
+    for cap in exit_cap_rates:
+        irr_by_hold_period = []
+        for hold in hold_periods:
+            result = underwrite_real_estate(
+                purchase_price=purchase_price,
+                going_in_noi=going_in_noi,
+                ltv=ltv,
+                interest_rate=interest_rate,
+                amortization_years=amortization_years,
+                hold_period_years=hold,
+                exit_cap_rate=cap,
+                noi_growth_rate=noi_growth_rate,
+                acquisition_cost_pct=acquisition_cost_pct,
+                disposition_cost_pct=disposition_cost_pct,
+            )
+            irr_by_hold_period.append(result["irr"])
+        rows.append({"exit_cap_rate": cap, "irr_by_hold_period": irr_by_hold_period})
+
+    return {"hold_periods": hold_periods, "rows": rows}

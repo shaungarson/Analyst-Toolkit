@@ -35,6 +35,7 @@ const EMPTY = {
 function RealEstateUnderwriting() {
   const [form, setForm] = useState(EMPTY)
   const [results, setResults] = useState(null)
+  const [sensitivity, setSensitivity] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
 
@@ -45,12 +46,14 @@ function RealEstateUnderwriting() {
   const loadExample = () => {
     setForm(EXAMPLE)
     setResults(null)
+    setSensitivity(null)
     setError(null)
   }
 
   const loadScenario = (data) => {
     setForm(data)
     setResults(null)
+    setSensitivity(null)
     setError(null)
   }
 
@@ -91,6 +94,18 @@ function RealEstateUnderwriting() {
         row.ending_loan_balance,
       ]),
     ]
+
+    if (sensitivity) {
+      rows.push(
+        [],
+        ['Sensitivity: IRR by Exit Cap Rate & Hold Period'],
+        ['Exit Cap Rate', ...sensitivity.hold_periods.map((h) => `${h} yr`)],
+        ...sensitivity.rows.map((row) => [
+          percent(row.exit_cap_rate),
+          ...row.irr_by_hold_period.map((v) => (v === null ? 'n/a' : percent(v))),
+        ]),
+      )
+    }
     downloadCsv('real-estate-underwriting.csv', rows)
   }
 
@@ -98,6 +113,7 @@ function RealEstateUnderwriting() {
     e.preventDefault()
     setError(null)
     setLoading(true)
+    setSensitivity(null)
     try {
       const payload = {
         purchase_price: Number(form.purchasePrice),
@@ -120,6 +136,21 @@ function RealEstateUnderwriting() {
         throw new Error(await parseErrorResponse(res))
       }
       setResults(await res.json())
+
+      // Best-effort: the sensitivity grid is a supplementary view, so a failure here
+      // shouldn't block or overwrite the main underwriting result the user asked for.
+      try {
+        const sensRes = await fetch(`${API_BASE}/api/real-estate/sensitivity`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        if (sensRes.ok) {
+          setSensitivity(await sensRes.json())
+        }
+      } catch {
+        // Sensitivity grid is supplementary; leave it blank on failure.
+      }
     } catch (err) {
       setError(friendlyErrorMessage(err))
       setResults(null)
@@ -373,6 +404,48 @@ function RealEstateUnderwriting() {
               </tbody>
             </table>
           </div>
+
+          {sensitivity && (
+            <>
+              <h3>Sensitivity: IRR by Exit Cap Rate &amp; Hold Period</h3>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Exit Cap Rate</th>
+                      {sensitivity.hold_periods.map((hold) => (
+                        <th key={hold}>{hold} yr</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sensitivity.rows.map((row) => (
+                      <tr key={row.exit_cap_rate}>
+                        <td>{percent(row.exit_cap_rate)}</td>
+                        {row.irr_by_hold_period.map((cellIrr, i) => {
+                          const isBaseCase =
+                            Math.abs(row.exit_cap_rate - Number(form.exitCapRate) / 100) < 1e-6 &&
+                            sensitivity.hold_periods[i] === Number(form.holdPeriodYears)
+                          return (
+                            <td
+                              key={i}
+                              className={isBaseCase ? 'sensitivity-base-case' : undefined}
+                            >
+                              {cellIrr === null ? 'n/a' : percent(cellIrr)}
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="assumptions">
+                Everything except exit cap rate and hold period is held at the values above.
+                The highlighted cell matches your base-case IRR exactly.
+              </p>
+            </>
+          )}
 
           <p className="assumptions">
             Modeling assumptions: NOI grows at one flat annual rate starting in Year 2 (Year 1

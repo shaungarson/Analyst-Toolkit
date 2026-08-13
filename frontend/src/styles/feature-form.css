@@ -151,6 +151,12 @@ td:first-child {
   text-align: left;
 }
 
+.sensitivity-base-case {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
 .assumptions {
   margin-top: 1.5rem;
   font-size: 0.85rem;

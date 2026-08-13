@@ -9,6 +9,7 @@ from app.calculations.real_estate import (
     exit_value,
     irr,
     project_noi,
+    real_estate_sensitivity,
     underwrite_real_estate,
 )
 from app.schemas.real_estate import RealEstateInputs
@@ -188,3 +189,40 @@ def test_zero_interest_rate_is_a_valid_input():
     # already handles it correctly (see test_amortization_zero_interest_is_straight_line).
     inputs = RealEstateInputs(**{**VALID_INPUTS, "interest_rate": 0.0})
     assert inputs.interest_rate == 0.0
+
+
+def test_sensitivity_center_cell_matches_base_case_irr_exactly():
+    # The center of the grid (delta 0, 0 -> the base case's own exit cap rate and hold
+    # period) must reproduce the exact same IRR as calling underwrite_real_estate directly
+    # with those same inputs - it's the same function under the hood, so any drift here
+    # would mean the grid is silently testing different assumptions than what's displayed
+    # as the headline result.
+    base_result = underwrite_real_estate(**VALID_INPUTS)
+    sensitivity = real_estate_sensitivity(**VALID_INPUTS)
+
+    assert VALID_INPUTS["hold_period_years"] in sensitivity["hold_periods"]
+    center_col = sensitivity["hold_periods"].index(VALID_INPUTS["hold_period_years"])
+
+    center_row = next(
+        row
+        for row in sensitivity["rows"]
+        if row["exit_cap_rate"] == pytest.approx(VALID_INPUTS["exit_cap_rate"])
+    )
+    assert center_row["irr_by_hold_period"][center_col] == pytest.approx(base_result["irr"])
+
+
+def test_sensitivity_hold_period_never_drops_below_one_year():
+    # Base hold period of 1 year: the -2 and -1 deltas would go to -1 and 0, which must
+    # clamp to 1 instead of producing an invalid (or duplicate) hold period.
+    sensitivity = real_estate_sensitivity(**{**VALID_INPUTS, "hold_period_years": 1})
+    assert min(sensitivity["hold_periods"]) == 1
+    assert len(sensitivity["hold_periods"]) == len(set(sensitivity["hold_periods"]))
+
+
+def test_sensitivity_grid_has_five_by_five_shape_in_the_typical_case():
+    # Away from any clamping edge cases, the grid should be the full 5 cap rates x 5 hold
+    # periods.
+    sensitivity = real_estate_sensitivity(**VALID_INPUTS)
+    assert len(sensitivity["rows"]) == 5
+    assert len(sensitivity["hold_periods"]) == 5
+    assert all(len(row["irr_by_hold_period"]) == 5 for row in sensitivity["rows"])

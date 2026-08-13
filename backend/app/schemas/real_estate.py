@@ -49,3 +49,13 @@ class RealEstateResults(BaseModel):
     exit: ExitSummary
     irr: float | None
     equity_multiple: float
+
+
+class SensitivityRow(BaseModel):
+    exit_cap_rate: float
+    irr_by_hold_period: list[float | None]
+
+
+class SensitivityResults(BaseModel):
+    hold_periods: list[int]
+    rows: list[SensitivityRow]
