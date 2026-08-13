@@ -1,10 +1,10 @@
 :root {
-  --text: #3f3d45;
-  --text-h: #08060d;
+  --text: #5c594e;
+  --text-h: #0b1e33;
   --bg: #fff;
-  --border: #d9d8dc;
-  --panel-bg: #f7f6f4;
-  --accent: #1f6feb;
+  --border: #d8d5cc;
+  --panel-bg: #f7f6f2;
+  --accent: #0b1e33;
 
   font: 16px/145% system-ui, 'Segoe UI', Roboto, sans-serif;
   color-scheme: light dark;
@@ -14,12 +14,12 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --text: #d1d0d4;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --panel-bg: #1f2028;
-    --accent: #6ea8fe;
+    --text: #9ca0a8;
+    --text-h: #f2f1ec;
+    --bg: #0f1720;
+    --border: #2a3540;
+    --panel-bg: #16202b;
+    --accent: #4a6f92;
   }
 }
 
@@ -36,6 +36,10 @@ h2,
 h3 {
   color: var(--text-h);
   font-weight: 600;
+}
+
+h1 {
+  letter-spacing: -0.01em;
 }
 
 label {

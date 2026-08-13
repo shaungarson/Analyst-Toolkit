@@ -1,7 +1,8 @@
 # Analyst Toolkit — Progress
 
 ## Current Phase
-Phase 5 — Validation (complete: edge cases and error handling for both modules)
+Phase 6 — UX & Visual Design (color/typography direction chosen and applied; responsive
+behavior and charts not yet addressed)
 
 ## Done
 * React + Vite frontend scaffolded (`frontend/`)
@@ -65,12 +66,33 @@ Phase 5 — Validation (complete: edge cases and error handling for both modules
   - Verified all of this live in the browser, including temporarily stopping the backend
     to confirm the "unreachable" message actually appears, not just that it compiles.
 
+* **Phase 6 — visual direction.** Per Section 15, proposed two concrete visual directions
+  (mockups, not just descriptions) once the app's structure was mature enough to be worth
+  designing around, rather than picking a look early. Chose "Institutional" — navy/charcoal
+  on warm neutrals, muted and conservative — over a "modern fintech" alternative, reasoned
+  from the target audience (PE, real estate asset management, recruiters) rather than
+  aesthetic preference alone.
+  - Applied as CSS custom properties in `frontend/src/index.css` (light + dark mode), so the
+    whole app re-themes from one place — no component touches a raw color value.
+  - Tightened corner radii app-wide (8/6px → 4-6px) for a crisper, less "consumer app" feel,
+    consistent with the chosen direction.
+  - Added tabular figures (`font-variant-numeric: tabular-nums`) to all metric values and
+    table cells — right-aligned, fixed-width digits read meaningfully more like professional
+    financial software than proportional numerals do.
+  - Checked WCAG contrast ratios in-browser (not just eyeballed): the initial dark-mode accent
+    computed to ~3.9:1 against white button text, under the 4.5:1 AA threshold for normal
+    text — caught and darkened before it shipped. Final ratios: light mode buttons 16.8:1,
+    dark mode buttons 5.3:1, body text 7:1+ in both modes.
+  - Verified computed styles (not just visual screenshots) in both light and dark mode, on
+    both modules, to confirm the palette actually cascades correctly everywhere.
+
 ## In Progress
-* (nothing yet)
+* Phase 6 continues: responsive/mobile behavior and (if warranted) charts not yet addressed
 
 ## Near-Term Next Steps
-* Git commit for Phase 5 validation work
-* Start Phase 6: UX & visual design pass
+* Git commit for the visual direction work
+* Decide: continue Phase 6 (responsive pass) now, or move to Phase 7 (deployment) and treat
+  further visual polish as ongoing
 
 ## Deferred (intentionally, for now)
 * Real estate: multi-year cash flows, rent/NOI growth, acquisition/disposition costs, refinancing, multiple debt tranches, sensitivity analysis, scenario comparison, waterfalls/promotes
@@ -128,3 +150,7 @@ Unlike the WACC/mid-year/flat-growth items above, this wasn't flagged as a conve
 
 **2026-08-13 — uvicorn --reload is unreliable in this dev environment**
 Twice in one session, editing backend files (new routers, then schema validation fixes) didn't take effect despite WatchFiles logging "Reloading..." — the server kept serving stale code until fully killed and restarted. Now treating a full restart as the default after any backend change, rather than trusting --reload. Saved as a standing memory so future sessions don't lose time re-discovering this.
+
+**2026-08-13 — Visual direction: "Institutional" (navy/charcoal), chosen over "modern fintech"**
+Alternatives considered: a lighter, rounder "modern fintech" palette (indigo/emerald accents, softer corners) — a legitimate, more contemporary-feeling option, shown side by side as an actual mockup rather than described in words.
+Chosen because the target audience (PE, real estate asset management, recruiters, per Section 1) is more likely to read navy/charcoal conservatism as "understands finance culture" than a startup-fintech look would, which risks reading as generic-SaaS — the exact trap Section 15 warns against. Implemented as CSS custom properties so the choice is centralized and revisitable, not hand-picked per component.
