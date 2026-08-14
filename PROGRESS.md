@@ -1,8 +1,8 @@
 # Analyst Toolkit — Progress
 
 ## Current Phase
-Phase 8 — Advanced Analyst Features (real estate multi-year model + sensitivity, and DCF
-sensitivity, all complete; scenario comparison still to come)
+Phase 8 — Advanced Analyst Features complete (multi-year real estate model, both
+sensitivity analyses, and scenario comparison — the full agreed plan is shipped)
 
 ## Live Links
 * App: https://analyst-toolkit-ecru.vercel.app
@@ -179,14 +179,35 @@ sensitivity, all complete; scenario comparison still to come)
   - 3 new backend tests (30 total across both modules).
   - Verified end-to-end: center cell and highlight confirmed programmatically, CSV export
     checked, and Real Estate re-verified unaffected as a smoke test.
+* **Phase 8 — scenario comparison.** Checkboxes on each saved scenario in the existing
+  `ScenarioManager`, a "Compare Selected" action (needs 2+ selected), and a new shared
+  `ScenarioComparisonTable` component rendering a metric-by-scenario grid — one instance
+  per module, each with its own small config of which headline metrics to show.
+  - Extracted the request-payload-building logic (previously inline in each module's submit
+    handler) into a standalone `buildPayload` function per module, reused by both the normal
+    submit flow and the new compare flow, rather than duplicating that transformation.
+  - Handles a real edge case deliberately, not just the happy path: a scenario saved before
+    a validation rule tightened (e.g. the LTV-must-be-below-100% fix from Phase 5) could now
+    fail when recalculated. Each scenario's fetch is independent (`Promise.allSettled`), so
+    one bad scenario shows "Error" in its own column with an explanatory note below the
+    table, while every valid scenario alongside it still computes and displays normally.
+  - Verified end-to-end in the browser for both modules: saved two scenarios with a
+    meaningfully different assumption each (real estate: exit cap rate; DCF: WACC), compared
+    them, and confirmed the numbers that should move did move in the financially correct
+    direction (worse exit cap rate → lower IRR; higher WACC → lower valuation) while numbers
+    that shouldn't be affected stayed identical between scenarios. Separately verified the
+    error path by injecting a deliberately invalid stale scenario alongside a valid one.
+
+This completes every item from the Phase 8 plan agreed with the user on 2026-08-13.
 
 ## In Progress
 * (nothing yet)
 
 ## Near-Term Next Steps
-* Scenario comparison (viewing saved scenarios side by side)
-* README polish now that Phase 8's sensitivity work is done and there's a live link to put
-  in it (Section 14)
+* README polish now that Phase 8 is fully done and there's a live link to put in it
+  (Section 14)
+* Otherwise: open — no further work is currently agreed. Check with the user for direction
+  (Phase 9 stays out of scope until explicitly instructed, per CLAUDE.md).
 
 ## Recent verification notes
 * 2026-08-13 — user manually resized the browser window and toggled OS dark mode; both held
@@ -194,10 +215,10 @@ sensitivity, all complete; scenario comparison still to come)
   adequately covered without further dedicated work for now.
 
 ## Deferred (intentionally, for now)
-* Real estate: refinancing, multiple debt tranches, scenario comparison (next up),
-  waterfalls/promotes. (Multi-year cash flows, rent/NOI growth, acquisition/disposition
-  costs, and sensitivity analysis are done as of 2026-08-13.)
-* DCF: historical financials, revenue-driver forecasts, margin/working-capital/CapEx modeling, WACC build-up, comparable-company inputs, scenario comparison (next up). (Sensitivity analysis is done as of 2026-08-13.)
+* Real estate: refinancing, multiple debt tranches, waterfalls/promotes. (Multi-year cash
+  flows, rent/NOI growth, acquisition/disposition costs, sensitivity analysis, and scenario
+  comparison are all done as of 2026-08-13.)
+* DCF: historical financials, revenue-driver forecasts, margin/working-capital/CapEx modeling, WACC build-up, comparable-company inputs. (Sensitivity analysis and scenario comparison are done as of 2026-08-13.)
 * Long-term (Phase 9, not scoped/scheduled): document extraction (OMs/rent rolls/T12s), auto-structuring inputs, missing/inconsistent data detection, AI-generated scenarios, risk flagging, sensitivity interpretation, IC-style commentary, professional export formats — see CLAUDE.md Section 8
 * TypeScript adoption
 * Backend / database / auth / cloud storage
@@ -274,3 +295,7 @@ The structure was explained in plain language and explicitly agreed with the use
 **2026-08-13 — Sensitivity grids (real estate and DCF): fixed deltas, not user-configurable ranges**
 Alternatives considered: letting the user pick the delta range and step size for each axis (more flexible, but turns a "just show me the risk" view into another form to fill in).
 Chosen because both grids exist to answer one question fast — "how exposed am I to X and Y moving against me" — without adding input surface. Real estate grids exit cap rate and hold period independently since they're not coupled; DCF's WACC and terminal growth are coupled by the `wacc > terminal_growth_rate` constraint, so some grid cells there are marked null instead of computed when a tight base-case spread pushes a combination into invalid territory — deliberately tested with a narrow-spread scenario, not just the comfortable default. Both grids compute their center cell through the exact same function used for the headline result (`underwrite_real_estate` / `run_dcf`), and both are verified by dedicated tests to reproduce that headline number exactly, not just "look about right."
+
+**2026-08-13 — Scenario comparison recalculates from saved inputs rather than storing past results**
+Alternatives considered: storing the computed results alongside each saved scenario at save time, so comparison would just be a display step with no new network calls.
+Chosen to recalculate instead, because a scenario's *inputs* are the thing worth persisting — if the calculation logic itself ever changes (as it already has multiple times this project: the LTV bound, the exit valuation convention, the terminal growth cap), old stored results would silently go stale and misrepresent what the current model would actually produce. Recalculating on demand means a comparison always reflects today's methodology, and surfaces a scenario whose saved inputs no longer pass validation as a visible, per-scenario error rather than a silent wrong number.

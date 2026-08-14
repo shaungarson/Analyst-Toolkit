@@ -4,6 +4,7 @@ import { downloadCsv } from '../../lib/csv'
 import { friendlyErrorMessage, parseErrorResponse } from '../../lib/apiError'
 import { API_BASE } from '../../lib/apiBase'
 import ScenarioManager from '../../components/ScenarioManager'
+import ScenarioComparisonTable from '../../components/ScenarioComparisonTable'
 import '../../styles/feature-form.css'
 
 const EXAMPLE = {
@@ -26,10 +27,30 @@ const EMPTY = {
   dilutedSharesOutstanding: '',
 }
 
+const buildPayload = (form) => ({
+  base_year_fcf: Number(form.baseYearFcf),
+  fcf_growth_rate: Number(form.fcfGrowthRate) / 100,
+  forecast_years: Number(form.forecastYears),
+  wacc: Number(form.wacc) / 100,
+  terminal_growth_rate: Number(form.terminalGrowthRate) / 100,
+  net_debt: Number(form.netDebt),
+  diluted_shares_outstanding: Number(form.dilutedSharesOutstanding),
+})
+
+const dollarsPerShare = (v) => v.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+
+const COMPARISON_METRICS = [
+  { key: 'ev', label: 'Enterprise Value', get: (r) => r.enterprise_value, format: currency },
+  { key: 'eq', label: 'Equity Value', get: (r) => r.equity_value, format: currency },
+  { key: 'vps', label: 'Value per Share', get: (r) => r.value_per_share, format: dollarsPerShare },
+  { key: 'tv', label: 'Terminal Value', get: (r) => r.terminal_value, format: currency },
+]
+
 function DcfValuation() {
   const [form, setForm] = useState(EMPTY)
   const [results, setResults] = useState(null)
   const [sensitivity, setSensitivity] = useState(null)
+  const [comparison, setComparison] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
 
@@ -41,6 +62,7 @@ function DcfValuation() {
     setForm(EXAMPLE)
     setResults(null)
     setSensitivity(null)
+    setComparison(null)
     setError(null)
   }
 
@@ -48,7 +70,33 @@ function DcfValuation() {
     setForm(data)
     setResults(null)
     setSensitivity(null)
+    setComparison(null)
     setError(null)
+  }
+
+  const handleCompare = async (selectedScenarios) => {
+    setError(null)
+    const settled = await Promise.allSettled(
+      selectedScenarios.map(async (s) => {
+        const res = await fetch(`${API_BASE}/api/dcf/valuation`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(buildPayload(s.data)),
+        })
+        if (!res.ok) {
+          throw new Error(await parseErrorResponse(res))
+        }
+        return res.json()
+      }),
+    )
+    setComparison(
+      selectedScenarios.map((s, i) => {
+        const outcome = settled[i]
+        return outcome.status === 'fulfilled'
+          ? { name: s.name, results: outcome.value }
+          : { name: s.name, error: outcome.reason.message }
+      }),
+    )
   }
 
   const exportCsv = () => {
@@ -92,16 +140,9 @@ function DcfValuation() {
     setError(null)
     setLoading(true)
     setSensitivity(null)
+    setComparison(null)
     try {
-      const payload = {
-        base_year_fcf: Number(form.baseYearFcf),
-        fcf_growth_rate: Number(form.fcfGrowthRate) / 100,
-        forecast_years: Number(form.forecastYears),
-        wacc: Number(form.wacc) / 100,
-        terminal_growth_rate: Number(form.terminalGrowthRate) / 100,
-        net_debt: Number(form.netDebt),
-        diluted_shares_outstanding: Number(form.dilutedSharesOutstanding),
-      }
+      const payload = buildPayload(form)
       const res = await fetch(`${API_BASE}/api/dcf/valuation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -243,9 +284,23 @@ function DcfValuation() {
         </div>
       </form>
 
-      <ScenarioManager storageKey="dcf" currentData={form} onLoad={loadScenario} />
+      <ScenarioManager
+        storageKey="dcf"
+        currentData={form}
+        onLoad={loadScenario}
+        onCompare={handleCompare}
+      />
 
       {error && <p className="error">{error}</p>}
+
+      {comparison && (
+        <ScenarioComparisonTable
+          title="Scenario Comparison"
+          comparisons={comparison}
+          metrics={COMPARISON_METRICS}
+          onClear={() => setComparison(null)}
+        />
+      )}
 
       {results && (
         <div className="results">
@@ -272,12 +327,7 @@ function DcfValuation() {
             </div>
             <div className="metric">
               <span className="label">Value per Share</span>
-              <span className="value">
-                {results.value_per_share.toLocaleString('en-US', {
-                  style: 'currency',
-                  currency: 'USD',
-                })}
-              </span>
+              <span className="value">{dollarsPerShare(results.value_per_share)}</span>
             </div>
             <div className="metric">
               <span className="label">Terminal Value</span>
@@ -342,12 +392,7 @@ function DcfValuation() {
                               key={i}
                               className={isBaseCase ? 'sensitivity-base-case' : undefined}
                             >
-                              {cellValue === null
-                                ? 'n/a'
-                                : cellValue.toLocaleString('en-US', {
-                                    style: 'currency',
-                                    currency: 'USD',
-                                  })}
+                              {cellValue === null ? 'n/a' : dollarsPerShare(cellValue)}
                             </td>
                           )
                         })}

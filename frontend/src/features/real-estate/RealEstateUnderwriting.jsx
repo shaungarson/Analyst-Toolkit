@@ -4,6 +4,7 @@ import { downloadCsv } from '../../lib/csv'
 import { friendlyErrorMessage, parseErrorResponse } from '../../lib/apiError'
 import { API_BASE } from '../../lib/apiBase'
 import ScenarioManager from '../../components/ScenarioManager'
+import ScenarioComparisonTable from '../../components/ScenarioComparisonTable'
 import '../../styles/feature-form.css'
 
 const EXAMPLE = {
@@ -32,10 +33,53 @@ const EMPTY = {
   dispositionCostPct: '',
 }
 
+const buildPayload = (form) => ({
+  purchase_price: Number(form.purchasePrice),
+  going_in_noi: Number(form.goingInNoi),
+  ltv: Number(form.ltv) / 100,
+  interest_rate: Number(form.interestRate) / 100,
+  amortization_years: Number(form.amortizationYears),
+  hold_period_years: Number(form.holdPeriodYears),
+  exit_cap_rate: Number(form.exitCapRate) / 100,
+  noi_growth_rate: Number(form.noiGrowthRate) / 100,
+  acquisition_cost_pct: Number(form.acquisitionCostPct) / 100,
+  disposition_cost_pct: Number(form.dispositionCostPct) / 100,
+})
+
+const COMPARISON_METRICS = [
+  { key: 'cap_rate', label: 'Going-in Cap Rate', get: (r) => r.going_in_cap_rate, format: percent },
+  { key: 'equity', label: 'Initial Equity', get: (r) => r.initial_equity, format: currency },
+  {
+    key: 'coc',
+    label: 'Cash-on-Cash (Yr 1)',
+    get: (r) => r.cash_on_cash_year_1,
+    format: percent,
+  },
+  {
+    key: 'irr',
+    label: 'IRR',
+    get: (r) => r.irr,
+    format: (v) => (v === null ? 'n/a' : percent(v)),
+  },
+  {
+    key: 'multiple',
+    label: 'Equity Multiple',
+    get: (r) => r.equity_multiple,
+    format: (v) => `${v.toFixed(2)}x`,
+  },
+  {
+    key: 'net_proceeds',
+    label: 'Net Sale Proceeds',
+    get: (r) => r.exit.net_sale_proceeds,
+    format: currency,
+  },
+]
+
 function RealEstateUnderwriting() {
   const [form, setForm] = useState(EMPTY)
   const [results, setResults] = useState(null)
   const [sensitivity, setSensitivity] = useState(null)
+  const [comparison, setComparison] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
 
@@ -47,6 +91,7 @@ function RealEstateUnderwriting() {
     setForm(EXAMPLE)
     setResults(null)
     setSensitivity(null)
+    setComparison(null)
     setError(null)
   }
 
@@ -54,7 +99,33 @@ function RealEstateUnderwriting() {
     setForm(data)
     setResults(null)
     setSensitivity(null)
+    setComparison(null)
     setError(null)
+  }
+
+  const handleCompare = async (selectedScenarios) => {
+    setError(null)
+    const settled = await Promise.allSettled(
+      selectedScenarios.map(async (s) => {
+        const res = await fetch(`${API_BASE}/api/real-estate/underwrite`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(buildPayload(s.data)),
+        })
+        if (!res.ok) {
+          throw new Error(await parseErrorResponse(res))
+        }
+        return res.json()
+      }),
+    )
+    setComparison(
+      selectedScenarios.map((s, i) => {
+        const outcome = settled[i]
+        return outcome.status === 'fulfilled'
+          ? { name: s.name, results: outcome.value }
+          : { name: s.name, error: outcome.reason.message }
+      }),
+    )
   }
 
   const exportCsv = () => {
@@ -114,19 +185,9 @@ function RealEstateUnderwriting() {
     setError(null)
     setLoading(true)
     setSensitivity(null)
+    setComparison(null)
     try {
-      const payload = {
-        purchase_price: Number(form.purchasePrice),
-        going_in_noi: Number(form.goingInNoi),
-        ltv: Number(form.ltv) / 100,
-        interest_rate: Number(form.interestRate) / 100,
-        amortization_years: Number(form.amortizationYears),
-        hold_period_years: Number(form.holdPeriodYears),
-        exit_cap_rate: Number(form.exitCapRate) / 100,
-        noi_growth_rate: Number(form.noiGrowthRate) / 100,
-        acquisition_cost_pct: Number(form.acquisitionCostPct) / 100,
-        disposition_cost_pct: Number(form.dispositionCostPct) / 100,
-      }
+      const payload = buildPayload(form)
       const res = await fetch(`${API_BASE}/api/real-estate/underwrite`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -308,9 +369,23 @@ function RealEstateUnderwriting() {
         </div>
       </form>
 
-      <ScenarioManager storageKey="real-estate" currentData={form} onLoad={loadScenario} />
+      <ScenarioManager
+        storageKey="real-estate"
+        currentData={form}
+        onLoad={loadScenario}
+        onCompare={handleCompare}
+      />
 
       {error && <p className="error">{error}</p>}
+
+      {comparison && (
+        <ScenarioComparisonTable
+          title="Scenario Comparison"
+          comparisons={comparison}
+          metrics={COMPARISON_METRICS}
+          onClear={() => setComparison(null)}
+        />
+      )}
 
       {results && (
         <div className="results">
