@@ -1,8 +1,8 @@
 # Analyst Toolkit — Progress
 
 ## Current Phase
-Phase 8 — Advanced Analyst Features complete (multi-year real estate model, both
-sensitivity analyses, and scenario comparison — the full agreed plan is shipped)
+Phase 8 complete; README polish done (Section 14). No further work currently agreed —
+check with the user for direction before starting anything new.
 
 ## Live Links
 * App: https://analyst-toolkit-ecru.vercel.app
@@ -200,14 +200,27 @@ sensitivity analyses, and scenario comparison — the full agreed plan is shippe
 
 This completes every item from the Phase 8 plan agreed with the user on 2026-08-13.
 
+* **README polish (Section 14).** Wrote a real root `README.md` — previously there was none,
+  only the default Vite-generated placeholder inside `frontend/`, which is now replaced with
+  a one-line pointer to the real one. Covers what the app is, who it's for, current
+  capabilities, financial methodology and stated conventions, architecture (with a request-
+  flow diagram), the Phase 9 long-term direction, how to run it locally, and — per Section
+  14's explicit instruction — an honest account of what was AI-assisted versus
+  user-directed, not a claim of either "built without AI" or "AI did everything."
+  - Screenshots were not included: the browser automation tool couldn't render frames for a
+    screenshot in this environment (pane not displayed on the user's screen). Worth adding
+    later, either by the user taking their own or in a future session where screenshotting
+    works.
+  - Sanity-checked the documented local-run commands (venv paths, install commands) actually
+    match what's been used throughout this project, rather than writing them from memory.
+
 ## In Progress
 * (nothing yet)
 
 ## Near-Term Next Steps
-* README polish now that Phase 8 is fully done and there's a live link to put in it
-  (Section 14)
-* Otherwise: open — no further work is currently agreed. Check with the user for direction
-  (Phase 9 stays out of scope until explicitly instructed, per CLAUDE.md).
+* Open — no further work is currently agreed. Check with the user for direction (Phase 9
+  stays out of scope until explicitly instructed, per CLAUDE.md). Screenshots for the README
+  are a reasonable small follow-up whenever convenient.
 
 ## Recent verification notes
 * 2026-08-13 — user manually resized the browser window and toggled OS dark mode; both held
