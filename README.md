@@ -1,8 +1,9 @@
 # Analyst Toolkit
 
-A finance web app for real estate underwriting and DCF valuation, with a financial modeling
-engine rigorous enough for a real analyst to trust — built to demonstrate what AI-assisted
-software development looks like when domain expertise drives the direction.
+A finance web app for real estate underwriting and DCF valuation, with a transparent,
+testable financial modeling engine built around explicit analyst conventions — designed to
+demonstrate what AI-assisted software development looks like when domain expertise drives
+the direction.
 
 **Live app:** [analyst-toolkit-ecru.vercel.app](https://analyst-toolkit-ecru.vercel.app)
 **Source:** this repository
@@ -14,8 +15,8 @@ software development looks like when domain expertise drives the direction.
 Analyst Toolkit is two connected calculators — real estate underwriting and DCF valuation —
 that take an analyst's assumptions and return the numbers a real deal or investment
 committee memo would need: IRR, equity multiple, cash-on-cash, enterprise value, value per
-share, and the full multi-year schedules behind them. Every input has explicit, stated
-assumptions; nothing is a black box.
+share, and the full multi-year schedules behind them. Every material modeling convention and
+assumption is explicit; nothing is silently embedded in the calculations.
 
 It's built for recruiters, hiring managers, PE professionals, real estate asset management
 professionals, and finance teams evaluating whether AI-assisted development can produce
@@ -102,8 +103,9 @@ Pure calculation functions (backend/app/calculations/)
 JSON response → rendered in the browser
 ```
 
-- **Frontend:** React + Vite, plain JavaScript. No backend-agnostic framework lock-in;
-  components are organized by feature (`src/features/real-estate/`, `src/features/dcf/`),
+- **Frontend:** React + Vite, plain JavaScript. The frontend stays lightweight and avoids
+  unnecessary framework lock-in; components are organized by feature
+  (`src/features/real-estate/`, `src/features/dcf/`),
   with genuinely shared pieces (scenario saving, CSV export, formatting) factored out once —
   and only once — a second module needed them.
 - **Backend:** Python (FastAPI) — deliberately chosen over doing the math in the browser,
