@@ -79,3 +79,12 @@ class SensitivityRow(BaseModel):
 class SensitivityResults(BaseModel):
     hold_periods: list[int]
     rows: list[SensitivityRow]
+
+
+class RiskFlag(BaseModel):
+    id: str
+    title: str
+    category: str
+    explanation: str
+    observed_value: float
+    reference_value: float

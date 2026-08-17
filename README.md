@@ -53,6 +53,9 @@ considered instead — is in [`PROGRESS.md`](PROGRESS.md).
 - DSCR (computed per year) and debt yield (a Day-1 metric), the standard lending figures
   behind the return numbers
 - **Sensitivity analysis:** IRR across a grid of exit cap rate × hold period
+- **Deterministic risk flags:** transparent, rule-based checks (low Year-1 DSCR, exit
+  cap-rate compression, capital-loss exposure across the sensitivity grid) — no black-box
+  scoring, just explainable thresholds against the numbers already computed above
 - Save, load, and **compare named scenarios** side by side
 - CSV export and print-friendly output
 
@@ -86,6 +89,9 @@ the UI's own assumptions text, never silently assumed:
   Day-1-only figure, matching standard lender convention.
 - **Real estate exit value:** capitalizes NOI one year past the end of the hold period (what
   the buyer is actually purchasing), not the flat going-in NOI.
+- **Real estate risk flags:** deterministic, explainable rules only (e.g. DSCR below a
+  named reference level, exit cap-rate compression, sensitivity cells with equity multiple
+  below 1.0x) — never an arbitrary composite "risk score."
 - **DCF terminal value:** Gordon Growth (perpetuity growth) method, since WACC and terminal
   growth are given as direct inputs rather than an exit multiple.
 - **Discounting:** end-of-year convention throughout (not mid-year) — flagged as a genuine,
@@ -96,7 +102,7 @@ the UI's own assumptions text, never silently assumed:
 
 Every calculation — cap rate, amortization, IRR, equity multiple, DSCR, debt yield, terminal
 value, enterprise value — is backed by automated tests checked against values computed
-independently by hand, not just "does the code agree with itself." 39 backend tests total.
+independently by hand, not just "does the code agree with itself." 46 backend tests total.
 
 ## Architecture
 

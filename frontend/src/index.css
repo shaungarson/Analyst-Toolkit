@@ -5,6 +5,7 @@
   --border: #d8d5cc;
   --panel-bg: #f7f6f2;
   --accent: #0b1e33;
+  --flag: #a15c00;
 
   font: 16px/145% system-ui, 'Segoe UI', Roboto, sans-serif;
   color-scheme: light dark;
@@ -20,6 +21,7 @@
     --border: #2a3540;
     --panel-bg: #16202b;
     --accent: #4a6f92;
+    --flag: #d68a3a;
   }
 }
 

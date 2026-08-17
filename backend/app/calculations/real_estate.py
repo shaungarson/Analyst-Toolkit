@@ -198,6 +198,62 @@ CAP_RATE_DELTAS = [-0.01, -0.005, 0.0, 0.005, 0.01]
 HOLD_PERIOD_DELTAS = [-2, -1, 0, 1, 2]
 
 
+def _sensitivity_grid_cells(
+    purchase_price,
+    going_in_noi,
+    ltv,
+    interest_rate,
+    amortization_years,
+    loan_maturity_years,
+    hold_period_years,
+    exit_cap_rate,
+    noi_growth_rate,
+    acquisition_cost_pct,
+    disposition_cost_pct,
+):
+    """Runs underwrite_real_estate once across every exit-cap-rate x hold-period
+    combination in the sensitivity grid, returning full per-cell results (not just IRR) so
+    any consumer - the public IRR grid below, deterministic risk-flag evaluation - can pull
+    the metrics it needs without a second implementation of this loop.
+
+    Hold periods tested are capped at loan_maturity_years, same as the base case itself -
+    the grid must never silently test a hold period that would run past loan maturity.
+    """
+    hold_periods = sorted(
+        {min(loan_maturity_years, max(1, hold_period_years + d)) for d in HOLD_PERIOD_DELTAS}
+    )
+    exit_cap_rates = sorted(
+        {round(exit_cap_rate + d, 6) for d in CAP_RATE_DELTAS if exit_cap_rate + d > 0}
+    )
+
+    cells = []
+    for cap in exit_cap_rates:
+        for hold in hold_periods:
+            result = underwrite_real_estate(
+                purchase_price=purchase_price,
+                going_in_noi=going_in_noi,
+                ltv=ltv,
+                interest_rate=interest_rate,
+                amortization_years=amortization_years,
+                loan_maturity_years=loan_maturity_years,
+                hold_period_years=hold,
+                exit_cap_rate=cap,
+                noi_growth_rate=noi_growth_rate,
+                acquisition_cost_pct=acquisition_cost_pct,
+                disposition_cost_pct=disposition_cost_pct,
+            )
+            cells.append(
+                {
+                    "exit_cap_rate": cap,
+                    "hold_period_years": hold,
+                    "irr": result["irr"],
+                    "equity_multiple": result["equity_multiple"],
+                }
+            )
+
+    return hold_periods, exit_cap_rates, cells
+
+
 def real_estate_sensitivity(
     purchase_price,
     going_in_noi,
@@ -215,34 +271,26 @@ def real_estate_sensitivity(
     base-case values. The center cell (delta 0, 0) always matches the base case's own IRR
     exactly, since it's computed by the same underwrite_real_estate function.
 
-    Hold periods tested are capped at loan_maturity_years, same as the base case itself -
-    the grid must never silently test a hold period that would run past loan maturity.
+    Public response shape is unchanged - this just reads the "irr" field out of the shared
+    per-cell computation in _sensitivity_grid_cells.
     """
-    hold_periods = sorted(
-        {min(loan_maturity_years, max(1, hold_period_years + d)) for d in HOLD_PERIOD_DELTAS}
-    )
-    exit_cap_rates = sorted(
-        {round(exit_cap_rate + d, 6) for d in CAP_RATE_DELTAS if exit_cap_rate + d > 0}
+    hold_periods, exit_cap_rates, cells = _sensitivity_grid_cells(
+        purchase_price=purchase_price,
+        going_in_noi=going_in_noi,
+        ltv=ltv,
+        interest_rate=interest_rate,
+        amortization_years=amortization_years,
+        loan_maturity_years=loan_maturity_years,
+        hold_period_years=hold_period_years,
+        exit_cap_rate=exit_cap_rate,
+        noi_growth_rate=noi_growth_rate,
+        acquisition_cost_pct=acquisition_cost_pct,
+        disposition_cost_pct=disposition_cost_pct,
     )
 
     rows = []
     for cap in exit_cap_rates:
-        irr_by_hold_period = []
-        for hold in hold_periods:
-            result = underwrite_real_estate(
-                purchase_price=purchase_price,
-                going_in_noi=going_in_noi,
-                ltv=ltv,
-                interest_rate=interest_rate,
-                amortization_years=amortization_years,
-                loan_maturity_years=loan_maturity_years,
-                hold_period_years=hold,
-                exit_cap_rate=cap,
-                noi_growth_rate=noi_growth_rate,
-                acquisition_cost_pct=acquisition_cost_pct,
-                disposition_cost_pct=disposition_cost_pct,
-            )
-            irr_by_hold_period.append(result["irr"])
+        irr_by_hold_period = [cell["irr"] for cell in cells if cell["exit_cap_rate"] == cap]
         rows.append({"exit_cap_rate": cap, "irr_by_hold_period": irr_by_hold_period})
 
     return {"hold_periods": hold_periods, "rows": rows}

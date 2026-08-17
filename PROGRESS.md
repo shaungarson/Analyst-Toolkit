@@ -2,8 +2,10 @@
 
 ## Current Phase
 Phase 8 complete; README polish done (Section 14); CRE underwriting metrics (DSCR, debt
-yield, loan maturity) added as a Phase 8 extension. Deterministic real estate risk-flag
-phase agreed with the user and about to begin (see Decision Log, 2026-08-17).
+yield, loan maturity) added as a Phase 8 extension. Deterministic real estate risk flags
+(low Year-1 DSCR, exit cap-rate compression, capital-loss exposure) shipped as a second
+Phase 8 extension — see Decision Log, 2026-08-17. No further work currently agreed; check
+with the user for direction.
 
 ## Live Links
 * App: https://analyst-toolkit-ecru.vercel.app
@@ -240,16 +242,44 @@ This completes every item from the Phase 8 plan agreed with the user on 2026-08-
   - 12 new backend tests (39 total across both modules), including DSCR going to `null`
     after loan payoff and the sensitivity-grid maturity clamp.
 
+* **Deterministic real estate risk flags (2026-08-17).** Three transparent, rule-based
+  flags in a new `backend/app/calculations/risk_flags.py` module — a third layer on top of
+  the existing calculation and sensitivity layers, reading their already-computed output
+  rather than modifying it (mirrors how the DCF module's WACC-vs-terminal-growth check is
+  already kept separate from `run_dcf()`).
+  - **Low Year-1 DSCR** — fires when `going_in_dscr` is below a named `DSCR_REFERENCE_THRESHOLD`
+    constant (1.20x), with explanation text explicit that this is a reference level used by
+    the analysis, not a universal lender requirement.
+  - **Exit cap-rate compression** — fires when `exit_cap_rate < going_in_cap_rate`. Directional
+    only, no magnitude threshold.
+  - **Capital-loss exposure** (`capital_loss_exposure`, deliberately not a generic
+    "downside exposure" name — see Decision Log) — fires when one or more sensitivity-grid
+    cells show equity multiple below 1.0x; reports both count and percentage.
+  - Each flag is a plain dict (`id`, `title`, `category`, `explanation`, `observed_value`,
+    `reference_value`) with no severity/score field, and only triggered flags are returned
+    — an empty list means nothing was flagged.
+  - The real estate sensitivity grid's internals were refactored (not its public API) so
+    equity multiple is captured from the underwriting runs it already performs, via a new
+    shared `_sensitivity_grid_cells()` helper — the public `/sensitivity` endpoint, response
+    schema, and frontend grid are all unchanged.
+  - New `POST /api/real-estate/risk-flags` endpoint, fetched non-blocking the same way the
+    sensitivity grid already is. New "Risk Flags" panel in the frontend (triggered flag
+    cards, or a "no flags triggered" message), included in CSV export. New `--flag` color
+    token added to the light/dark theme for the flag cards' accent.
+  - 7 new backend tests (46 total across both modules) — each trigger/non-trigger scenario
+    was numerically verified against the running code before being written into an
+    assertion, not hand-guessed.
+  - Verified end-to-end in a browser (both the flagged and empty-list render paths, light
+    and dark mode) using a temporary isolated backend/frontend pair, since another Claude
+    Code session already held the project's default dev ports at the time — cleaned up
+    afterward, no leftover files or processes.
+
 ## In Progress
 * (nothing yet)
 
 ## Near-Term Next Steps
-* **Deterministic real estate risk flags** (agreed with the user 2026-08-17, about to
-  start): three flags — low Year-1 DSCR vs. a named 1.20x reference constant, exit
-  cap-rate compression, and capital-loss exposure across the sensitivity grid
-  (equity multiple < 1.0x). New `backend/app/calculations/risk_flags.py` module, reading
-  already-computed results rather than modifying the calculation layer. Full plan recorded
-  in the Decision Log below.
+* Open — no further work is currently agreed. Check with the user for direction (Phase 9
+  stays out of scope until explicitly instructed, per CLAUDE.md).
 * Screenshots for the README are a reasonable small follow-up whenever convenient.
 
 ## Recent verification notes
@@ -352,5 +382,11 @@ The user wants to explore modeling real estate at the tenant/lease level (occupa
 **2026-08-17 — Loan maturity: reject hold periods beyond loan term, don't model balloon payoffs**
 Alternatives considered: (1) model a balloon payment/payoff at loan maturity if the hold period runs past it (more realistic, but adds refinancing-adjacent complexity that's explicitly deferred); (2) allow the input but show a warning without changing the math (simpler, but silently produces cash flows using financing that would have contractually expired — misleading, not just imprecise). Chose to enforce `loan_maturity_years >= hold_period_years` as a hard Pydantic validation rule instead, so the engine only ever computes cash flows under financing that's still in place. Standard CRE convention already separates loan term from amortization period ("5-year term, 30-year am"), so this is realistic, not merely simplifying. Also closed a related gap: the real estate sensitivity grid calls the pure calculation function directly (bypassing Pydantic), so its hold-period axis is separately clamped at `loan_maturity_years` to preserve the same guarantee.
 
-**2026-08-17 — Deterministic risk-flag phase: scope and design agreed**
-Agreed to build a third architectural layer on top of the existing two (pure financial calculations in `backend/app/calculations/`; deterministic risk logic reads that output rather than modifying it — mirrors how the WACC-vs-terminal-growth check is already separated from `run_dcf()`). V1 scope: exactly three real estate risk flags — low Year-1 DSCR (vs. a named 1.20x reference constant, explicitly not framed as a universal lender rule), exit cap-rate compression (directional only, no magnitude threshold), and capital-loss exposure across the sensitivity grid (% of tested cells with equity multiple < 1.0x, named `capital_loss_exposure` rather than a generic "downside exposure" label to leave room for a future, separate hurdle-rate/target-return concept). Explicitly excluded from V1, with reasons: a debt-yield flag (no defensible universal threshold), a generic LTV/leverage warning (low marginal insight over a value the user already typed in), any arbitrary composite "risk score" (rejected as a design principle, consistent with the tenant-module design principle above). `RiskFlag` returned as a plain dict — `id`, `title`, `category`, `explanation`, `observed_value`, `reference_value` — with no severity/scoring field, and only triggered flags included in the list (empty list = nothing triggered). The sensitivity grid's existing public API/schema and frontend are preserved unchanged: equity multiple is captured internally from underwriting runs the grid already performs, via a shared internal helper, rather than duplicating the computation or extending the public response.
+**2026-08-17 — Deterministic risk-flag phase: scope and design agreed, then shipped as agreed**
+Agreed to build a third architectural layer on top of the existing two (pure financial calculations in `backend/app/calculations/`; deterministic risk logic reads that output rather than modifying it — mirrors how the WACC-vs-terminal-growth check is already separated from `run_dcf()`). V1 scope: exactly three real estate risk flags — low Year-1 DSCR (vs. a named 1.20x reference constant, explicitly not framed as a universal lender rule), exit cap-rate compression (directional only, no magnitude threshold), and capital-loss exposure across the sensitivity grid (% of tested cells with equity multiple < 1.0x, named `capital_loss_exposure` rather than a generic "downside exposure" label to leave room for a future, separate hurdle-rate/target-return concept). Explicitly excluded from V1, with reasons: a debt-yield flag (no defensible universal threshold), a generic LTV/leverage warning (low marginal insight over a value the user already typed in), any arbitrary composite "risk score" (rejected as a design principle, consistent with the tenant-module design principle above). `RiskFlag` returned as a plain dict — `id`, `title`, `category`, `explanation`, `observed_value`, `reference_value` — with no severity/scoring field, and only triggered flags included in the list (empty list = nothing triggered). The sensitivity grid's existing public API/schema and frontend are preserved unchanged: equity multiple is captured internally from underwriting runs the grid already performs, via a shared internal helper, rather than duplicating the computation or extending the public response. Shipped exactly to this plan — no scope drift during implementation.
+
+**2026-08-17 — Dev tooling: frontend dev server supports auto port selection**
+Running a second Claude Code session against this repo while a prior session's frontend dev server still held port 5173 caused `preview_start` to fail outright. Added `autoPort: true` to `.claude/launch.json` and changed `frontend/vite.config.js` to bind `server.port` to `process.env.PORT` (falling back to 5173 unchanged) so the preview harness can assign a free port when 5173 is taken. Evaluated and confirmed before committing: zero effect on production (this only touches the local `vite dev` server — `vite build`/Vercel never use it), and no behavior change for a normal single-session `npm run dev`. Kept as its own commit, separate from any product-feature milestone, since it's a dev-environment/tooling concern rather than an app change — see CLAUDE.md Section 12.
+
+**2026-08-17 — Documentation discipline formalized as a standing workflow**
+Added an explicit pre-commit documentation review to CLAUDE.md Section 13: before declaring any product-development milestone complete, check whether `README.md`, `PROGRESS.md` (done list, current phase, near-term next steps, decision log), roadmap status, and `CLAUDE.md` itself need updating, and report which docs were reviewed/updated/deferred at each commit milestone. Motivated by the DSCR/debt-yield/loan-maturity commit (`f93ae4d`) shipping without its documentation update, which had to be caught and fixed retroactively in a follow-up commit — this makes that check a required step going forward rather than something that can be silently skipped.

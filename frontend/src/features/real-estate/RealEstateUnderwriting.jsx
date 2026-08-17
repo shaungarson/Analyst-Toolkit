@@ -103,6 +103,7 @@ function RealEstateUnderwriting() {
   const [form, setForm] = useState(EMPTY)
   const [results, setResults] = useState(null)
   const [sensitivity, setSensitivity] = useState(null)
+  const [riskFlags, setRiskFlags] = useState(null)
   const [comparison, setComparison] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -115,6 +116,7 @@ function RealEstateUnderwriting() {
     setForm(EXAMPLE)
     setResults(null)
     setSensitivity(null)
+    setRiskFlags(null)
     setComparison(null)
     setError(null)
   }
@@ -123,6 +125,7 @@ function RealEstateUnderwriting() {
     setForm(withLegacyDefaults(data))
     setResults(null)
     setSensitivity(null)
+    setRiskFlags(null)
     setComparison(null)
     setError(null)
   }
@@ -205,6 +208,17 @@ function RealEstateUnderwriting() {
         ]),
       )
     }
+
+    if (riskFlags) {
+      rows.push(
+        [],
+        ['Risk Flags'],
+        riskFlags.length === 0
+          ? ['None triggered']
+          : ['Title', 'Explanation'],
+        ...riskFlags.map((flag) => [flag.title, flag.explanation]),
+      )
+    }
     downloadCsv('real-estate-underwriting.csv', rows)
   }
 
@@ -213,6 +227,7 @@ function RealEstateUnderwriting() {
     setError(null)
     setLoading(true)
     setSensitivity(null)
+    setRiskFlags(null)
     setComparison(null)
     try {
       const payload = buildPayload(form)
@@ -239,6 +254,21 @@ function RealEstateUnderwriting() {
         }
       } catch {
         // Sensitivity grid is supplementary; leave it blank on failure.
+      }
+
+      // Same best-effort pattern: risk flags are a supplementary, deterministic read of the
+      // already-computed results, not a dependency of the headline underwriting result.
+      try {
+        const flagsRes = await fetch(`${API_BASE}/api/real-estate/risk-flags`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        if (flagsRes.ok) {
+          setRiskFlags(await flagsRes.json())
+        }
+      } catch {
+        // Risk flags are supplementary; leave them blank on failure.
       }
     } catch (err) {
       setError(friendlyErrorMessage(err))
@@ -569,6 +599,24 @@ function RealEstateUnderwriting() {
                 Everything except exit cap rate and hold period is held at the values above.
                 The highlighted cell matches your base-case IRR exactly.
               </p>
+            </>
+          )}
+
+          {riskFlags && (
+            <>
+              <h3>Risk Flags</h3>
+              {riskFlags.length === 0 ? (
+                <p className="assumptions">No deterministic risk flags triggered for this deal.</p>
+              ) : (
+                <ul className="risk-flag-list">
+                  {riskFlags.map((flag) => (
+                    <li key={flag.id} className="risk-flag">
+                      <span className="risk-flag-title">{flag.title}</span>
+                      <span className="risk-flag-explanation">{flag.explanation}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </>
           )}
 

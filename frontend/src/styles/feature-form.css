@@ -163,6 +163,37 @@ td:first-child {
   color: var(--text);
 }
 
+.risk-flag-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.risk-flag {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--flag);
+  border-radius: 4px;
+  padding: 0.6rem 0.85rem;
+}
+
+.risk-flag-title {
+  font-weight: 600;
+  color: var(--text-h);
+  font-size: 0.9rem;
+}
+
+.risk-flag-explanation {
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
 .scenarios {
   margin-top: 1.5rem;
   padding-top: 1.5rem;
