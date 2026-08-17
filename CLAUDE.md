@@ -162,13 +162,38 @@ Assume shipped frontend code is inspectable. Never commit secrets, API keys, pas
 
 ## 12. Git Workflow
 
-I'm learning Git and want meaningful history. At each real milestone: tell me it's a good commit point, explain what changed in plain language, suggest a commit message, give me exact commands. Group by coherent milestone (setup, calculations, DCF engine, sensitivity, scenario saving, validation, export, UX pass, deployment prep) — not one giant commit.
+I'm learning Git and want meaningful history. At each real milestone: tell me it's a good commit point, explain what changed in plain language, suggest a commit message, give me exact commands. Group by coherent milestone (setup, calculations, DCF engine, sensitivity, scenario saving, validation, export, UX pass, deployment prep) — not one giant commit. Before proposing a milestone commit, run the documentation review in Section 13 — don't propose the commit as final until that's been checked.
+
+Keep unrelated concerns in separate commits, even when they surface in the same session — e.g. a dev-environment/tooling fix (port conflicts, config housekeeping) is not part of a product-feature milestone and shouldn't be bundled into its commit, even if discovered while working on that milestone.
 
 ---
 
-## 13. Progress Tracking
+## 13. Progress Tracking & Documentation Discipline
 
 Maintain `PROGRESS.md` in the repo — current phase, what's done, what's in progress, near-term next steps, and a short log of significant decisions (date, decision, alternatives considered, why). Keep it concise; update it at milestones, not every commit.
+
+**Before declaring any meaningful product-development milestone complete, explicitly review whether these need updating:**
+* `README.md`
+* `PROGRESS.md` (current phase, done/in-progress/next-steps, decision log)
+* Roadmap/backlog status (an item moving from planned → implemented)
+* Decision log entries for any new financial/modeling convention or architecture/product decision
+* `CLAUDE.md` itself, when a durable workflow or architecture decision has changed
+
+Documentation should reflect the actual shipped state of the app, not aspirational or planned functionality. In particular:
+* Update test counts when they materially change.
+* Update current-feature lists when capabilities are added or removed.
+* Record financial/modeling conventions a future session would need to understand — not just what's derivable from a quick code skim.
+* Record meaningful architecture/product decisions and *why*, not just what changed.
+* Move roadmap items from planned to implemented as they ship.
+* Keep the README high-level and portfolio-facing (methodology, capabilities, architecture); internal implementation trivia belongs in `PROGRESS.md`/the decision log, not the README.
+
+**At each commit milestone, report:**
+1. Which project docs were reviewed.
+2. Which required updates.
+3. Whether those updates were included in the current milestone's commit, or intentionally separated into their own documentation commit (and why).
+4. Whether any documentation is still known to be stale.
+
+Don't consider a milestone fully complete if important documentation is knowingly stale — unless that's explicitly flagged and we've agreed to defer it.
 
 ---
 
