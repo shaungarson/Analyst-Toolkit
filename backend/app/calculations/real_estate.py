@@ -6,6 +6,15 @@ Modeling assumptions, explicit by design:
   going-in cap rate). No per-lease/rollover modeling, no separate expense-growth assumption.
 - Debt amortizes with level monthly payments and monthly compounding (standard commercial
   mortgage convention), rolled up into annual totals. Growth doesn't affect the debt schedule.
+- Loan maturity is a separate concept from the amortization period (standard CRE convention,
+  e.g. "5-year term, 30-year am"). Loan maturity must be at least as long as the hold period:
+  refinancing, extensions, and balloon payoffs beyond the original loan term are not modeled,
+  so the calculation engine only ever computes cash flows under financing that is still
+  contractually in place. This is enforced at the input layer (see schemas/real_estate.py),
+  not inside these functions.
+- DSCR = NOI / debt service, computed per year (undefined once the loan is paid off, i.e.
+  once debt service reaches zero). Debt yield = going-in NOI / original loan amount, a Day-1
+  metric only — not a per-year figure, matching standard lender-underwriting convention.
 - Acquisition and disposition costs are single flat percentages (of purchase price and gross
   sale price respectively), not itemized line items.
 - Exit value is based on NOI one year past the end of the hold period (the income the buyer
@@ -76,6 +85,19 @@ def amortization_schedule(loan_amount, annual_rate, amortization_years, hold_per
     return schedule, annual_debt_service
 
 
+def dscr(noi, debt_service):
+    """NOI / debt service. Undefined (None) once debt service reaches zero, e.g. after the
+    loan is fully amortized."""
+    return noi / debt_service if debt_service > 0 else None
+
+
+def debt_yield(noi, loan_amount):
+    """Going-in NOI / original loan amount. Guarded against a zero loan amount for the
+    function's own robustness (e.g. an all-cash deal called directly), even though the
+    current input schema never actually allows LTV to be zero."""
+    return noi / loan_amount if loan_amount > 0 else None
+
+
 def cash_on_cash(annual_cash_flow, initial_equity):
     return annual_cash_flow / initial_equity
 
@@ -99,6 +121,7 @@ def underwrite_real_estate(
     ltv,
     interest_rate,
     amortization_years,
+    loan_maturity_years,
     hold_period_years,
     exit_cap_rate,
     noi_growth_rate,
@@ -127,6 +150,7 @@ def underwrite_real_estate(
                 "interest": debt_row["interest"],
                 "principal": debt_row["principal"],
                 "debt_service": debt_row["debt_service"],
+                "dscr": dscr(noi, debt_row["debt_service"]),
                 "cash_flow_to_equity": cf,
                 "ending_loan_balance": debt_row["ending_balance"],
             }
@@ -152,6 +176,8 @@ def underwrite_real_estate(
         "acquisition_costs": acquisition_costs,
         "initial_equity": initial_equity,
         "annual_debt_service": annual_schedule[0]["debt_service"] if annual_schedule else 0.0,
+        "going_in_dscr": annual_schedule[0]["dscr"] if annual_schedule else None,
+        "debt_yield": debt_yield(going_in_noi, loan_amount),
         "cash_on_cash_year_1": cash_on_cash(annual_cash_flows[0], initial_equity),
         "annual_schedule": annual_schedule,
         "exit": {
@@ -178,6 +204,7 @@ def real_estate_sensitivity(
     ltv,
     interest_rate,
     amortization_years,
+    loan_maturity_years,
     hold_period_years,
     exit_cap_rate,
     noi_growth_rate,
@@ -187,8 +214,13 @@ def real_estate_sensitivity(
     """IRR across a grid of exit cap rate x hold period, holding everything else at the
     base-case values. The center cell (delta 0, 0) always matches the base case's own IRR
     exactly, since it's computed by the same underwrite_real_estate function.
+
+    Hold periods tested are capped at loan_maturity_years, same as the base case itself -
+    the grid must never silently test a hold period that would run past loan maturity.
     """
-    hold_periods = sorted({max(1, hold_period_years + d) for d in HOLD_PERIOD_DELTAS})
+    hold_periods = sorted(
+        {min(loan_maturity_years, max(1, hold_period_years + d)) for d in HOLD_PERIOD_DELTAS}
+    )
     exit_cap_rates = sorted(
         {round(exit_cap_rate + d, 6) for d in CAP_RATE_DELTAS if exit_cap_rate + d > 0}
     )
@@ -203,6 +235,7 @@ def real_estate_sensitivity(
                 ltv=ltv,
                 interest_rate=interest_rate,
                 amortization_years=amortization_years,
+                loan_maturity_years=loan_maturity_years,
                 hold_period_years=hold,
                 exit_cap_rate=cap,
                 noi_growth_rate=noi_growth_rate,

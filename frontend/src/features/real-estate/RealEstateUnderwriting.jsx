@@ -13,6 +13,7 @@ const EXAMPLE = {
   ltv: '65',
   interestRate: '6.0',
   amortizationYears: '30',
+  loanMaturityYears: '10',
   holdPeriodYears: '5',
   exitCapRate: '6.75',
   noiGrowthRate: '3',
@@ -26,6 +27,7 @@ const EMPTY = {
   ltv: '',
   interestRate: '',
   amortizationYears: '',
+  loanMaturityYears: '',
   holdPeriodYears: '',
   exitCapRate: '',
   noiGrowthRate: '',
@@ -33,12 +35,22 @@ const EMPTY = {
   dispositionCostPct: '',
 }
 
+// Backfills fields that didn't exist in scenarios saved before they were added, so loading
+// or comparing an older scenario doesn't leave them blank/invalid. Loan maturity defaults
+// to the scenario's own hold period - the smallest value that's always valid (maturity >=
+// hold), not a guess at what the real loan term actually was.
+const withLegacyDefaults = (data) => ({
+  ...data,
+  loanMaturityYears: data.loanMaturityYears ?? data.holdPeriodYears,
+})
+
 const buildPayload = (form) => ({
   purchase_price: Number(form.purchasePrice),
   going_in_noi: Number(form.goingInNoi),
   ltv: Number(form.ltv) / 100,
   interest_rate: Number(form.interestRate) / 100,
   amortization_years: Number(form.amortizationYears),
+  loan_maturity_years: Number(form.loanMaturityYears),
   hold_period_years: Number(form.holdPeriodYears),
   exit_cap_rate: Number(form.exitCapRate) / 100,
   noi_growth_rate: Number(form.noiGrowthRate) / 100,
@@ -49,6 +61,18 @@ const buildPayload = (form) => ({
 const COMPARISON_METRICS = [
   { key: 'cap_rate', label: 'Going-in Cap Rate', get: (r) => r.going_in_cap_rate, format: percent },
   { key: 'equity', label: 'Initial Equity', get: (r) => r.initial_equity, format: currency },
+  {
+    key: 'dscr',
+    label: 'Going-in DSCR',
+    get: (r) => r.going_in_dscr,
+    format: (v) => `${v.toFixed(2)}x`,
+  },
+  {
+    key: 'debt_yield',
+    label: 'Debt Yield',
+    get: (r) => r.debt_yield,
+    format: percent,
+  },
   {
     key: 'coc',
     label: 'Cash-on-Cash (Yr 1)',
@@ -96,7 +120,7 @@ function RealEstateUnderwriting() {
   }
 
   const loadScenario = (data) => {
-    setForm(data)
+    setForm(withLegacyDefaults(data))
     setResults(null)
     setSensitivity(null)
     setComparison(null)
@@ -110,7 +134,7 @@ function RealEstateUnderwriting() {
         const res = await fetch(`${API_BASE}/api/real-estate/underwrite`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(buildPayload(s.data)),
+          body: JSON.stringify(buildPayload(withLegacyDefaults(s.data))),
         })
         if (!res.ok) {
           throw new Error(await parseErrorResponse(res))
@@ -138,6 +162,8 @@ function RealEstateUnderwriting() {
       ['Acquisition Costs', results.acquisition_costs],
       ['Initial Equity', results.initial_equity],
       ['Annual Debt Service (Yr 1)', results.annual_debt_service],
+      ['Going-in DSCR', `${results.going_in_dscr.toFixed(2)}x`],
+      ['Debt Yield', percent(results.debt_yield)],
       ['Cash-on-Cash (Yr 1)', percent(results.cash_on_cash_year_1)],
       ['IRR', results.irr === null ? 'n/a' : percent(results.irr)],
       ['Equity Multiple', `${results.equity_multiple.toFixed(2)}x`],
@@ -152,6 +178,7 @@ function RealEstateUnderwriting() {
         'Interest',
         'Principal',
         'Debt Service',
+        'DSCR',
         'Cash Flow to Equity',
         'Ending Loan Balance',
       ],
@@ -161,6 +188,7 @@ function RealEstateUnderwriting() {
         row.interest,
         row.principal,
         row.debt_service,
+        row.dscr === null ? 'n/a' : `${row.dscr.toFixed(2)}x`,
         row.cash_flow_to_equity,
         row.ending_loan_balance,
       ]),
@@ -305,6 +333,18 @@ function RealEstateUnderwriting() {
               onChange={handleChange('amortizationYears')}
             />
           </label>
+          <label>
+            Loan Maturity (years)
+            <input
+              type="number"
+              required
+              min="1"
+              max="50"
+              step="1"
+              value={form.loanMaturityYears}
+              onChange={handleChange('loanMaturityYears')}
+            />
+          </label>
         </fieldset>
 
         <fieldset>
@@ -423,6 +463,14 @@ function RealEstateUnderwriting() {
               <span className="value">{currency(results.annual_debt_service)}</span>
             </div>
             <div className="metric">
+              <span className="label">Going-in DSCR</span>
+              <span className="value">{results.going_in_dscr.toFixed(2)}x</span>
+            </div>
+            <div className="metric">
+              <span className="label">Debt Yield</span>
+              <span className="value">{percent(results.debt_yield)}</span>
+            </div>
+            <div className="metric">
               <span className="label">Cash-on-Cash (Yr 1)</span>
               <span className="value">{percent(results.cash_on_cash_year_1)}</span>
             </div>
@@ -460,6 +508,7 @@ function RealEstateUnderwriting() {
                   <th>Interest</th>
                   <th>Principal</th>
                   <th>Debt Service</th>
+                  <th>DSCR</th>
                   <th>Cash Flow to Equity</th>
                   <th>Ending Loan Balance</th>
                 </tr>
@@ -472,6 +521,7 @@ function RealEstateUnderwriting() {
                     <td>{currency(row.interest)}</td>
                     <td>{currency(row.principal)}</td>
                     <td>{currency(row.debt_service)}</td>
+                    <td>{row.dscr === null ? 'n/a' : `${row.dscr.toFixed(2)}x`}</td>
                     <td>{currency(row.cash_flow_to_equity)}</td>
                     <td>{currency(row.ending_loan_balance)}</td>
                   </tr>
@@ -525,10 +575,12 @@ function RealEstateUnderwriting() {
           <p className="assumptions">
             Modeling assumptions: NOI grows at one flat annual rate starting in Year 2 (Year 1
             is the unescalated going-in NOI); debt amortizes with level monthly payments and is
-            unaffected by growth; acquisition and disposition costs are flat percentages, not
-            itemized; exit value is based on NOI one year past the end of the hold period (the
-            income the buyer is purchasing), capitalized at the exit cap rate; IRR is computed
-            on annual, end-of-year equity cash flows.
+            unaffected by growth; loan maturity must be at least as long as the hold period —
+            refinancing, extensions, and balloon payoffs beyond loan maturity are not modeled;
+            acquisition and disposition costs are flat percentages, not itemized; exit value is
+            based on NOI one year past the end of the hold period (the income the buyer is
+            purchasing), capitalized at the exit cap rate; IRR is computed on annual,
+            end-of-year equity cash flows.
           </p>
         </div>
       )}

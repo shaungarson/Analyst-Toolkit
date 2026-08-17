@@ -5,6 +5,8 @@ from app.calculations.real_estate import (
     amortization_schedule,
     cap_rate,
     cash_on_cash,
+    dscr,
+    debt_yield,
     equity_multiple,
     exit_value,
     irr,
@@ -20,6 +22,7 @@ VALID_INPUTS = dict(
     ltv=0.65,
     interest_rate=0.06,
     amortization_years=30,
+    loan_maturity_years=30,
     hold_period_years=5,
     exit_cap_rate=0.08,
     noi_growth_rate=0.03,
@@ -109,6 +112,7 @@ def test_underwrite_no_debt_no_growth_no_costs_matches_hand_computed_irr_and_mul
         ltv=0.0,
         interest_rate=0.06,
         amortization_years=30,
+        loan_maturity_years=30,
         hold_period_years=1,
         exit_cap_rate=0.08,
         noi_growth_rate=0.0,
@@ -149,6 +153,7 @@ def test_underwrite_with_growth_and_costs_hand_computed():
         ltv=0.0,
         interest_rate=0.06,
         amortization_years=30,
+        loan_maturity_years=30,
         hold_period_years=2,
         exit_cap_rate=0.10,
         noi_growth_rate=0.10,
@@ -226,3 +231,98 @@ def test_sensitivity_grid_has_five_by_five_shape_in_the_typical_case():
     assert len(sensitivity["rows"]) == 5
     assert len(sensitivity["hold_periods"]) == 5
     assert all(len(row["irr_by_hold_period"]) == 5 for row in sensitivity["rows"])
+
+
+def test_sensitivity_hold_period_never_exceeds_loan_maturity():
+    # Loan maturity equal to the base hold period: the +1/+2 deltas would want to test
+    # hold periods beyond loan maturity, which must never happen - the grid must never
+    # silently model financing that has contractually matured.
+    sensitivity = real_estate_sensitivity(
+        **{**VALID_INPUTS, "loan_maturity_years": VALID_INPUTS["hold_period_years"]}
+    )
+    assert max(sensitivity["hold_periods"]) == VALID_INPUTS["hold_period_years"]
+
+
+def test_dscr_hand_computed():
+    assert dscr(100_000, 80_000) == pytest.approx(1.25)
+
+
+def test_dscr_is_none_when_debt_service_is_zero():
+    # Undefined once the loan is paid off (or there was never any debt service to begin
+    # with) - there's nothing to cover, so a ratio doesn't mean anything.
+    assert dscr(100_000, 0) is None
+
+
+def test_debt_yield_hand_computed():
+    assert debt_yield(80_000, 1_000_000) == pytest.approx(0.08)
+
+
+def test_debt_yield_is_none_when_loan_amount_is_zero():
+    assert debt_yield(80_000, 0) is None
+
+
+def test_underwrite_dscr_is_none_in_years_after_loan_payoff():
+    # Amortization (5 years) shorter than the hold period (7 years): the loan pays off
+    # mid-hold, so the annual_schedule's own dscr field - not just the standalone dscr()
+    # helper in isolation - must show None for the years with zero debt service, while
+    # Year 1 (which still has real debt service) shows a normal defined value.
+    result = underwrite_real_estate(
+        purchase_price=10_000_000,
+        going_in_noi=650_000,
+        ltv=0.65,
+        interest_rate=0.06,
+        amortization_years=5,
+        loan_maturity_years=10,
+        hold_period_years=7,
+        exit_cap_rate=0.0675,
+        noi_growth_rate=0.03,
+        acquisition_cost_pct=0.015,
+        disposition_cost_pct=0.02,
+    )
+    schedule = result["annual_schedule"]
+    assert schedule[0]["dscr"] is not None
+    assert result["going_in_dscr"] is not None
+    assert schedule[5]["debt_service"] == pytest.approx(0.0)
+    assert schedule[5]["dscr"] is None
+    assert schedule[6]["dscr"] is None
+
+
+def test_dscr_and_debt_yield_hand_computed_in_full_underwrite():
+    # 0% interest makes debt service exactly loan_amount / amortization_years
+    # (straight-line), so DSCR and debt yield both come out to clean, hand-checkable
+    # numbers rather than needing amortization math to verify by hand.
+    # Loan = 1,000,000 * 0.5 = 500,000; annual debt service = 500,000 / 25 = 20,000
+    # DSCR = 100,000 / 20,000 = 5.0
+    # Debt yield = 100,000 / 500,000 = 0.20
+    result = underwrite_real_estate(
+        purchase_price=1_000_000,
+        going_in_noi=100_000,
+        ltv=0.5,
+        interest_rate=0.0,
+        amortization_years=25,
+        loan_maturity_years=25,
+        hold_period_years=1,
+        exit_cap_rate=0.10,
+        noi_growth_rate=0.0,
+        acquisition_cost_pct=0.0,
+        disposition_cost_pct=0.0,
+    )
+    assert result["going_in_dscr"] == pytest.approx(5.0)
+    assert result["annual_schedule"][0]["dscr"] == pytest.approx(5.0)
+    assert result["debt_yield"] == pytest.approx(0.20)
+
+
+def test_loan_maturity_shorter_than_hold_period_is_rejected():
+    with pytest.raises(ValidationError):
+        RealEstateInputs(
+            **{**VALID_INPUTS, "loan_maturity_years": VALID_INPUTS["hold_period_years"] - 1}
+        )
+
+
+def test_loan_maturity_equal_to_hold_period_is_valid():
+    # Inclusive boundary: the loan maturing in the same year as exit is fine, since the
+    # sale proceeds pay off the loan anyway - that's already how exit works today.
+    inputs = RealEstateInputs(
+        **{**VALID_INPUTS, "loan_maturity_years": VALID_INPUTS["hold_period_years"]}
+    )
+    assert inputs.loan_maturity_years == VALID_INPUTS["hold_period_years"]
