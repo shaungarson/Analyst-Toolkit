@@ -275,3 +275,69 @@ td:first-child {
   border-color: #d1242f;
   color: #d1242f;
 }
+
+.deal-summary {
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1.5rem 1.75rem;
+  margin-bottom: 2rem;
+}
+
+.deal-summary-header {
+  margin-bottom: 1.25rem;
+}
+
+.deal-summary-header h2 {
+  margin: 0 0 0.25rem;
+}
+
+.deal-summary-subtitle {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.deal-summary-headline {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.75rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.deal-summary-headline-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  break-inside: avoid;
+}
+
+.deal-summary-headline-item .label {
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+.deal-summary-headline-item .value {
+  font-size: 1.9rem;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.financing-line {
+  margin: 0 0 1rem;
+  font-size: 0.95rem;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+.sensitivity-compact table {
+  font-size: 0.8rem;
+}
+
+.sensitivity-compact th,
+.sensitivity-compact td {
+  padding: 0.35rem 0.5rem;
+}

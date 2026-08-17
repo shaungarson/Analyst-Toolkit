@@ -6,9 +6,12 @@ import { API_BASE } from '../../lib/apiBase'
 import ScenarioManager from '../../components/ScenarioManager'
 import ScenarioComparisonTable from '../../components/ScenarioComparisonTable'
 import ScenarioAssumptionDiffTable from '../../components/ScenarioAssumptionDiffTable'
+import RealEstateSensitivityGrid from './RealEstateSensitivityGrid'
+import RealEstateDealSummary from './RealEstateDealSummary'
 import '../../styles/feature-form.css'
 
 const EXAMPLE = {
+  dealName: '',
   purchasePrice: '10000000',
   goingInNoi: '650000',
   ltv: '65',
@@ -23,6 +26,7 @@ const EXAMPLE = {
 }
 
 const EMPTY = {
+  dealName: '',
   purchasePrice: '',
   goingInNoi: '',
   ltv: '',
@@ -39,10 +43,13 @@ const EMPTY = {
 // Backfills fields that didn't exist in scenarios saved before they were added, so loading
 // or comparing an older scenario doesn't leave them blank/invalid. Loan maturity defaults
 // to the scenario's own hold period - the smallest value that's always valid (maturity >=
-// hold), not a guess at what the real loan term actually was.
+// hold), not a guess at what the real loan term actually was. Deal name is purely
+// descriptive metadata (never sent to the backend), so older scenarios simply default to
+// blank rather than needing any real backfill logic.
 const withLegacyDefaults = (data) => ({
   ...data,
   loanMaturityYears: data.loanMaturityYears ?? data.holdPeriodYears,
+  dealName: data.dealName ?? '',
 })
 
 const buildPayload = (form) => ({
@@ -249,6 +256,19 @@ function RealEstateUnderwriting() {
     downloadCsv('real-estate-underwriting.csv', rows)
   }
 
+  // Scopes window.print() to just the deal summary by toggling a body class that
+  // print.css uses to hide the full-detail section - the "Print Full Analysis" button
+  // alongside it is unaffected and keeps printing everything, unchanged.
+  const printSummary = () => {
+    document.body.classList.add('print-summary-only')
+    const cleanup = () => {
+      document.body.classList.remove('print-summary-only')
+      window.removeEventListener('afterprint', cleanup)
+    }
+    window.addEventListener('afterprint', cleanup)
+    window.print()
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError(null)
@@ -314,6 +334,16 @@ function RealEstateUnderwriting() {
       </p>
 
       <form onSubmit={handleSubmit} className="underwriting-form">
+        <label>
+          Deal / Property Name (optional)
+          <input
+            type="text"
+            placeholder="e.g. Riverside Industrial Portfolio"
+            value={form.dealName}
+            onChange={handleChange('dealName')}
+          />
+        </label>
+
         <fieldset>
           <legend>Acquisition</legend>
           <label>
@@ -495,12 +525,31 @@ function RealEstateUnderwriting() {
               <button type="button" className="secondary" onClick={exportCsv}>
                 Export CSV
               </button>
+              <button type="button" className="secondary" onClick={printSummary}>
+                Print Summary
+              </button>
               <button type="button" className="secondary" onClick={() => window.print()}>
-                Print
+                Print Full Analysis
               </button>
             </div>
           </div>
 
+          <RealEstateDealSummary
+            dealName={form.dealName}
+            purchasePrice={Number(form.purchasePrice)}
+            goingInNoi={Number(form.goingInNoi)}
+            holdPeriodYears={Number(form.holdPeriodYears)}
+            ltv={Number(form.ltv) / 100}
+            interestRate={Number(form.interestRate) / 100}
+            amortizationYears={Number(form.amortizationYears)}
+            loanMaturityYears={Number(form.loanMaturityYears)}
+            exitCapRate={Number(form.exitCapRate) / 100}
+            results={results}
+            sensitivity={sensitivity}
+            riskFlags={riskFlags}
+          />
+
+          <div className="full-detail">
           <div className="metrics">
             <div className="metric">
               <span className="label">Going-in Cap Rate</span>
@@ -593,42 +642,11 @@ function RealEstateUnderwriting() {
           {sensitivity && (
             <>
               <h3>Sensitivity: IRR by Exit Cap Rate &amp; Hold Period</h3>
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Exit Cap Rate</th>
-                      {sensitivity.hold_periods.map((hold) => (
-                        <th key={hold}>{hold} yr</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sensitivity.rows.map((row) => (
-                      <tr key={row.exit_cap_rate}>
-                        <td>{percent(row.exit_cap_rate)}</td>
-                        {row.irr_by_hold_period.map((cellIrr, i) => {
-                          const isBaseCase =
-                            Math.abs(row.exit_cap_rate - Number(form.exitCapRate) / 100) < 1e-6 &&
-                            sensitivity.hold_periods[i] === Number(form.holdPeriodYears)
-                          return (
-                            <td
-                              key={i}
-                              className={isBaseCase ? 'sensitivity-base-case' : undefined}
-                            >
-                              {cellIrr === null ? 'n/a' : percent(cellIrr)}
-                            </td>
-                          )
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <p className="assumptions">
-                Everything except exit cap rate and hold period is held at the values above.
-                The highlighted cell matches your base-case IRR exactly.
-              </p>
+              <RealEstateSensitivityGrid
+                sensitivity={sensitivity}
+                baseExitCapRate={Number(form.exitCapRate) / 100}
+                baseHoldPeriod={Number(form.holdPeriodYears)}
+              />
             </>
           )}
 
@@ -660,6 +678,7 @@ function RealEstateUnderwriting() {
             purchasing), capitalized at the exit cap rate; IRR is computed on annual,
             end-of-year equity cash flows.
           </p>
+          </div>
         </div>
       )}
     </div>

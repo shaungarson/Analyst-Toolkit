@@ -1,11 +1,10 @@
 # Analyst Toolkit — Progress
 
 ## Current Phase
-Phase 8 complete; README polish done (Section 14); CRE underwriting metrics (DSCR, debt
-yield, loan maturity) and deterministic real estate risk flags shipped as Phase 8
-extensions. Real estate scenario-workflow V1 (duplicate scenario, assumption-difference
-comparison) shipped 2026-08-17 — see Decision Log. No further work currently agreed; check
-with the user for direction.
+Phase 8 complete; README polish done (Section 14); CRE underwriting metrics, deterministic
+real estate risk flags, and scenario-workflow V1 (duplicate + assumption comparison)
+shipped as Phase 8 extensions. Real estate Professional Deal Summary shipped 2026-08-17 —
+see Decision Log. No further work currently agreed; check with the user for direction.
 
 ## Live Links
 * App: https://analyst-toolkit-ecru.vercel.app
@@ -319,11 +318,65 @@ This completes every item from the Phase 8 plan agreed with the user on 2026-08-
   - DCF assumption-difference comparison deliberately deferred as a separate follow-up, not
     bundled into this milestone.
 
+* **Real estate Professional Deal Summary (2026-08-17).** Turns a completed underwriting
+  into a compact, decision-ready read — deliberately not a re-listing of every input/output
+  the app already shows elsewhere. Works entirely from the active underwriting; no
+  dependency on saved or compared scenarios (deliberately deferred, see Decision Log).
+  - New `RealEstateDealSummary` component, rendered at the top of the results section
+    (existing full detail stays exactly as it was, now wrapped in a `.full-detail` div so
+    print can target it separately). Hierarchy: headline returns (IRR, equity multiple,
+    Yr-1 cash-on-cash, equity required) get the strongest visual weight; then a "Deal at a
+    Glance" tile row (purchase price, going-in NOI, going-in/exit cap rate, exit value, net
+    sale proceeds); then financing as one compact description line plus Year-1 DSCR and
+    debt yield; then a compact sensitivity presentation; then triggered risk flags (or a
+    neutral statement if none triggered).
+  - Added an optional **Deal / Property Name** field, frontend-only metadata never sent to
+    the backend (`buildPayload` doesn't reference it) and never used in any calculation.
+    Rides along in each scenario's existing saved `data` blob for free — no new storage
+    format — and is backfilled to `''` for old scenarios via the existing
+    `withLegacyDefaults()` mechanism, the same pattern already used for loan maturity.
+  - Deliberately did not add an "as-of" date implying the underlying figures are current to
+    a reporting date; a small "Generated {date}" label is shown instead, describing when
+    the summary artifact was produced, not the deal's valuation currency.
+  - **Sensitivity:** rather than reduce it to a single min/max sentence, extracted the
+    existing inline grid markup (previously only used once, inline in the full-results
+    view) into a new shared `RealEstateSensitivityGrid` component with a `compact` prop
+    that only changes styling (smaller font/padding) — never which cells are computed or
+    shown, and never a second call to the sensitivity endpoint. Used non-compact in the
+    full results (byte-identical output to before) and compact in the summary, so the grid
+    and its base-case-highlight logic exist in exactly one place. A short supporting "Tested
+    IRR range" line (client-side `Math.min`/`Math.max` over the already-fetched grid, not a
+    new calculation) sits below the grid, which remains the primary sensitivity
+    presentation as intended.
+  - **Risk flags:** triggered flags reuse the exact existing card markup/wording. Zero-flag
+    wording is exactly `"No deterministic risk flags triggered under the current analysis
+    rules."` — no "safe," "low risk," or recommendation language.
+  - **Print:** existing "Print" behavior preserved and relabeled "Print Full Analysis" for
+    clarity; new "Print Summary" button toggles a `print-summary-only` body class that
+    `print.css` uses to hide `.full-detail`, cleaned up automatically on the browser's
+    `afterprint` event. Plain browser print/print-to-PDF only — no PDF library. In building
+    this, found and fixed a latent print bug that predates this milestone: headings and the
+    risk-flag cards had no print-specific color override, so printing from OS dark mode
+    would have rendered them in a light color invisible against the white printed page —
+    fixed with the same explicit-color-override pattern already used elsewhere in
+    `print.css`.
+  - 100% frontend — no backend, schema, or localStorage changes; no new backend tests
+    (nothing in the calculation layer changed). Verified by hand: zero-flag and
+    flags-triggered scenarios, compact grid values/highlight cross-checked against the full
+    grid, the Print Summary/Print Full Analysis JS toggle logic (verified directly, not by
+    triggering a real OS print dialog), on-screen invisibility of the print-only CSS rule,
+    light/dark mode, and a DCF smoke test (DCF module untouched, confirmed unaffected).
+
 ## Near-Term Next Steps
 * Open — no further work is currently agreed. Check with the user for direction (Phase 9
   stays out of scope until explicitly instructed, per CLAUDE.md).
-* DCF assumption-difference comparison (mirrors the Real Estate work above) is a reasonable
-  small follow-up whenever wanted — deliberately not done automatically in this milestone.
+* DCF assumption-difference comparison (mirrors the Real Estate scenario-workflow work) is
+  a reasonable small follow-up whenever wanted — deliberately not done automatically.
+* A scenario-comparison variant of the Professional Deal Summary (Base/Downside/Upside
+  side-by-side) is a natural later enhancement, deliberately deferred — needs its own
+  design pass on how a multi-scenario summary should work.
+* A DCF Professional Deal Summary, mirroring the Real Estate one, is a reasonable future
+  follow-up — deliberately not built now (DCF was out of scope for this milestone).
 * Screenshots for the README are a reasonable small follow-up whenever convenient.
 
 ## Recent verification notes
@@ -443,3 +496,18 @@ Alternatives considered: an explicit `scenarioType` enum field (Base/Downside/Up
 
 **2026-08-17 — Assumption-diff comparison: normalize with Number(), not a general normalization framework**
 Verified before writing the comparison logic that raw saved-scenario values can differ in string form for an identical economic assumption — the app's own worked example saves `interestRate: "6.0"`, while an analyst typing the same 6% by hand saves `"6"`; naive string equality would have flagged that as a changed assumption. Since every field in the real estate form is a plain `type="number"` input (no free text, dates, or enums), comparing `Number(value)` across the board resolves this with one normalization step — no per-field-type framework was built, since none of the fields need different treatment. Confirmed live in the browser: a duplicated scenario with only Exit Cap Rate changed (and Interest Rate re-typed as "6" instead of the original "6.0") correctly showed Exit Cap Rate as the only changed row, with Interest Rate correctly grouped under "Unchanged."
+
+**2026-08-17 — Professional Deal Summary: dedicated component, not a new tab/route**
+Alternatives considered: enhancing print.css alone with no new on-screen component (lowest implementation cost, but the on-screen app would still look like an input form + full detail dump, not "a professional analytical deliverable," and CSS alone can't reorder/condense content); a new top-level tab or route (would need routing infrastructure this app doesn't have, disproportionate to the ask). Chose a dedicated `RealEstateDealSummary` component rendered at the top of the existing results section, above the unchanged full detail — quick-scan summary first, full depth immediately below for whoever wants it, no toggle needed. Real-estate-specific content, so it lives in `features/real-estate/` rather than the shared `components/` folder, matching the project's "factor out shared pieces only once a second module needs them" pattern (README, Architecture section).
+
+**2026-08-17 — Sensitivity in the summary: compact grid, not reduced to a min/max sentence**
+The user pushed back on the originally-proposed min/max-only treatment: the sensitivity matrix is itself recognized professional underwriting content, not just supporting detail. Resolved by extracting the previously-inline sensitivity grid markup into a shared `RealEstateSensitivityGrid` component with a `compact` prop that changes only CSS (smaller font/padding) — the same grid data, same base-case-highlight logic, same `/sensitivity` endpoint call, used in both the full results (byte-identical to its prior inline rendering) and the summary. A short supporting "Tested IRR range" line (client-side min/max over already-fetched cells, not a new calculation) sits below the grid as a supplement, not a replacement.
+
+**2026-08-17 — Deal / Property Name: frontend-only metadata, no backend/schema involvement**
+Added an optional field purely for labeling the summary/print header. Deliberately kept out of `buildPayload()` (never sent to the API, never touches the financial engine) and given no dedicated backfill logic beyond extending the existing `withLegacyDefaults()` function the same way loan maturity already was — old scenarios simply get `''`. Chosen over any backend/schema change, which would have been unjustified complexity for a display-only label.
+
+**2026-08-17 — Print: two buttons, existing behavior preserved**
+Renamed the existing "Print" to "Print Full Analysis" (identical behavior, clearer label) and added "Print Summary" as a new button, rather than changing what the existing button does. A body-class toggle (`print-summary-only`), scoped entirely inside `print.css`'s `@media print` block, hides the full-detail section for the new button only - verified to have zero on-screen effect and confirmed the class is added/removed correctly (including on the browser's `afterprint` event) without invoking a real OS print dialog in an automated check. While extending `print.css`, found and fixed a latent bug predating this milestone: headings and risk-flag cards had no print-specific color override, so printing from OS dark mode would have rendered them illegibly (light text on the white printed page) - fixed with the same explicit-color pattern already used for `.metric` and other elements.
+
+**2026-08-17 — Scenario-comparison summary and DCF summary: both deferred**
+Confirmed with the user: V1 works only from the single active underwriting, with no dependency on saved or compared scenarios, keeping the component's logic simple and the core "turn a completed underwriting into a summary" need fully met. A Base/Downside/Upside comparison variant, and a DCF equivalent of this same summary, are both natural next steps but need their own scoping - not built now.

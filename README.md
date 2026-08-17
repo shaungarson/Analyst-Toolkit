@@ -59,6 +59,10 @@ considered instead — is in [`PROGRESS.md`](PROGRESS.md).
 - Save, load, **duplicate**, and **compare named scenarios** side by side — comparison
   highlights exactly which assumptions differ between the scenarios selected, so it's clear
   *why* the outputs moved, not just that they did
+- **Professional Deal Summary:** a compact, decision-ready read of a completed
+  underwriting — headline returns, deal/financing snapshot, a compact sensitivity view, and
+  any triggered risk flags — separate from (and above) the full detailed breakdown, with a
+  dedicated one-page print/print-to-PDF output
 - CSV export and print-friendly output
 
 ### DCF Valuation

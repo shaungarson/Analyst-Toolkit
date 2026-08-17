@@ -12,6 +12,15 @@
     color: #000;
   }
 
+  /* Headings otherwise inherit --text-h, which is a light color in dark mode - without
+     this, printing from dark mode would render every heading near-invisible on the white
+     printed page. */
+  h1,
+  h2,
+  h3 {
+    color: #000;
+  }
+
   .feature-page {
     max-width: 100%;
     padding: 0;
@@ -53,5 +62,48 @@
 
   .assumptions {
     color: #444;
+  }
+
+  .risk-flag {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-left: 3px solid #a15c00;
+    break-inside: avoid;
+  }
+
+  .risk-flag-title {
+    color: #000;
+  }
+
+  .risk-flag-explanation {
+    color: #444;
+  }
+
+  .deal-summary {
+    background: #fff;
+    border: 1px solid #ccc;
+  }
+
+  .deal-summary-subtitle {
+    color: #444;
+  }
+
+  .deal-summary-headline-item .label {
+    color: #444;
+  }
+
+  .deal-summary-headline-item .value {
+    color: #000;
+  }
+
+  .financing-line {
+    color: #000;
+  }
+
+  /* Toggled by the "Print Summary" button so only the deal summary prints, not the full
+     detail below it. The unrelated "Print Full Analysis" button never sets this class, so
+     its output is unaffected. */
+  body.print-summary-only .full-detail {
+    display: none !important;
   }
 }
