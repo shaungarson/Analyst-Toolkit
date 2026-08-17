@@ -1,8 +1,9 @@
 # Analyst Toolkit — Progress
 
 ## Current Phase
-Phase 8 complete; README polish done (Section 14). No further work currently agreed —
-check with the user for direction before starting anything new.
+Phase 8 complete; README polish done (Section 14); CRE underwriting metrics (DSCR, debt
+yield, loan maturity) added as a Phase 8 extension. Deterministic real estate risk-flag
+phase agreed with the user and about to begin (see Decision Log, 2026-08-17).
 
 ## Live Links
 * App: https://analyst-toolkit-ecru.vercel.app
@@ -214,13 +215,42 @@ This completes every item from the Phase 8 plan agreed with the user on 2026-08-
   - Sanity-checked the documented local-run commands (venv paths, install commands) actually
     match what's been used throughout this project, rather than writing them from memory.
 
+* **CRE underwriting metrics — DSCR, debt yield, loan maturity (2026-08-17).** Extended the
+  real estate module with three standard commercial lending figures that were previously
+  missing.
+  - **DSCR** (NOI ÷ annual debt service) computed per year, `null` once debt service hits
+    zero (i.e. after the loan is fully amortized). Year-1 DSCR (`going_in_dscr`) is also
+    surfaced as a headline metric.
+  - **Debt yield** (going-in NOI ÷ original loan amount) added as a Day-1-only headline
+    metric — deliberately not computed per year, unlike DSCR, matching standard lender
+    convention.
+  - **Loan maturity** added as a new input, distinct from amortization period (standard CRE
+    phrasing: "5-year term, 30-year am"). A Pydantic cross-field validator now enforces
+    `loan_maturity_years >= hold_period_years`, since refinancing, extensions, and balloon
+    payoffs beyond the original loan term aren't modeled — see the Decision Log entry below
+    for the alternatives considered and why this was chosen over modeling a balloon payoff.
+  - The real estate sensitivity grid's hold-period axis is now also clamped at
+    `loan_maturity_years` (not just a 1-year floor), so it can never silently test a hold
+    period beyond loan maturity even though it calls the pure calculation function directly,
+    bypassing Pydantic validation.
+  - Scenarios saved before `loan_maturity_years` existed are backfilled via a
+    `withLegacyDefaults()` helper in `RealEstateUnderwriting.jsx`, applied at both
+    scenario-load and scenario-compare entry points — defaults missing maturity to the
+    scenario's own hold period (the smallest value guaranteed valid under the rule above).
+  - 12 new backend tests (39 total across both modules), including DSCR going to `null`
+    after loan payoff and the sensitivity-grid maturity clamp.
+
 ## In Progress
 * (nothing yet)
 
 ## Near-Term Next Steps
-* Open — no further work is currently agreed. Check with the user for direction (Phase 9
-  stays out of scope until explicitly instructed, per CLAUDE.md). Screenshots for the README
-  are a reasonable small follow-up whenever convenient.
+* **Deterministic real estate risk flags** (agreed with the user 2026-08-17, about to
+  start): three flags — low Year-1 DSCR vs. a named 1.20x reference constant, exit
+  cap-rate compression, and capital-loss exposure across the sensitivity grid
+  (equity multiple < 1.0x). New `backend/app/calculations/risk_flags.py` module, reading
+  already-computed results rather than modifying the calculation layer. Full plan recorded
+  in the Decision Log below.
+* Screenshots for the README are a reasonable small follow-up whenever convenient.
 
 ## Recent verification notes
 * 2026-08-13 — user manually resized the browser window and toggled OS dark mode; both held
@@ -318,3 +348,9 @@ Chosen to recalculate instead, because a scenario's *inputs* are the thing worth
 
 **2026-08-14 — Captured future concept: Tenant / Rent-Roll Underwriting Module (not scoped)**
 The user wants to explore modeling real estate at the tenant/lease level (occupancy, lease-expiry schedule, rollover exposure, tenant concentration, WALE) instead of one flat NOI growth rate, with an eventual AI-assisted pipeline (rent roll/lease documents → structured tenant data → lease-level assumptions → multi-year NOI → valuation/returns → risk insights). Full concept recorded in CLAUDE.md Section 8. Explicitly not to be built yet — the user wants to validate with real commercial real estate professionals what tenant-level information they actually use in underwriting before committing to specific fields or scope. Design principle to preserve when this is eventually scoped: no arbitrary "tenant health scores" — transparent, evidence-based inputs, and show how they move cash flow rather than a black-box score.
+
+**2026-08-17 — Loan maturity: reject hold periods beyond loan term, don't model balloon payoffs**
+Alternatives considered: (1) model a balloon payment/payoff at loan maturity if the hold period runs past it (more realistic, but adds refinancing-adjacent complexity that's explicitly deferred); (2) allow the input but show a warning without changing the math (simpler, but silently produces cash flows using financing that would have contractually expired — misleading, not just imprecise). Chose to enforce `loan_maturity_years >= hold_period_years` as a hard Pydantic validation rule instead, so the engine only ever computes cash flows under financing that's still in place. Standard CRE convention already separates loan term from amortization period ("5-year term, 30-year am"), so this is realistic, not merely simplifying. Also closed a related gap: the real estate sensitivity grid calls the pure calculation function directly (bypassing Pydantic), so its hold-period axis is separately clamped at `loan_maturity_years` to preserve the same guarantee.
+
+**2026-08-17 — Deterministic risk-flag phase: scope and design agreed**
+Agreed to build a third architectural layer on top of the existing two (pure financial calculations in `backend/app/calculations/`; deterministic risk logic reads that output rather than modifying it — mirrors how the WACC-vs-terminal-growth check is already separated from `run_dcf()`). V1 scope: exactly three real estate risk flags — low Year-1 DSCR (vs. a named 1.20x reference constant, explicitly not framed as a universal lender rule), exit cap-rate compression (directional only, no magnitude threshold), and capital-loss exposure across the sensitivity grid (% of tested cells with equity multiple < 1.0x, named `capital_loss_exposure` rather than a generic "downside exposure" label to leave room for a future, separate hurdle-rate/target-return concept). Explicitly excluded from V1, with reasons: a debt-yield flag (no defensible universal threshold), a generic LTV/leverage warning (low marginal insight over a value the user already typed in), any arbitrary composite "risk score" (rejected as a design principle, consistent with the tenant-module design principle above). `RiskFlag` returned as a plain dict — `id`, `title`, `category`, `explanation`, `observed_value`, `reference_value` — with no severity/scoring field, and only triggered flags included in the list (empty list = nothing triggered). The sensitivity grid's existing public API/schema and frontend are preserved unchanged: equity multiple is captured internally from underwriting runs the grid already performs, via a shared internal helper, rather than duplicating the computation or extending the public response.

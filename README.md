@@ -44,12 +44,14 @@ considered instead — is in [`PROGRESS.md`](PROGRESS.md).
 - Multi-year cash flow model: NOI grows at a flat annual rate from Year 2 onward (Year 1 is
   the unescalated going-in NOI)
 - Financing with a full debt amortization schedule (monthly-pay, monthly-compounding,
-  rolled up annually)
+  rolled up annually), with loan maturity modeled separately from the amortization period
 - Acquisition and disposition costs (flat percentages)
 - Exit valuation based on forward-looking NOI (the income the buyer is purchasing, not the
   flat going-in figure)
 - IRR, equity multiple, cash-on-cash return, all computed from the actual year-by-year
   equity cash flow stream
+- DSCR (computed per year) and debt yield (a Day-1 metric), the standard lending figures
+  behind the return numbers
 - **Sensitivity analysis:** IRR across a grid of exit cap rate × hold period
 - Save, load, and **compare named scenarios** side by side
 - CSV export and print-friendly output
@@ -74,6 +76,14 @@ the UI's own assumptions text, never silently assumed:
 
 - **Real estate debt:** monthly-pay, monthly-compounding amortization — the standard
   commercial mortgage convention — rolled up into annual schedule rows.
+- **Real estate loan maturity:** modeled separately from the amortization period (e.g. a
+  5-year loan term on a 30-year amortization schedule), and constrained to be at least as
+  long as the hold period — refinancing, extensions, and balloon payoffs beyond the
+  original loan term aren't modeled, so the engine never computes cash flows using
+  financing that would have contractually expired.
+- **Real estate DSCR and debt yield:** DSCR (NOI ÷ debt service) is computed per year and
+  becomes undefined once the loan is paid off; debt yield (going-in NOI ÷ loan amount) is a
+  Day-1-only figure, matching standard lender convention.
 - **Real estate exit value:** capitalizes NOI one year past the end of the hold period (what
   the buyer is actually purchasing), not the flat going-in NOI.
 - **DCF terminal value:** Gordon Growth (perpetuity growth) method, since WACC and terminal
@@ -84,9 +94,9 @@ the UI's own assumptions text, never silently assumed:
   multiple debt tranches, waterfalls/promotes, revenue-driver DCF forecasting, WACC
   build-up from capital structure, comparable-company inputs.
 
-Every calculation — cap rate, amortization, IRR, equity multiple, terminal value, enterprise
-value — is backed by automated tests checked against values computed independently by hand,
-not just "does the code agree with itself." 30 backend tests total.
+Every calculation — cap rate, amortization, IRR, equity multiple, DSCR, debt yield, terminal
+value, enterprise value — is backed by automated tests checked against values computed
+independently by hand, not just "does the code agree with itself." 39 backend tests total.
 
 ## Architecture
 
