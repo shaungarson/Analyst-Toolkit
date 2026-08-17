@@ -65,6 +65,16 @@ function ScenarioManager({ storageKey, currentData, onLoad, onCompare }) {
                 </button>
                 <button
                   type="button"
+                  className="secondary"
+                  onClick={() => {
+                    onLoad(s.data)
+                    setName(`${s.name} (copy)`)
+                  }}
+                >
+                  Duplicate
+                </button>
+                <button
+                  type="button"
                   className="secondary danger"
                   onClick={() => deleteScenario(s.id)}
                 >

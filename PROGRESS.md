@@ -2,9 +2,9 @@
 
 ## Current Phase
 Phase 8 complete; README polish done (Section 14); CRE underwriting metrics (DSCR, debt
-yield, loan maturity) added as a Phase 8 extension. Deterministic real estate risk flags
-(low Year-1 DSCR, exit cap-rate compression, capital-loss exposure) shipped as a second
-Phase 8 extension — see Decision Log, 2026-08-17. No further work currently agreed; check
+yield, loan maturity) and deterministic real estate risk flags shipped as Phase 8
+extensions. Real estate scenario-workflow V1 (duplicate scenario, assumption-difference
+comparison) shipped 2026-08-17 — see Decision Log. No further work currently agreed; check
 with the user for direction.
 
 ## Live Links
@@ -277,9 +277,53 @@ This completes every item from the Phase 8 plan agreed with the user on 2026-08-
 ## In Progress
 * (nothing yet)
 
+* **Real estate scenario-workflow V1 (2026-08-17).** Aimed at how an analyst actually
+  builds Base/Downside/Upside cases, not just more scenario features for their own sake.
+  - **Duplicate scenario**, added to the shared `ScenarioManager` component: loads the
+    scenario's saved inputs into the active form (reusing the existing Load path) and
+    pre-fills the name field with `"{original name} (copy)"`. No hidden background clone —
+    the analyst edits in the real form, then uses the existing "Save Current Inputs" flow.
+    Entirely self-contained inside `ScenarioManager` (calls the existing `onLoad` prop, sets
+    its own local name-input state) — no new prop needed, so it applies to both Real Estate
+    and DCF with zero module-specific code, confirmed with no unexpected complexity in
+    either module.
+  - **Assumption-difference comparison** (Real Estate only for this milestone): a new
+    `ScenarioAssumptionDiffTable` component renders directly above the existing output
+    comparison table when 2+ scenarios are compared. A field counts as changed if its
+    normalized value isn't identical across every selected scenario — no baseline scenario
+    needs to be designated, which also makes 3+-way comparison work with no special case.
+    Unchanged fields collapse into one summary line rather than cluttering the table with a
+    row per field.
+  - Verified before writing the comparison logic that raw saved-scenario values can
+    genuinely differ in string form for the same economic assumption (the worked example
+    itself saves `interestRate: "6.0"`, while typing the same 6% by hand saves `"6"`).
+    Values are normalized with `Number()` before comparing — every field in this form is a
+    plain numeric input, so one normalization step covers all of them; no general
+    per-field-type framework was needed. Confirmed live in the browser that a duplicated
+    scenario edited only on Exit Cap Rate (with interest rate re-typed as "6" instead of the
+    original "6.0") correctly shows Exit Cap Rate as the only changed row and Interest Rate
+    as unchanged.
+  - No backend or schema changes — scenario storage, diffing, and duplication are all
+    client-side. No localStorage migration needed either: every saved scenario already
+    stores its full raw inputs (nothing was ever pruned), so old scenarios work with the
+    diff table unmodified. Existing `withLegacyDefaults()` backfill (loan maturity) is
+    still applied wherever scenario data is read, unchanged.
+  - Base/Downside/Upside is a naming convention, not a schema field or enum — see Decision
+    Log for why an explicit scenario-type field was rejected.
+  - No new backend tests (nothing in the calculation layer changed) and no new frontend
+    test framework was introduced for this one small comparison function — verified by
+    hand in the browser instead (2-scenario diff, 3-scenario diff, zero-diff/all-identical
+    case, and the string-format-equivalence case above), consistent with how scenario
+    saving and CSV export were verified in earlier phases. Also re-verified DCF's Duplicate
+    button works identically to Real Estate's, with no regressions.
+  - DCF assumption-difference comparison deliberately deferred as a separate follow-up, not
+    bundled into this milestone.
+
 ## Near-Term Next Steps
 * Open — no further work is currently agreed. Check with the user for direction (Phase 9
   stays out of scope until explicitly instructed, per CLAUDE.md).
+* DCF assumption-difference comparison (mirrors the Real Estate work above) is a reasonable
+  small follow-up whenever wanted — deliberately not done automatically in this milestone.
 * Screenshots for the README are a reasonable small follow-up whenever convenient.
 
 ## Recent verification notes
@@ -390,3 +434,12 @@ Running a second Claude Code session against this repo while a prior session's f
 
 **2026-08-17 — Documentation discipline formalized as a standing workflow**
 Added an explicit pre-commit documentation review to CLAUDE.md Section 13: before declaring any product-development milestone complete, check whether `README.md`, `PROGRESS.md` (done list, current phase, near-term next steps, decision log), roadmap status, and `CLAUDE.md` itself need updating, and report which docs were reviewed/updated/deferred at each commit milestone. Motivated by the DSCR/debt-yield/loan-maturity commit (`f93ae4d`) shipping without its documentation update, which had to be caught and fixed retroactively in a follow-up commit — this makes that check a required step going forward rather than something that can be silently skipped.
+
+**2026-08-17 — Scenario workflow: Duplicate loads-into-form rather than a background clone**
+Alternatives considered: cloning a scenario immediately and silently in the background (the analyst would then have to find and Load the clone separately to edit it). Chosen instead: Duplicate loads the scenario's inputs into the active form immediately (reusing the existing Load mechanism) and pre-fills the name field with a neutral `"{name} (copy)"` suggestion, so the analyst edits in the real form and saves explicitly with the existing "Save Current Inputs" button. Deliberately does not suggest "Downside"/"Upside" in the name, since duplicating a scenario doesn't imply either intention — naming stays entirely up to the analyst. This kept the change almost free: no new save code path, no confirmation dialog, and — because it's implemented entirely inside the shared `ScenarioManager` component using the `onLoad` prop that already existed — it applies identically to both Real Estate and DCF with no module-specific branching.
+
+**2026-08-17 — Base/Downside/Upside: naming convention, not a schema field**
+Alternatives considered: an explicit `scenarioType` enum field (Base/Downside/Upside, or similar). Rejected because it would force a fixed vocabulary that doesn't fit every deal (e.g. "Downside 1/2", a refinance case), require the same class of legacy-scenario migration work as the `loan_maturity_years` backfill, and doesn't feed any calculation, sort, or filter that a free-text name doesn't already support equally well. The Duplicate workflow (start from a saved scenario, rename, tweak) naturally produces Base/Downside/Upside-style structure without hard-coding it — consistent with the same "no arbitrary taxonomy" principle already applied to the risk-flags phase and the future tenant-module design principle (CLAUDE.md Section 8).
+
+**2026-08-17 — Assumption-diff comparison: normalize with Number(), not a general normalization framework**
+Verified before writing the comparison logic that raw saved-scenario values can differ in string form for an identical economic assumption — the app's own worked example saves `interestRate: "6.0"`, while an analyst typing the same 6% by hand saves `"6"`; naive string equality would have flagged that as a changed assumption. Since every field in the real estate form is a plain `type="number"` input (no free text, dates, or enums), comparing `Number(value)` across the board resolves this with one normalization step — no per-field-type framework was built, since none of the fields need different treatment. Confirmed live in the browser: a duplicated scenario with only Exit Cap Rate changed (and Interest Rate re-typed as "6" instead of the original "6.0") correctly showed Exit Cap Rate as the only changed row, with Interest Rate correctly grouped under "Unchanged."

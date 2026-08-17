@@ -157,6 +157,12 @@ td:first-child {
   font-weight: 600;
 }
 
+.assumption-changed {
+  background: var(--panel-bg);
+  color: var(--text-h);
+  font-weight: 600;
+}
+
 .assumptions {
   margin-top: 1.5rem;
   font-size: 0.85rem;

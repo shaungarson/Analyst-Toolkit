@@ -56,7 +56,9 @@ considered instead — is in [`PROGRESS.md`](PROGRESS.md).
 - **Deterministic risk flags:** transparent, rule-based checks (low Year-1 DSCR, exit
   cap-rate compression, capital-loss exposure across the sensitivity grid) — no black-box
   scoring, just explainable thresholds against the numbers already computed above
-- Save, load, and **compare named scenarios** side by side
+- Save, load, **duplicate**, and **compare named scenarios** side by side — comparison
+  highlights exactly which assumptions differ between the scenarios selected, so it's clear
+  *why* the outputs moved, not just that they did
 - CSV export and print-friendly output
 
 ### DCF Valuation
@@ -65,7 +67,7 @@ considered instead — is in [`PROGRESS.md`](PROGRESS.md).
 - Gordon Growth terminal value, with WACC and terminal growth as direct inputs
 - Enterprise value → equity value → value per share bridge
 - **Sensitivity analysis:** value per share across a grid of WACC × terminal growth rate
-- Save, load, and **compare named scenarios** side by side
+- Save, load, **duplicate**, and **compare named scenarios** side by side
 - CSV export and print-friendly output
 
 Both modules ship with a one-click worked example, so the tool is understandable in under a

@@ -5,6 +5,7 @@ import { friendlyErrorMessage, parseErrorResponse } from '../../lib/apiError'
 import { API_BASE } from '../../lib/apiBase'
 import ScenarioManager from '../../components/ScenarioManager'
 import ScenarioComparisonTable from '../../components/ScenarioComparisonTable'
+import ScenarioAssumptionDiffTable from '../../components/ScenarioAssumptionDiffTable'
 import '../../styles/feature-form.css'
 
 const EXAMPLE = {
@@ -57,6 +58,28 @@ const buildPayload = (form) => ({
   acquisition_cost_pct: Number(form.acquisitionCostPct) / 100,
   disposition_cost_pct: Number(form.dispositionCostPct) / 100,
 })
+
+const ASSUMPTION_FIELDS = [
+  { key: 'purchasePrice', label: 'Purchase Price', format: (v) => currency(Number(v)) },
+  { key: 'goingInNoi', label: 'Going-in NOI', format: (v) => currency(Number(v)) },
+  {
+    key: 'acquisitionCostPct',
+    label: 'Acquisition Costs',
+    format: (v) => percent(Number(v) / 100),
+  },
+  { key: 'ltv', label: 'Loan-to-Value', format: (v) => percent(Number(v) / 100) },
+  { key: 'interestRate', label: 'Interest Rate', format: (v) => percent(Number(v) / 100) },
+  { key: 'amortizationYears', label: 'Amortization Period', format: (v) => `${Number(v)} yr` },
+  { key: 'loanMaturityYears', label: 'Loan Maturity', format: (v) => `${Number(v)} yr` },
+  { key: 'holdPeriodYears', label: 'Hold Period', format: (v) => `${Number(v)} yr` },
+  { key: 'noiGrowthRate', label: 'NOI Growth Rate', format: (v) => percent(Number(v) / 100) },
+  { key: 'exitCapRate', label: 'Exit Cap Rate', format: (v) => percent(Number(v) / 100) },
+  {
+    key: 'dispositionCostPct',
+    label: 'Disposition Costs',
+    format: (v) => percent(Number(v) / 100),
+  },
+]
 
 const COMPARISON_METRICS = [
   { key: 'cap_rate', label: 'Going-in Cap Rate', get: (r) => r.going_in_cap_rate, format: percent },
@@ -132,12 +155,16 @@ function RealEstateUnderwriting() {
 
   const handleCompare = async (selectedScenarios) => {
     setError(null)
+    const withDefaults = selectedScenarios.map((s) => ({
+      ...s,
+      data: withLegacyDefaults(s.data),
+    }))
     const settled = await Promise.allSettled(
-      selectedScenarios.map(async (s) => {
+      withDefaults.map(async (s) => {
         const res = await fetch(`${API_BASE}/api/real-estate/underwrite`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(buildPayload(withLegacyDefaults(s.data))),
+          body: JSON.stringify(buildPayload(s.data)),
         })
         if (!res.ok) {
           throw new Error(await parseErrorResponse(res))
@@ -146,11 +173,11 @@ function RealEstateUnderwriting() {
       }),
     )
     setComparison(
-      selectedScenarios.map((s, i) => {
+      withDefaults.map((s, i) => {
         const outcome = settled[i]
         return outcome.status === 'fulfilled'
-          ? { name: s.name, results: outcome.value }
-          : { name: s.name, error: outcome.reason.message }
+          ? { name: s.name, data: s.data, results: outcome.value }
+          : { name: s.name, data: s.data, error: outcome.reason.message }
       }),
     )
   }
@@ -449,12 +476,15 @@ function RealEstateUnderwriting() {
       {error && <p className="error">{error}</p>}
 
       {comparison && (
-        <ScenarioComparisonTable
-          title="Scenario Comparison"
-          comparisons={comparison}
-          metrics={COMPARISON_METRICS}
-          onClear={() => setComparison(null)}
-        />
+        <>
+          <ScenarioAssumptionDiffTable comparisons={comparison} fields={ASSUMPTION_FIELDS} />
+          <ScenarioComparisonTable
+            title="Scenario Comparison"
+            comparisons={comparison}
+            metrics={COMPARISON_METRICS}
+            onClear={() => setComparison(null)}
+          />
+        </>
       )}
 
       {results && (
