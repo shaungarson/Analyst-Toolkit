@@ -114,6 +114,30 @@ Treat calculations as core logic, not UI output:
 
    Does not block the recruiter-ready version.
 
+   **Named future concept — Tenant / Rent-Roll Underwriting Module (not scoped, not scheduled):**
+   A more realistic real estate underwriting workflow, modeling a property at the tenant/unit
+   level instead of assuming one flat NOI growth rate. Would extend the Phase 8 multi-year
+   real estate model (tenant-level lease rollups replacing the flat growth-rate assumption)
+   and is a concrete instance of the Phase 9 capabilities above — document extraction (rent
+   rolls, lease schedules, OMs) and risk flagging specifically.
+   * Tenant/lease-level inputs (illustrative): unit/space count, rent and % of total revenue
+     per tenant, lease start/expiry and remaining term, contractual escalations, current vs.
+     market rent, renewal probability, expected downtime on rollover, TI/leasing commission
+     costs, and transparent tenant-risk factors (credit quality, public/private status,
+     financial strength, payment history, revenue concentration).
+   * Derived property-level metrics (illustrative): occupancy, tenant concentration,
+     lease-expiry schedule and % of rent expiring within 1/2/3/5 years, weighted average
+     lease term, rollover exposure, projected rental revenue and NOI.
+   * Design principle: no arbitrary or falsely precise "tenant health scores." Prefer
+     transparent, evidence-based inputs, and show how those assumptions move cash flow —
+     not a black-box score.
+   * AI expansion pipeline (same mental model as above, applied here): rent roll/lease
+     documents → structured tenant data → lease-level assumptions → multi-year NOI →
+     valuation and returns → risk insights.
+   * Gate: scope is deliberately not finalized. Before committing to specific fields or
+     workflow, validate with real commercial real estate professionals what tenant-level
+     information they actually use when underwriting — do not build ahead of that input.
+
 ---
 
 ## 9. Examples & Data

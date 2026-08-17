@@ -231,6 +231,9 @@ This completes every item from the Phase 8 plan agreed with the user on 2026-08-
 * Real estate: refinancing, multiple debt tranches, waterfalls/promotes. (Multi-year cash
   flows, rent/NOI growth, acquisition/disposition costs, sensitivity analysis, and scenario
   comparison are all done as of 2026-08-13.)
+* Real estate (bigger, further out): tenant/rent-roll-level underwriting module — see
+  CLAUDE.md Section 8 for the full concept. Not scoped; needs validation with real CRE
+  professionals before scoping.
 * DCF: historical financials, revenue-driver forecasts, margin/working-capital/CapEx modeling, WACC build-up, comparable-company inputs. (Sensitivity analysis and scenario comparison are done as of 2026-08-13.)
 * Long-term (Phase 9, not scoped/scheduled): document extraction (OMs/rent rolls/T12s), auto-structuring inputs, missing/inconsistent data detection, AI-generated scenarios, risk flagging, sensitivity interpretation, IC-style commentary, professional export formats — see CLAUDE.md Section 8
 * TypeScript adoption
@@ -312,3 +315,6 @@ Chosen because both grids exist to answer one question fast — "how exposed am 
 **2026-08-13 — Scenario comparison recalculates from saved inputs rather than storing past results**
 Alternatives considered: storing the computed results alongside each saved scenario at save time, so comparison would just be a display step with no new network calls.
 Chosen to recalculate instead, because a scenario's *inputs* are the thing worth persisting — if the calculation logic itself ever changes (as it already has multiple times this project: the LTV bound, the exit valuation convention, the terminal growth cap), old stored results would silently go stale and misrepresent what the current model would actually produce. Recalculating on demand means a comparison always reflects today's methodology, and surfaces a scenario whose saved inputs no longer pass validation as a visible, per-scenario error rather than a silent wrong number.
+
+**2026-08-14 — Captured future concept: Tenant / Rent-Roll Underwriting Module (not scoped)**
+The user wants to explore modeling real estate at the tenant/lease level (occupancy, lease-expiry schedule, rollover exposure, tenant concentration, WALE) instead of one flat NOI growth rate, with an eventual AI-assisted pipeline (rent roll/lease documents → structured tenant data → lease-level assumptions → multi-year NOI → valuation/returns → risk insights). Full concept recorded in CLAUDE.md Section 8. Explicitly not to be built yet — the user wants to validate with real commercial real estate professionals what tenant-level information they actually use in underwriting before committing to specific fields or scope. Design principle to preserve when this is eventually scoped: no arbitrary "tenant health scores" — transparent, evidence-based inputs, and show how they move cash flow rather than a black-box score.
