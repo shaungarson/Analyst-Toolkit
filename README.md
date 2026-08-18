@@ -75,7 +75,10 @@ considered instead — is in [`PROGRESS.md`](PROGRESS.md).
 - CSV export and print-friendly output
 
 Both modules ship with a one-click worked example, so the tool is understandable in under a
-minute without needing to source your own deal data.
+minute without needing to source your own deal data. The Real Estate example is
+real-world-inspired: purchase price and NOI are sourced from a public industrial/flex
+listing (100 Symes Road, Toronto), with financing, growth, hold, and exit assumptions
+clearly labeled as illustrative rather than presented as if they were sourced facts.
 
 ## Financial methodology
 

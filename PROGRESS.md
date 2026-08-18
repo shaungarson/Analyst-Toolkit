@@ -2,9 +2,10 @@
 
 ## Current Phase
 Phase 8 complete; README polish done (Section 14); CRE underwriting metrics, deterministic
-real estate risk flags, and scenario-workflow V1 (duplicate + assumption comparison)
-shipped as Phase 8 extensions. Real estate Professional Deal Summary shipped 2026-08-17 —
-see Decision Log. No further work currently agreed; check with the user for direction.
+real estate risk flags, scenario-workflow V1, and the Professional Deal Summary all shipped
+as Phase 8 extensions. Real estate example deal replaced with a real-world-inspired case
+(100 Symes Road, Toronto) shipped 2026-08-18 — see Decision Log. No further work currently
+agreed; check with the user for direction.
 
 ## Live Links
 * App: https://analyst-toolkit-ecru.vercel.app
@@ -367,6 +368,39 @@ This completes every item from the Phase 8 plan agreed with the user on 2026-08-
     triggering a real OS print dialog), on-screen invisibility of the print-only CSS rule,
     light/dark mode, and a DCF smoke test (DCF module untouched, confirmed unaffected).
 
+* **Real-world-inspired example deal: 100 Symes Road, Toronto (2026-08-18).** Replaced the
+  round-number placeholder example with a real, independently-verified industrial/flex
+  listing, so `Load Example Deal` demonstrates a believable CRE case rather than arbitrary
+  numbers.
+  - Purchase price ($16,500,000) and going-in NOI (~$1,000,000) are sourced from the
+    public listing for 100 Symes Road (verified directly against the brokerage's listing
+    page before implementing, cross-checked against independent web search results for the
+    building/zoning/location details — LoopNet and REALTOR.ca themselves blocked automated
+    fetches, a standard anti-bot response, not a data-quality signal). Financing, growth,
+    hold, and exit assumptions are illustrative, run through the actual calculation
+    functions before being approved (not hand-estimated), and deliberately not engineered
+    for an attractive return: IRR 8.00%, equity multiple 1.43x, Year-1 DSCR 1.33x, debt
+    yield 9.32% — moderate and believable rather than a showcase number.
+  - One risk flag triggers organically (capital-loss exposure, 3 of 15 tested sensitivity
+    cells), while DSCR and exit-cap-compression correctly don't — demonstrating the flags
+    are selective, not trivially always-on or always-off.
+  - The 5-year loan maturity intentionally equals the 5-year hold period (a realistic,
+    common CRE financing structure, not just an edge case for the validator), which also
+    exercises the sensitivity grid's loan-maturity clamp organically: the grid tests only
+    3 hold-period columns instead of the usual 5, live in the example, without needing a
+    separately-constructed test case.
+  - Added a small `.assumptions`-styled disclaimer directly under the Load Example
+    Deal/Run Underwriting buttons, always visible (no new state to track whether the form
+    still matches the untouched example), distinguishing the sourced facts (price, NOI)
+    from the illustrative assumptions (everything else).
+  - `loadExample()` itself is unchanged: still populate-only, no auto-run, no auto-save, no
+    scenario-type presets. 100% frontend, no backend/schema changes, no new backend tests.
+  - Verified by hand: loaded values match the approved assumptions field-for-field;
+    resulting headline metrics/risk flags match the pre-implementation calculation-layer
+    test exactly; works correctly with the Professional Deal Summary (deal name in the
+    header, compact grid matching the full grid); Duplicate/Save/Load all correctly carry
+    the deal name and full assumption set.
+
 ## Near-Term Next Steps
 * Open — no further work is currently agreed. Check with the user for direction (Phase 9
   stays out of scope until explicitly instructed, per CLAUDE.md).
@@ -511,3 +545,6 @@ Renamed the existing "Print" to "Print Full Analysis" (identical behavior, clear
 
 **2026-08-17 — Scenario-comparison summary and DCF summary: both deferred**
 Confirmed with the user: V1 works only from the single active underwriting, with no dependency on saved or compared scenarios, keeping the component's logic simple and the core "turn a completed underwriting into a summary" need fully met. A Base/Downside/Upside comparison variant, and a DCF equivalent of this same summary, are both natural next steps but need their own scoping - not built now.
+
+**2026-08-18 — Example deal: real property (100 Symes Road, Toronto), publicly-sourced facts kept separate from illustrative assumptions**
+Alternatives considered: keep the round-number placeholder example (simple, but reads as an obviously fake demo, not a believable CRE case); use a real property but present all inputs as if they were sourced (misleading - the app has no way to know a real deal's actual financing/hold/growth assumptions). Chose to source only what the public listing actually states (purchase price, going-in NOI) and clearly label everything else (LTV, rate, amortization, maturity, hold, growth, exit cap, costs) as illustrative via a always-visible disclaimer next to the Load Example Deal button - no new state to track whether the form still matches the untouched example, which would have been disproportionate complexity for a disclaimer. Deliberately did not optimize the illustrative assumptions for an attractive return: the resulting 8% IRR / 1.43x multiple case was chosen because it demonstrates the app's sensitivity grid, risk flags, and financing metrics doing real analytical work (one flag triggers, two don't; the loan-maturity sensitivity clamp activates organically from a realistic 5-year-term-on-5-year-hold structure), not because it looks good. Facts were verified directly against the listing brokerage's own page before implementation, not taken on faith from the request.

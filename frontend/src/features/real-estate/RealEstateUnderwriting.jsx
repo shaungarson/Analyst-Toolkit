@@ -10,17 +10,22 @@ import RealEstateSensitivityGrid from './RealEstateSensitivityGrid'
 import RealEstateDealSummary from './RealEstateDealSummary'
 import '../../styles/feature-form.css'
 
+// Purchase price and NOI are sourced from the public listing for 100 Symes Road, Toronto
+// (industrial/flex, ~63,288 SF, 15 tenants, 16 units, fully leased). Financing, growth,
+// hold, and exit assumptions are illustrative, chosen for a believable but not
+// artificially attractive demonstration case - not sourced facts. See the disclaimer
+// rendered next to the Load Example Deal button.
 const EXAMPLE = {
-  dealName: '',
-  purchasePrice: '10000000',
-  goingInNoi: '650000',
+  dealName: '100 Symes Road — Toronto Industrial/Flex',
+  purchasePrice: '16500000',
+  goingInNoi: '1000000',
   ltv: '65',
-  interestRate: '6.0',
+  interestRate: '5.75',
   amortizationYears: '30',
-  loanMaturityYears: '10',
+  loanMaturityYears: '5',
   holdPeriodYears: '5',
-  exitCapRate: '6.75',
-  noiGrowthRate: '3',
+  exitCapRate: '6.5',
+  noiGrowthRate: '2.5',
   acquisitionCostPct: '1.5',
   dispositionCostPct: '2',
 }
@@ -494,6 +499,12 @@ function RealEstateUnderwriting() {
             {loading ? 'Calculating…' : 'Run Underwriting'}
           </button>
         </div>
+        <p className="assumptions">
+          Real-world-inspired example based on publicly available information for 100 Symes
+          Road, Toronto. Property price and NOI are sourced from the public listing;
+          financing, growth, hold, and exit assumptions are illustrative for demonstration
+          purposes.
+        </p>
       </form>
 
       <ScenarioManager
