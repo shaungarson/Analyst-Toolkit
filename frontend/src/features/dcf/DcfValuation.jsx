@@ -5,6 +5,7 @@ import { friendlyErrorMessage, parseErrorResponse } from '../../lib/apiError'
 import { API_BASE } from '../../lib/apiBase'
 import ScenarioManager from '../../components/ScenarioManager'
 import ScenarioComparisonTable from '../../components/ScenarioComparisonTable'
+import CompanySourcedData from './CompanySourcedData'
 import '../../styles/feature-form.css'
 
 const EXAMPLE = {
@@ -54,8 +55,52 @@ function DcfValuation() {
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
 
+  const [ticker, setTicker] = useState('')
+  const [companyData, setCompanyData] = useState(null)
+  const [companyError, setCompanyError] = useState(null)
+  const [companyLoading, setCompanyLoading] = useState(false)
+
   const handleChange = (field) => (e) => {
     setForm({ ...form, [field]: e.target.value })
+  }
+
+  // Populates the existing assumption fields from sourced company data - it does not run
+  // a valuation and does not save a scenario. The analyst still reviews every field
+  // (including the ones just populated) and explicitly clicks Run Valuation.
+  const loadCompany = async (e) => {
+    e.preventDefault()
+    const symbol = ticker.trim()
+    if (!symbol) return
+    setCompanyError(null)
+    setCompanyLoading(true)
+    try {
+      const res = await fetch(`${API_BASE}/api/company/${encodeURIComponent(symbol)}`)
+      if (!res.ok) {
+        throw new Error(await parseErrorResponse(res))
+      }
+      const data = await res.json()
+      setCompanyData(data)
+      setResults(null)
+      setSensitivity(null)
+      setComparison(null)
+
+      const latest = data.periods[0]
+      setForm((prev) => ({
+        ...prev,
+        baseYearFcf:
+          latest?.unlevered_fcf != null ? String(Math.round(latest.unlevered_fcf)) : prev.baseYearFcf,
+        netDebt: latest?.net_debt != null ? String(Math.round(latest.net_debt)) : prev.netDebt,
+        dilutedSharesOutstanding:
+          data.profile.shares_outstanding != null
+            ? String(Math.round(data.profile.shares_outstanding))
+            : prev.dilutedSharesOutstanding,
+      }))
+    } catch (err) {
+      setCompanyError(friendlyErrorMessage(err))
+      setCompanyData(null)
+    } finally {
+      setCompanyLoading(false)
+    }
   }
 
   const loadExample = () => {
@@ -182,6 +227,33 @@ function DcfValuation() {
         Unlevered free cash flow forecast, discounted at a flat WACC, with a Gordon Growth
         terminal value.
       </p>
+
+      <form onSubmit={loadCompany} className="company-search">
+        <fieldset>
+          <legend>Company</legend>
+          <div className="company-search-row">
+            <label>
+              Ticker
+              <input
+                type="text"
+                placeholder="e.g. AAPL"
+                value={ticker}
+                onChange={(e) => setTicker(e.target.value)}
+              />
+            </label>
+            <button type="submit" disabled={companyLoading || !ticker.trim()}>
+              {companyLoading ? 'Loading…' : 'Load Company'}
+            </button>
+          </div>
+          <p className="assumptions">
+            Search a public company above, or enter assumptions manually below.
+          </p>
+        </fieldset>
+      </form>
+
+      {companyError && <p className="error">{companyError}</p>}
+
+      {companyData && <CompanySourcedData companyData={companyData} />}
 
       <form onSubmit={handleSubmit} className="dcf-form">
         <fieldset>

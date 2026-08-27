@@ -1,9 +1,14 @@
 import os
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import dcf, real_estate
+from app.routers import company, dcf, real_estate
+
+# Loads backend/.env for local dev (ALPHA_VANTAGE_API_KEY, etc.) - in production the
+# platform (Render) injects environment variables directly, so this is a no-op there.
+load_dotenv()
 
 app = FastAPI(title="Analyst Toolkit API")
 
@@ -18,6 +23,7 @@ app.add_middleware(
 
 app.include_router(real_estate.router)
 app.include_router(dcf.router)
+app.include_router(company.router)
 
 
 @app.get("/api/health")

@@ -2,10 +2,11 @@
 
 ## Current Phase
 Phase 8 complete; README polish done (Section 14); CRE underwriting metrics, deterministic
-real estate risk flags, scenario-workflow V1, and the Professional Deal Summary all shipped
-as Phase 8 extensions. Real estate example deal replaced with a real-world-inspired case
-(100 Symes Road, Toronto) shipped 2026-08-18 — see Decision Log. No further work currently
-agreed; check with the user for direction.
+real estate risk flags, scenario-workflow V1, the Professional Deal Summary, and the
+real-world-inspired example deal all shipped as Phase 8 extensions. DCF ticker search
+(public company data populates the workspace; analyst still reviews/runs manually) shipped
+2026-08-24 — see Decision Log. This is the project's first third-party API dependency. No
+further work currently agreed; check with the user for direction.
 
 ## Live Links
 * App: https://analyst-toolkit-ecru.vercel.app
@@ -401,9 +402,71 @@ This completes every item from the Phase 8 plan agreed with the user on 2026-08-
     header, compact grid matching the full grid); Duplicate/Save/Load all correctly carry
     the deal name and full assumption set.
 
+* **DCF ticker search: public company data populates the workspace (2026-08-24).** The DCF
+  page now starts with a "Company" section — enter a ticker, click Load Company, and
+  sourced historical fundamentals populate the existing assumption fields. This does not
+  run a valuation or save a scenario; the analyst still reviews every field (including the
+  ones just populated) and explicitly clicks Run Valuation, exactly mirroring how "Load
+  Example Deal" already behaves for Real Estate.
+  - **Data architecture** (evaluated before building, see Decision Log): Alpha Vantage
+    supplies fundamentals (income statement, balance sheet, cash flow, company
+    profile/quote) and SEC EDGAR supplies a ticker→CIK lookup plus a filings-index link —
+    not fundamentals values. SEC XBRL was directly tested (not just researched) against
+    real AAPL/MSFT filings before deciding: Apple reports D&A as one combined tag while
+    Microsoft splits it into two tags that must be summed, confirming that reliable XBRL
+    normalization needs an ongoing per-concept ruleset, not a one-time mapping — real,
+    demonstrated complexity, not a hypothetical concern.
+  - **Provider verification, not just documentation-reading:** Finnhub and Financial
+    Modeling Prep were both directly tested (live pricing pages, in Finnhub's case a live
+    API call) and found to have removed free-tier fundamentals access since older
+    write-ups were published online. Alpha Vantage's actual endpoints were called live
+    (OVERVIEW, INCOME_STATEMENT, BALANCE_SHEET, CASH_FLOW, GLOBAL_QUOTE) and confirmed
+    working on the free tier before being chosen.
+  - **Unlevered FCF construction:** `EBIT × (1 − effective tax rate) + D&A − CapEx −
+    change in NWC`, computed in `app/calculations/company_financials.py` (pure, tested) —
+    the proper enterprise-value-DCF build, not an OCF − CapEx shortcut. Any missing input
+    makes the result undefined rather than silently wrong.
+  - **Internal data model preserves the full underlying components** (revenue, EBIT, tax
+    inputs, D&A, CapEx, ΔNWC, calculated UFCF, cash, debt, net debt, shares, price,
+    profile, fiscal period, source) per fiscal year, not just a single collapsed
+    `base_year_fcf` number — deliberately, so the next major DCF evolution (a
+    driver-based revenue → margin → taxes → D&A → CapEx → ΔNWC forecast) doesn't require
+    redesigning the data layer.
+  - **Caching:** two separate in-memory TTLs, not one — fundamentals (24h, since filings
+    change quarterly at most) and quote/price (15 min, since it moves continuously during
+    market hours) — deliberately not coupled to a single freshness assumption. No
+    Redis/database introduced.
+  - **Error handling:** invalid ticker (404), Alpha Vantage's daily/per-minute limit hit
+    (429), missing server API key (500, fails loudly rather than silently), provider
+    unreachable (502) — each mapped from a typed backend exception to a clear message the
+    UI actually displays (a real bug was fixed in `parseErrorResponse` along the way: it
+    only handled FastAPI's list-shaped validation errors, not the plain-string `detail`
+    this new endpoint returns).
+  - **Security:** `ALPHA_VANTAGE_API_KEY` is a server-side-only environment variable —
+    never accepted from or returned to the frontend. No CORS implications, since the
+    Alpha Vantage/SEC calls happen server-to-server, not from the browser.
+  - 22 new backend tests (68 total) — pure UFCF/tax-rate/NWC calculations hand-verified,
+    and the normalization/caching/throttling/error-propagation layer tested against
+    realistic fixture data (including two genuine Alpha Vantage quirks confirmed against
+    the live API before being written into fixtures: the literal string `"None"` for
+    missing numeric fields, and inconsistent field coverage across companies — see the
+    live-verification Decision Log entry below) rather than a live network call in the
+    test suite.
+  - Verified live in the browser with a real `ALPHA_VANTAGE_API_KEY` and three real
+    tickers (AAPL, CAT, WMT): the full pipeline end-to-end, including a real valuation
+    run and scenario save/load with ticker-sourced data. Two real bugs were found and
+    fixed during this pass (request throttling, a company-data field fallback) — see the
+    Decision Log for both; the happy path is now fully confirmed, not just fixture-tested.
+
 ## Near-Term Next Steps
 * Open — no further work is currently agreed. Check with the user for direction (Phase 9
   stays out of scope until explicitly instructed, per CLAUDE.md).
+* SEC EDGAR as an actual fundamentals *values* source (not just the CIK/filings-index link
+  it provides today) is a deliberately deferred future upgrade — the internal data model
+  is already shaped for it; see the Decision Log.
+* A driver-based DCF forecast (revenue → margin → taxes → D&A → CapEx → ΔNWC, replacing
+  the current flat-growth model) is the long-signaled next evolution of the DCF engine,
+  now that the underlying data layer is shaped to support it — not started.
 * DCF assumption-difference comparison (mirrors the Real Estate scenario-workflow work) is
   a reasonable small follow-up whenever wanted — deliberately not done automatically.
 * A scenario-comparison variant of the Professional Deal Summary (Base/Downside/Upside
@@ -548,3 +611,32 @@ Confirmed with the user: V1 works only from the single active underwriting, with
 
 **2026-08-18 — Example deal: real property (100 Symes Road, Toronto), publicly-sourced facts kept separate from illustrative assumptions**
 Alternatives considered: keep the round-number placeholder example (simple, but reads as an obviously fake demo, not a believable CRE case); use a real property but present all inputs as if they were sourced (misleading - the app has no way to know a real deal's actual financing/hold/growth assumptions). Chose to source only what the public listing actually states (purchase price, going-in NOI) and clearly label everything else (LTV, rate, amortization, maturity, hold, growth, exit cap, costs) as illustrative via a always-visible disclaimer next to the Load Example Deal button - no new state to track whether the form still matches the untouched example, which would have been disproportionate complexity for a disclaimer. Deliberately did not optimize the illustrative assumptions for an attractive return: the resulting 8% IRR / 1.43x multiple case was chosen because it demonstrates the app's sensitivity grid, risk flags, and financing metrics doing real analytical work (one flag triggers, two don't; the loan-maturity sensitivity clamp activates organically from a realistic 5-year-term-on-5-year-hold structure), not because it looks good. Facts were verified directly against the listing brokerage's own page before implementation, not taken on faith from the request.
+
+**2026-08-24 — DCF ticker search: first third-party API dependency, added deliberately (CLAUDE.md Section 10 threshold)**
+Section 10 of CLAUDE.md always anticipated this exact trigger ("third-party API calls... explain the need before adding any of that") and gated the backend's role staying narrow until one arose. This is that moment: the DCF module now needs real company financial data, which the app has no way to source itself. The backend's role stays otherwise unchanged - it validates, normalizes, and calculates; it still holds no user data, no auth, no database. The only new thing it does is proxy two read-only, keyless-or-free external data calls server-side, specifically so the API key never reaches the browser.
+
+**2026-08-24 — Data provider: Alpha Vantage for fundamentals/quotes, SEC EDGAR for filer identification only (not values)**
+Evaluated three commercial providers plus SEC EDGAR, verifying each directly rather than trusting documentation or older articles:
+- IEX Cloud: confirmed fully shut down (retired all API products August 2024) - not viable.
+- Finnhub: live pricing page shows "Standardized Financial Statements" is checked only on their $3,500/month plan, blank on Free - free tier has no fundamentals at all, contradicting some third-party summaries still circulating.
+- Financial Modeling Prep: live pricing page shows the free ("Basic") tier limited to end-of-day prices and "Profile and Reference Data"; "Annual Fundamentals and Ratios" is explicitly a Starter ($19/mo) feature - free fundamentals access was removed at some point after older write-ups were published.
+- Alpha Vantage: called the actual endpoints live (OVERVIEW, INCOME_STATEMENT, BALANCE_SHEET, CASH_FLOW, GLOBAL_QUOTE) and confirmed real, complete data comes back on the free tier - the only one of the three that still does this for $0. Tradeoff accepted: a real 25-requests/day, 5/minute limit, mitigated with server-side caching (see below) rather than avoided by paying for a different provider.
+- SEC EDGAR: directly tested XBRL company-facts for AAPL and MSFT (not just read about the format) specifically to evaluate whether it could be the *primary* fundamentals source, per the user's initial preference for an authoritative, auditable source. Found genuine, demonstrated tag inconsistency - Apple reports D&A as one combined tag (`DepreciationDepletionAndAmortization`); Microsoft doesn't use that tag at all and instead splits D&A into `Depreciation` + `AmortizationOfIntangibleAssets`, which must be summed. This confirmed reliable cross-company XBRL normalization needs an ongoing per-concept fallback/aggregation ruleset, not a lookup table, with real risk of silent gaps on less-standardized filers - genuinely more open-ended engineering than this milestone's scope. SEC EDGAR was kept in the architecture anyway, scoped down to what it's cheaply and reliably good for right now: a static ticker→CIK lookup and a constructed link to the company's real filings index, surfaced today as "view source filings" - real progress toward auditability with zero XBRL-parsing risk. Each Alpha Vantage fact SEC could eventually corroborate carries `form`/`filed`/accession-number metadata natively (verified live), so pulling real SEC values in later is a clear, scoped upgrade, not unknown territory.
+
+**2026-08-24 — Provider-agnostic internal data model, so a future SEC-values upgrade doesn't require rewriting the DCF feature**
+The internal `CompanyData`/`FinancialPeriod` shape (in `app/schemas/company.py`) has no Alpha-Vantage-specific structure - it's a plain per-fiscal-year record (revenue, EBIT, tax inputs, D&A, CapEx, change in NWC, calculated UFCF, cash, debt, net debt) plus a top-level `source` object naming which provider supplied which category of data. The DCF-facing frontend code only ever reads this normalized shape. If SEC XBRL values are added later, that's additive work inside `app/services/company_data.py` and `app/services/sec_edgar.py` - the schema, the router, and the frontend do not need to change.
+
+**2026-08-24 — Unlevered FCF: proper enterprise-value-DCF construction, not an OCF - CapEx shortcut**
+`UFCF = EBIT x (1 - effective tax rate) + D&A - CapEx - change in NWC`, matching the user's explicit direction over the simpler `operating cash flow - CapEx` proxy that was originally proposed. Implemented as pure, independently-tested functions in `app/calculations/company_financials.py`, separate from the HTTP-fetching/normalization code in `app/services/`, consistent with the project's existing separation between calculation and API layers. This choice also sets up the later evolution toward a fully driver-based forecast (revenue -> margin -> taxes -> D&A -> CapEx -> ANWC) with no rework, since that forecast is really just this same UFCF construction applied to projected rather than historical figures.
+
+**2026-08-24 — Caching: two independent TTLs, not one shared cache**
+Fundamentals (income statement, balance sheet, cash flow, company profile) get a 24-hour TTL, since they only change when a new quarterly/annual filing is published. The quote (current share price) gets a 15-minute TTL, since it moves continuously during market hours. Coupling both to one TTL would have meant either serving stale prices for a day or re-fetching rarely-changing fundamentals unnecessarily, burning through the free tier's 25-requests/day budget faster than needed. Both are simple in-memory dicts, reset on backend restart - no Redis or database introduced, per explicit instruction to avoid that infrastructure for this milestone.
+
+**2026-08-24 — Two real bugs found and fixed during live end-to-end verification (AAPL, CAT, WMT)**
+Both were only findable by testing against the real API with a real key, not by unit tests against hand-written fixtures alone:
+1. Alpha Vantage's free tier enforces roughly 1 request/second; a single "Load Company" call fires five sequential requests (overview, income statement, balance sheet, cash flow, quote) with no pacing, and the very first real-key test tripped Alpha Vantage's own per-second rate-limit notice before returning any data. Fixed with a module-level throttle in `app/services/alpha_vantage.py` (minimum ~1.2s between any two requests, at the single point every call passes through) - confirmed the 429 error path itself worked correctly even while finding this, then confirmed the throttle fixes it.
+2. Apple's real balance sheet reports the literal string `"None"` for `currentDebt` (a field the NWC calculation depended on) while reporting a real value for the closely-related `shortTermDebt` field for the same period - silently producing `change_in_nwc: null` and therefore `unlevered_fcf: null` for every single historical period, for one of the largest, most-scrutinized public companies. Not a hypothetical edge case. Fixed with a documented fallback (`_current_debt()` in `company_data.py`): use `currentDebt` when present, else `shortTermDebt` - a conservative choice (not summed, since it's not certain the two are additive rather than alternate representations for this provider). CAT and WMT did not hit this specific gap, confirming the fallback generalizes rather than being a single-company patch.
+Both fixes are covered by new tests (68 total) using fixtures that reproduce the exact failure shape, not just the fix's happy path.
+
+**2026-08-24 — Live verification results (AAPL, CAT, WMT), sanity-checked against known real-world facts, not just internal consistency**
+All three tickers returned complete profile + 5-year historical data, with UFCF/net debt/shares populated for every period after the currentDebt fix. Cross-checked: Walmart's operating margin came back ~4.18% (correctly thin - Walmart is a famously low-margin discount retailer, a strong sanity signal that revenue/EBIT fields and the margin calculation are correctly wired, not just internally self-consistent); Apple's and Caterpillar's UFCF figures were hand-recomputed from the returned EBIT/tax-rate/D&A/CapEx/NWC-change components and matched the API response to the cent; net debt matched `total_debt - cash` exactly for all three; SEC CIKs resolved correctly (Apple's `0000320193` matches the value independently confirmed during the pre-implementation provider research). Caching confirmed working (a repeat AAPL request returned in ~0.25s vs. ~5.4s for a fresh fetch, consuming no additional API calls). The full browser UI pipeline was also verified end-to-end with real data (WMT): sourced fields populate the form, purely-analyst-judgment fields (growth rate, forecast period, WACC, terminal growth) stay blank, no auto-run occurs, and a resulting valuation ($21.78/share against WMT's $106.49 market price) is a large, expected gap - a simple flat-growth DCF given deliberately illustrative test assumptions, not a data or calculation bug; scenario save/load round-tripped all seven fields correctly, including the ticker-sourced ones.

@@ -15,5 +15,12 @@ export async function parseErrorResponse(res) {
   if (!body && [502, 503, 504].includes(res.status)) {
     return SERVER_UNREACHABLE
   }
+  // FastAPI's own validation errors give `detail` as a list of Pydantic error objects;
+  // the company-lookup endpoint raises HTTPException with a plain string `detail` instead
+  // - both shapes need handling here, or a string detail would be silently misread as an
+  // array and show a single stray character.
+  if (typeof body?.detail === 'string') {
+    return body.detail
+  }
   return body?.detail?.[0]?.msg || 'Calculation failed. Check your inputs.'
 }

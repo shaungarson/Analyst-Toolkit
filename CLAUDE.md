@@ -17,6 +17,7 @@ It should also be genuinely useful, and structured so it can grow into something
 * **Frontend:** React + Vite, plain JavaScript (no TypeScript for now — revisit later per Section 5)
 * **Backend:** Python (FastAPI) — handles all financial calculations (IRR, cap rate, cash-on-cash, DCF, amortization, etc.). The frontend sends inputs, the backend returns results.
 * No database, no auth, no cloud storage until there's a clear reason (see Section 10)
+* One external data dependency as of the DCF ticker-search feature: the backend calls Alpha Vantage (company fundamentals/quotes) and SEC EDGAR (filer identification) server-side, keyed via `ALPHA_VANTAGE_API_KEY`. This is the first and — until a new need is explained — only third-party API call in the project; see Section 10 and the PROGRESS.md Decision Log for why and how it's scoped.
 
 **Why a backend now, unlike the original frontend-first default:** Python was chosen deliberately for the calculation layer, since it's the language most associated with analyst/data work and is where this project may eventually grow into heavier data analysis (comps pulls, backtesting, larger datasets). That requires a backend to run. This is an exception to "stay frontend-only until there's a clear reason" — the reason is Python itself.
 
@@ -43,7 +44,7 @@ This is fixed for Phase 1–3. Changing it is a major decision under Section 5.
 * Terminal value, enterprise value, equity value, value per share
 * WACC and terminal growth as direct inputs (not built up from components yet)
 
-**Explicitly deferred:** historical financials, revenue-driver forecasts, margin/working-capital/CapEx modeling, WACC build-up (beta, capital structure), comparable-company inputs, scenario analysis.
+**Explicitly deferred:** revenue-driver forecasts, margin/working-capital/CapEx modeling as the actual *forecast* mechanism, WACC build-up (beta, capital structure), comparable-company inputs. (Scenario analysis shipped in Phase 8. Historical financials are now retrievable via ticker search — Alpha Vantage fundamentals + SEC EDGAR filer identification — populating the existing flat-growth model's inputs; the deferred item is specifically the *driver-based forecast model itself* (revenue → margin → taxes → D&A → CapEx → ΔNWC replacing flat FCF growth), which has not been built. See PROGRESS.md Decision Log, 2026-08-24.)
 
 Do not build deferred items early just because they seem interesting — see Section 8.
 
@@ -151,6 +152,8 @@ One worked example per module (one real estate deal, one DCF) so a new user unde
 A Python backend exists from the start (Section 2) to run the calculation engine. That does not mean "add backend complexity freely" — the backend's job stays narrow: receive inputs, run financial calculations, return results. Keep it stateless for as long as practical.
 
 Don't expand its role — no database, no auth, no persistent storage, no user accounts — until there's real value (cloud-saved analyses, collaboration, proprietary logic staying server-side, third-party API calls, AI features). Explain the need before adding any of that. The backend existing is not itself justification for growing it.
+
+**Third-party API calls (first added 2026-08-24, DCF ticker search):** the backend now proxies read-only calls to Alpha Vantage (fundamentals/quotes) and SEC EDGAR (filer identification), specifically because the DCF module needs real company financial data the app has no way to source itself — evaluated and explained before building, not added by default. This did not change the backend's stateless, no-auth, no-database posture: it still holds no user data. Keep future third-party integrations to the same bar — a clear, explained need, server-side-only credentials, typed errors mapped to clean responses rather than silent failures or fabricated data, and provider choice re-evaluated on its actual current terms (free-tier terms have changed materially industry-wide; don't assume older documentation is still accurate).
 
 ---
 

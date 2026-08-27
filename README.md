@@ -67,6 +67,11 @@ considered instead — is in [`PROGRESS.md`](PROGRESS.md).
 
 ### DCF Valuation
 
+- **Ticker search:** enter a public company ticker and load it — purchase-relevant
+  historical fundamentals (revenue, EBIT, D&A, CapEx, tax rate, working-capital change,
+  cash, debt, shares, price) populate the workspace, clearly separated from the editable
+  forecast assumptions below them. Populates the form only; the analyst still reviews every
+  assumption and explicitly runs the valuation — nothing is auto-calculated or auto-saved.
 - Unlevered FCF projected from a base year at a flat growth rate
 - Gordon Growth terminal value, with WACC and terminal growth as direct inputs
 - Enterprise value → equity value → value per share bridge
@@ -105,13 +110,26 @@ the UI's own assumptions text, never silently assumed:
   growth are given as direct inputs rather than an exit multiple.
 - **Discounting:** end-of-year convention throughout (not mid-year) — flagged as a genuine,
   material convention choice and decided deliberately, not defaulted into.
+- **Unlevered FCF from sourced company data:** `EBIT × (1 − effective tax rate) + D&A −
+  CapEx − change in NWC` — the standard enterprise-value-DCF construction, not an
+  operating-cash-flow shortcut. Any missing input (a company that doesn't cleanly report
+  one of these figures) makes the result undefined rather than silently treating it as
+  zero.
+- **DCF terminal value & forecast model remain unchanged by ticker search:** loading a
+  company populates the base year's inputs; the forecast itself is still the flat-growth
+  V1 model described above, not a revenue-driver build-up — that remains deferred (see
+  below), and the internal data model is deliberately structured so adding it later doesn't
+  require redesigning this layer.
 - **Deliberately deferred for now** (see `PROGRESS.md` for the full list): refinancing,
-  multiple debt tranches, waterfalls/promotes, revenue-driver DCF forecasting, WACC
-  build-up from capital structure, comparable-company inputs.
+  multiple debt tranches, waterfalls/promotes, driver-based DCF forecasting (revenue →
+  margin → taxes → D&A → CapEx → ΔNWC), WACC build-up from capital structure,
+  comparable-company inputs, SEC EDGAR as a values source (currently used only for a
+  filings-index link, not fundamentals — see the Decision Log for why).
 
 Every calculation — cap rate, amortization, IRR, equity multiple, DSCR, debt yield, terminal
-value, enterprise value — is backed by automated tests checked against values computed
-independently by hand, not just "does the code agree with itself." 46 backend tests total.
+value, enterprise value, unlevered FCF construction — is backed by automated tests checked
+against values computed independently by hand, not just "does the code agree with itself."
+68 backend tests total.
 
 ## Architecture
 
@@ -128,6 +146,22 @@ Pure calculation functions (backend/app/calculations/)
 JSON response → rendered in the browser
 ```
 
+For the DCF module's ticker search specifically, the backend also acts as a normalization
+layer in front of external data:
+
+```
+Browser: GET /api/company/{ticker}
+    ▼
+FastAPI backend (Render)
+    │  Alpha Vantage: fundamentals + quote (server-side only — API key never reaches the browser)
+    │  SEC EDGAR: ticker → CIK lookup + filings-index link (no key required)
+    ▼
+app/services/company_data.py — normalizes both into one provider-agnostic shape,
+    computes unlevered FCF via app/calculations/company_financials.py (pure, tested)
+    ▼
+JSON response → populates the DCF form; the analyst still reviews and runs it manually
+```
+
 - **Frontend:** React + Vite, plain JavaScript. The frontend stays lightweight and avoids
   unnecessary framework lock-in; components are organized by feature
   (`src/features/real-estate/`, `src/features/dcf/`),
@@ -137,7 +171,10 @@ JSON response → rendered in the browser
   since Python is the language most associated with analyst/data work and keeps the door
   open for heavier data analysis later without a rewrite. The backend's job stays narrow:
   validate input, run the calculation, return the result. No database, no auth, no
-  persistent storage — saved scenarios live in the browser's own storage.
+  persistent storage — saved scenarios live in the browser's own storage. The one exception
+  to "no external calls" is the DCF ticker-search feature, which calls Alpha Vantage and SEC
+  EDGAR server-side — the first third-party API dependency in this project, added
+  deliberately and explained in the Decision Log rather than introduced silently.
 - **Deployment:** Vercel (static frontend) + Render (Python API), connected via GitHub for
   continuous deployment on every push.
 
@@ -145,7 +182,9 @@ JSON response → rendered in the browser
 
 **Done:** Foundation → Real Estate MVP → DCF MVP → scenario saving/export/print → input
 validation hardening → visual design pass → deployment → multi-year modeling, sensitivity
-analysis, and scenario comparison for both modules.
+analysis, and scenario comparison for both modules → real estate deterministic risk flags
+and Professional Deal Summary → DCF ticker search (public company fundamentals populate the
+workspace; the analyst still reviews and runs the valuation manually).
 
 **Long-term direction — not yet built:** the modeling engine above is the foundation, not
 the end state. Analyst Toolkit is meant to grow into an AI-powered analyst *workflow* tool,
@@ -169,6 +208,7 @@ this repository today.
 cd backend
 python -m venv venv
 ./venv/Scripts/pip install -r requirements.txt
+cp .env.example .env  # then fill in ALPHA_VANTAGE_API_KEY (free, see below) to enable DCF ticker search
 ./venv/Scripts/python -m uvicorn app.main:app --reload --port 8001
 
 # Frontend (separate terminal)
@@ -182,6 +222,13 @@ automatically — see `frontend/vite.config.js`.
 
 Run the backend test suite with `./venv/Scripts/python -m pytest` from `backend/`.
 
+The DCF module's ticker search needs a free Alpha Vantage API key
+(<https://www.alphavantage.co/support/#api-key>, no credit card) set as
+`ALPHA_VANTAGE_API_KEY` — locally in `backend/.env` (gitignored, never committed), and as an
+environment variable in Render for the deployed backend. Every other feature in the app
+works with no key configured; ticker search alone returns a clear error until one is set.
+
 ## Tech stack
 
-React 19 · Vite 8 · FastAPI · Pydantic · pytest · numpy-financial · Vercel · Render
+React 19 · Vite 8 · FastAPI · Pydantic · pytest · numpy-financial · httpx · Alpha Vantage
+(company fundamentals & quotes) · SEC EDGAR (filer identification) · Vercel · Render
