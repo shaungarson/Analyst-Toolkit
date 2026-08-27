@@ -69,7 +69,16 @@ def _request(params):
     # containing "Note" (legacy) or "Information" (current), not an HTTP error status -
     # these must be detected explicitly or they'd be misread as valid, empty data.
     if "Note" in data or "Information" in data:
-        raise RateLimitedError(data.get("Note") or data.get("Information"))
+        # Confirmed live: Alpha Vantage's own rate-limit message echoes the API key back
+        # in plain text ("We have detected your API key as ..."). That raw text must never
+        # reach the response this endpoint returns - this app is public, and the key is
+        # shared across every user, not per-user - so only a generic message is raised
+        # here. The original text is still printed server-side (visible in Render's Logs,
+        # not in any API response) for actual debugging.
+        print(f"Alpha Vantage rate/soft-limit response: {data.get('Note') or data.get('Information')}")
+        raise RateLimitedError(
+            "The market-data provider's request limit has been reached. Please try again later."
+        )
     return data
 
 

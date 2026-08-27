@@ -129,7 +129,7 @@ the UI's own assumptions text, never silently assumed:
 Every calculation — cap rate, amortization, IRR, equity multiple, DSCR, debt yield, terminal
 value, enterprise value, unlevered FCF construction — is backed by automated tests checked
 against values computed independently by hand, not just "does the code agree with itself."
-68 backend tests total.
+69 backend tests total.
 
 ## Architecture
 
