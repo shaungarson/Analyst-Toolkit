@@ -5,8 +5,10 @@ Phase 8 complete; README polish done (Section 14); CRE underwriting metrics, det
 real estate risk flags, scenario-workflow V1, the Professional Deal Summary, and the
 real-world-inspired example deal all shipped as Phase 8 extensions. DCF ticker search
 (public company data populates the workspace; analyst still reviews/runs manually) shipped
-2026-08-24 — see Decision Log. This is the project's first third-party API dependency. No
-further work currently agreed; check with the user for direction.
+2026-08-24 — see Decision Log. This is the project's first third-party API dependency. DCF
+workstation redesign (dense 3-column analyst layout, compact financial-number formatting,
+current-price/implied-upside comparison) shipped 2026-08-28 — see Decision Log. No further
+work currently agreed; check with the user for direction.
 
 ## Live Links
 * App: https://analyst-toolkit-ecru.vercel.app
@@ -458,6 +460,65 @@ This completes every item from the Phase 8 plan agreed with the user on 2026-08-
     fixed during this pass (request throttling, a company-data field fallback) — see the
     Decision Log for both; the happy path is now fully confirmed, not just fixture-tested.
 
+* **DCF workstation redesign (2026-08-28).** The DCF page was restructured from a
+  vertically-stacked form into a dense 3-column analyst workstation — Sourced Historical
+  Data, Assumptions, and Valuation Summary sit side by side in one row on desktop (steps
+  ①②③), with Analysis Outputs (Sensitivity + Value Bridge, tabbed against Forecast &
+  Discounting) spanning full width below, and Saved Scenarios/Scenario Comparison at the
+  bottom. Went through several review passes against a set of reference mockups, used as
+  architecture/density/hierarchy inspiration rather than a literal template — see the
+  Decision Log for what was deliberately not carried over and why.
+  - **New capability, not just a re-skin:** when a ticker is loaded, Valuation Summary now
+    shows the sourced current market price alongside the model's implied value per share
+    and a deterministic Implied Upside/Downside (`value_per_share / current_price - 1`).
+    Gated on `profile.current_price` actually being present (real Alpha Vantage
+    `GLOBAL_QUOTE` data); absent — not zero, not a placeholder — for the manual-entry and
+    Load Example paths, which have no market price to compare against.
+  - **Compact financial-number formatting** (`compactCurrency`/`compactShares` in
+    `frontend/src/lib/format.js`) applied throughout — company header, sourced historical
+    data, assumptions, valuation summary, value bridge, and scenario comparison all show
+    `$111.59B`-style figures instead of raw integers. The three large editable fields (Base
+    Year UFCF, Net Debt, Diluted Shares) use a new `FormattedNumberInput` component:
+    formatted when unfocused, raw and editable (with select-all, so overtyping works
+    immediately) on focus/click. The underlying stored value is always the plain number —
+    nothing downstream (validation, payload building, provenance comparison) changes.
+  - Sourced/Analyst/Adjusted provenance preserved throughout, now a compact inline badge
+    next to each field's label instead of a full-width block.
+  - 5-year history moved from a cramped in-column table (clipped/scrolling even on
+    desktop) to a full-width panel rendered beneath the 3-column row — expanding it no
+    longer affects that row's height, and the panel stays in the DOM with visibility
+    toggled via CSS, so print always includes the full history regardless of on-screen
+    state.
+  - Scenario Comparison relocated to sit with Saved Scenarios at the bottom of the page,
+    after Analysis Outputs, so it no longer interrupts the core company → assumptions →
+    valuation → analysis reading order.
+  - **A recurring CSS specificity bug, found and fixed three times during this pass:**
+    `feature-form.css`'s generic `.feature-page form input`/`label` and `.feature-page
+    button` rules (one class plus one or two type selectors) silently beat single-class
+    component styles like `.field-row input` or `.link-toggle`, because specificity is
+    resolved per CSS property, not per rule — re-declaring only *some* of a rule's
+    properties at higher specificity leaves the rest to fall through to the generic style.
+    Caught each time by measuring actual rendered computed styles, not by looking at
+    screenshots — a button styled as an accent-filled button still looked "fine" in a
+    screenshot; only `getComputedStyle` showed it wasn't running the intended CSS at all.
+    Fixed by scoping through the real parent context (`.analytical-col .field-row input`,
+    `.sourced-data-links button.link-toggle`, `.workflow-card--dense .methodology-toggle`)
+    and re-declaring every property the generic rule sets, not just the ones that looked
+    wrong. Worth remembering for any future component-scoped styling in this codebase.
+  - No backend, schema, or DCF calculation changes — this was a UI/layout/formatting pass
+    only, confirmed by rerunning the full 69-test backend suite unchanged throughout.
+  - Verified end-to-end at each stage: ticker loading (against a mocked
+    `/api/company/{ticker}` response matching the real schema exactly — no local
+    `ALPHA_VANTAGE_API_KEY` this session, so the live provider pipeline itself was not
+    re-exercised), manual entry, Run Valuation, sensitivity, Value Bridge, Forecast &
+    Discounting, scenario save/load/duplicate/delete/compare, CSV export (blob content
+    inspected directly, not just "button doesn't error"), print class-selector integrity,
+    light/dark mode, responsive behavior down to 390px, and Real Estate confirmed untouched
+    throughout. Desktop tested at 1366×768, 1440×900, and 1920×1080 specifically; the
+    workspace width (was 1180px, now 1520px) was chosen so 1920px reads as a real desktop
+    workspace rather than a narrow centered strip, verified by measuring the actual
+    content-to-viewport ratio rather than eyeballing it.
+
 ## Near-Term Next Steps
 * Open — no further work is currently agreed. Check with the user for direction (Phase 9
   stays out of scope until explicitly instructed, per CLAUDE.md).
@@ -473,7 +534,10 @@ This completes every item from the Phase 8 plan agreed with the user on 2026-08-
   side-by-side) is a natural later enhancement, deliberately deferred — needs its own
   design pass on how a multi-scenario summary should work.
 * A DCF Professional Deal Summary, mirroring the Real Estate one, is a reasonable future
-  follow-up — deliberately not built now (DCF was out of scope for this milestone).
+  follow-up — deliberately not built now. The 2026-08-28 workstation redesign's Valuation
+  Summary column (hero value, current-price comparison, supporting metrics) covers much of
+  the same "quick read" need within the core page; a separate print-optimized summary
+  artifact remains a distinct, still-unbuilt idea.
 * Screenshots for the README are a reasonable small follow-up whenever convenient.
 
 ## Recent verification notes
@@ -643,3 +707,9 @@ All three tickers returned complete profile + 5-year historical data, with UFCF/
 
 **2026-08-24 — Security fix found in production: Alpha Vantage's own rate-limit message echoes the raw API key**
 Found while confirming the key was picked up correctly on Render after deployment: hitting the daily 25-request limit returns a response from Alpha Vantage that includes the caller's own API key in plain text ("We have detected your API key as ..."). The backend was passing that message straight through as the error `detail` returned to the frontend. Since this app is public and the key is shared across every visitor (not issued per-user), any user hitting that rate-limited state would see the shared key exposed in their browser's network tab - a real, live-confirmed exposure, not a theoretical one. Fixed by raising a generic, fixed message for this case instead of relaying Alpha Vantage's raw text; the original detailed message is still printed server-side (visible in Render's Logs) for actual debugging. Covered by a new regression test that simulates Alpha Vantage's real response shape (with a fake key standing in for a real one) and asserts the key never appears in the raised error. 1 new backend test (69 total).
+
+**2026-08-28 — DCF workstation redesign: reference mockups as directional inspiration, not literal templates**
+Alternatives considered: implementing the reference screenshots as close to pixel-for-pixel as possible. Rejected because several elements in them don't correspond to anything real in this app. Evaluated every element against actual data/functionality and explicitly excluded: "FactSet" branding (not our provider - the app uses and displays Alpha Vantage), a fabricated company logo (no logo source exists), user avatar/notifications (no auth in this app), an Exit-Multiple terminal-value toggle and WACC build-up inputs (neither is built - WACC and terminal growth stay direct inputs, Gordon Growth stays the only terminal method), and a Minority-Interest/Preferred-Equity line in the value bridge (not modeled). Kept but deliberately reasoned differently from the reference: the existing "Institutional" navy/charcoal palette (2026-08-13 decision) was preserved rather than adopting the mockups' colors - this pass was density/structure/hierarchy, not a re-theme. The Valuation Summary's "Implied Value per Share" got a much larger standalone hero treatment than the reference's same-size-as-its-neighbors tile, because a more decisive hierarchy serves "understand the conclusion within seconds" better than literal reference-matching would have. The Value Bridge stayed bars-without-axis rather than becoming a true chart, to avoid adding a charting dependency for what would be a marginal visual gain.
+
+**2026-08-28 — Implied Upside/Downside: shown only when a real sourced price exists, never a recommendation**
+`current_price` comes from Alpha Vantage's `GLOBAL_QUOTE` endpoint (`app/services/company_data.py`), cached separately from fundamentals on its own 15-minute TTL, and was live-verified against real tickers in the 2026-08-24 milestone (WMT $106.49) - confirmed as real, already-shipped production data before building on it, not a new or mocked field. `Implied Upside/Downside = (value_per_share / current_price) - 1` is the only calculation added; the label swaps between "Implied Upside" and "Implied Downside" by sign rather than always showing one label with a signed number. Deliberately absent (not zero, not a placeholder) for the manual-entry and Load Example paths, since neither has a real market price to compare against - showing nothing there is correct, not an oversight. No "undervalued"/"attractive"/"buy" framing anywhere - deterministic arithmetic only.

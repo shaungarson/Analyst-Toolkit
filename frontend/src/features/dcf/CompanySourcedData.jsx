@@ -1,111 +1,70 @@
-import { currency, percent } from '../../lib/format'
+import { compactCurrency, percent } from '../../lib/format'
 
 const fmt = (value, formatter) => (value === null || value === undefined ? 'n/a' : formatter(value))
-const dollarsPerShare = (v) => v.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+
+// Latest-period fields shown by default, most decision-relevant first. Unlevered FCF is
+// rendered separately below as an emphasized "subtotal" row since it's the figure that
+// actually feeds the model.
+const KEY_FIELDS = [
+  { key: 'revenue', label: 'Revenue', format: compactCurrency },
+  { key: 'revenue_growth', label: 'Revenue Growth', format: percent },
+  { key: 'ebit', label: 'EBIT', format: compactCurrency },
+  { key: 'operating_margin', label: 'Operating Margin', format: percent },
+  { key: 'effective_tax_rate', label: 'Effective Tax Rate', format: percent },
+  { key: 'depreciation_and_amortization', label: 'D&A', format: compactCurrency },
+  { key: 'capital_expenditures', label: 'CapEx', format: compactCurrency },
+  { key: 'change_in_nwc', label: 'Δ NWC', format: compactCurrency },
+  { key: 'net_debt', label: 'Net Debt', format: compactCurrency },
+]
 
 // Displays what was actually retrieved, kept visually and structurally separate from the
-// editable assumption form below it - historical/company data is a sourced input, not a
-// finished valuation, and this panel is never itself fed back into the calculation engine.
-function CompanySourcedData({ companyData }) {
+// editable assumption column - historical/company data is a sourced input, not a finished
+// valuation, and this panel is never itself fed back into the calculation engine. Company
+// identity/price fields live once in the CompanyHeader bar above, so this component sticks
+// to the per-period financials. Defaults to the latest period only, compact; the full
+// multi-year history is one click away (rendered full-width by the parent as
+// SourcedHistoryPanel, not squeezed into this narrow column) - not removed.
+function CompanySourcedData({ companyData, showHistory, onToggleHistory }) {
   const { profile, periods } = companyData
   const latest = periods[0]
 
   return (
-    <div className="results company-sourced-data">
-      <div className="results-header">
-        <h2>
-          {profile.company_name} ({profile.ticker})
-        </h2>
-      </div>
+    <div className="sourced-data-compact">
+      <dl className="kv-list">
+        {KEY_FIELDS.map(({ key, label, format }) => (
+          <div className="kv-row" key={key}>
+            <dt>{label}</dt>
+            <dd>{fmt(latest[key], format)}</dd>
+          </div>
+        ))}
+        <div className="kv-row kv-row--emphasis">
+          <dt>Unlevered FCF</dt>
+          <dd>{fmt(latest.unlevered_fcf, compactCurrency)}</dd>
+        </div>
+      </dl>
 
-      <div className="metrics">
-        <div className="metric">
-          <span className="label">Sector / Industry</span>
-          <span className="value">
-            {profile.sector || 'n/a'}
-            {profile.industry ? ` — ${profile.industry}` : ''}
-          </span>
-        </div>
-        <div className="metric">
-          <span className="label">Exchange</span>
-          <span className="value">{profile.exchange || 'n/a'}</span>
-        </div>
-        <div className="metric">
-          <span className="label">Market Capitalization</span>
-          <span className="value">{fmt(profile.market_capitalization, currency)}</span>
-        </div>
-        <div className="metric">
-          <span className="label">Current Share Price</span>
-          <span className="value">{fmt(profile.current_price, dollarsPerShare)}</span>
-        </div>
-        <div className="metric">
-          <span className="label">Shares Outstanding (basic)</span>
-          <span className="value">{fmt(profile.shares_outstanding, (v) => v.toLocaleString('en-US'))}</span>
-        </div>
-      </div>
-
-      {profile.sec_filings_url && (
-        <p className="assumptions">
-          <a href={profile.sec_filings_url} target="_blank" rel="noreferrer">
-            View {profile.ticker}&apos;s filings on SEC EDGAR
-          </a>{' '}
-          — the figures below are sourced from Alpha Vantage, not yet cross-linked to a
-          specific filing; the SEC link is provided so results can be checked against the
-          company&apos;s actual 10-K/10-Q filings.
-        </p>
-      )}
-
-      <h3>Historical Financials (as reported)</h3>
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Fiscal Year End</th>
-              <th>Revenue</th>
-              <th>Rev. Growth</th>
-              <th>EBIT</th>
-              <th>Op. Margin</th>
-              <th>Eff. Tax Rate</th>
-              <th>D&amp;A</th>
-              <th>CapEx</th>
-              <th>&Delta; NWC</th>
-              <th>Net Debt</th>
-              <th>Unlevered FCF</th>
-            </tr>
-          </thead>
-          <tbody>
-            {periods.map((p) => (
-              <tr key={p.fiscal_year_end}>
-                <td>{p.fiscal_year_end}</td>
-                <td>{fmt(p.revenue, currency)}</td>
-                <td>{fmt(p.revenue_growth, percent)}</td>
-                <td>{fmt(p.ebit, currency)}</td>
-                <td>{fmt(p.operating_margin, percent)}</td>
-                <td>{fmt(p.effective_tax_rate, percent)}</td>
-                <td>{fmt(p.depreciation_and_amortization, currency)}</td>
-                <td>{fmt(p.capital_expenditures, currency)}</td>
-                <td>{fmt(p.change_in_nwc, currency)}</td>
-                <td>{fmt(p.net_debt, currency)}</td>
-                <td>{fmt(p.unlevered_fcf, currency)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p className="assumptions">
-        Revenue, EBIT, D&amp;A, CapEx, and balance-sheet figures above are reported values
-        from Alpha Vantage. Effective tax rate, change in NWC, net debt, and Unlevered FCF
-        are calculated from those reported figures (UFCF = EBIT &times; (1 &minus; tax
-        rate) + D&amp;A &minus; CapEx &minus; change in NWC) — not additional sourced data.
-        {latest?.unlevered_fcf != null && (
-          <>
-            {' '}
-            The most recent year&apos;s Unlevered FCF ({currency(latest.unlevered_fcf)}) has
-            pre-filled the Base Year Unlevered FCF field below — review and adjust it, along
-            with every other assumption, before running the valuation.
-          </>
-        )}
+      <p className="sourced-data-note">
+        FY {latest.fiscal_year_end}, as reported. UFCF = EBIT × (1 − tax rate) + D&amp;A − CapEx
+        − ΔNWC.
       </p>
+
+      <div className="sourced-data-links">
+        {periods.length > 1 && (
+          <button type="button" className="link-toggle no-print" onClick={onToggleHistory}>
+            {showHistory ? 'Hide' : `${periods.length}-yr history`} {showHistory ? '▲' : '▼'}
+          </button>
+        )}
+        {profile.sec_filings_url && (
+          <a
+            className="link-toggle"
+            href={profile.sec_filings_url}
+            target="_blank"
+            rel="noreferrer"
+          >
+            SEC filings ↗
+          </a>
+        )}
+      </div>
     </div>
   )
 }

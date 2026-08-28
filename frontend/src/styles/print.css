@@ -106,4 +106,189 @@
   body.print-summary-only .full-detail {
     display: none !important;
   }
+
+  /* DCF workspace layout (company bar, analytical columns, value bridge, sourced/analyst
+     badges, sensitivity tiers) - same explicit-color-override pattern as above, since all
+     of these use --accent/--panel-bg which go near-invisible against printed white. The
+     3-column analytical row and the sensitivity/bridge row both stack to one column on
+     print, since a 3-way (or 2-way) print layout would be too cramped on paper. */
+  .workspace {
+    max-width: 100%;
+  }
+
+  .workflow-card {
+    background: #fff;
+    border: 1px solid #ccc;
+    break-inside: avoid;
+  }
+
+  .analytical-row,
+  .analysis-outputs-row {
+    display: block;
+  }
+
+  .analytical-col {
+    margin-bottom: 1rem;
+  }
+
+  .analytical-col:not(:first-child) {
+    border-left: none;
+    padding-left: 0;
+    border-top: 1px solid #ccc;
+    padding-top: 0.75rem;
+  }
+
+  .sensitivity-panel,
+  .bridge-panel {
+    margin-bottom: 1rem;
+  }
+
+  .history-panel {
+    border-top-color: #ccc;
+  }
+
+  /* Print stacks the sensitivity/bridge row (see .analysis-outputs-row above), so the
+     bridge's screen-only side divider becomes a top rule instead, matching how
+     .analytical-col's own divider already flips from left-border to top-border on print. */
+  .bridge-panel {
+    border-left: none;
+    padding-left: 0;
+    border-top: 1px solid #ccc;
+    padding-top: 0.75rem;
+  }
+
+  .workflow-card-header {
+    border-bottom-color: #ccc;
+  }
+
+  .company-bar-row {
+    border-bottom-color: #ccc;
+  }
+
+  .company-bar-name,
+  .company-bar-metric .metric-value,
+  .step-badge,
+  .workflow-card-step,
+  .hero-value,
+  .valuation-support-grid .value,
+  .comparison-row .value,
+  .kv-row dd {
+    color: #000;
+  }
+
+  .company-bar-ticker,
+  .company-bar-classification,
+  .company-bar-metric .metric-label,
+  .company-bar-provenance,
+  .hero-label,
+  .valuation-support-grid .label,
+  .comparison-row .label,
+  .kv-row dt,
+  .sourced-data-note {
+    color: #444;
+  }
+
+  .company-bar-market-data {
+    border-left-color: #ccc;
+  }
+
+  .value-positive,
+  .value-negative {
+    color: #000 !important;
+  }
+
+  .valuation-comparison {
+    background: #fff;
+    border: 1px solid #ccc;
+  }
+
+  .valuation-support-grid {
+    border-top-color: #ccc;
+  }
+
+  .step-badge,
+  .workflow-card-step {
+    border-color: #000;
+  }
+
+  .kv-row {
+    border-bottom-color: #ccc;
+  }
+
+  .kv-row--emphasis {
+    border-top-color: #000;
+  }
+
+  .vb-calculation {
+    border-left-color: #999;
+  }
+
+  .vb-bar-track {
+    background: #eee;
+  }
+
+  .vb-row--adjustment .vb-bar-track {
+    border-color: #a15c00;
+  }
+
+  .vb-bar--ev,
+  .vb-bar--eq {
+    background: #666;
+  }
+
+  .vb-bar--adjustment {
+    background: #a15c00;
+  }
+
+  .vb-amount,
+  .vb-divider {
+    color: #000;
+  }
+
+  .vb-result {
+    background: #fff;
+    border: 2px solid #000;
+  }
+
+  .vb-result-label,
+  .vb-result-value {
+    color: #000;
+  }
+
+  .source-badge--sourced,
+  .source-badge--adjusted {
+    background: #eee;
+    color: #000;
+    border: 1px solid #999;
+  }
+
+  .source-badge--analyst {
+    border-color: #999;
+    color: #444;
+  }
+
+  .link-toggle {
+    color: #000;
+    text-decoration: underline;
+  }
+
+  /* Tab buttons are print-hidden via .no-print already; force both tab panels visible so
+     the printed page always includes the sensitivity grid and the forecast schedule
+     together, regardless of which tab was active on screen when Print was clicked. */
+  .no-screen {
+    display: block !important;
+  }
+
+  .sens-tier-0,
+  .sens-tier-1,
+  .sens-tier-2,
+  .sens-tier-3,
+  .sens-tier-4 {
+    background: #fff !important;
+  }
+
+  .sensitivity-base-case {
+    background: #000 !important;
+    color: #fff !important;
+  }
 }

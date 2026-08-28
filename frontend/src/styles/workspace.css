@@ -1,0 +1,854 @@
+/* Shared "workspace" visual language: the compact company bar, the 3-column analytical
+   row, sourced/analyst badges, the vertical value bridge, and analysis-output tabs.
+   Currently wired up for DCF only, but kept in its own file (rather than folded into
+   feature-form.css) so Real Estate can adopt the same language later without re-deriving
+   it. Density-first, but not tiny-first: compact spacing/alignment carries the density,
+   type sizes stay in a readable range (see the sizes below - nothing important drops
+   under ~0.76rem). */
+
+.workspace {
+  max-width: 1520px;
+}
+
+/* --- Sensitivity heatmap tiers -------------------------------------------------- */
+:root {
+  --sens-tier-0: #f6dcd6;
+  --sens-tier-1: #f8e9dd;
+  --sens-tier-2: var(--panel-bg);
+  --sens-tier-3: #e3ecdf;
+  --sens-tier-4: #d3e6d6;
+  --gain: #256a42;
+  --loss: #b3261e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --sens-tier-0: #3d2521;
+    --sens-tier-1: #382c22;
+    --sens-tier-2: var(--panel-bg);
+    --sens-tier-3: #23301f;
+    --sens-tier-4: #1d3324;
+    --gain: #5fb787;
+    --loss: #e5776d;
+  }
+}
+
+.sens-tier-0 { background: var(--sens-tier-0); }
+.sens-tier-1 { background: var(--sens-tier-1); }
+.sens-tier-2 { background: var(--sens-tier-2); }
+.sens-tier-3 { background: var(--sens-tier-3); }
+.sens-tier-4 { background: var(--sens-tier-4); }
+
+.value-positive { color: var(--gain); }
+.value-negative { color: var(--loss); }
+
+/* --- Company bar: identity / market data / provenance / search --------------------- */
+.company-bar {
+  margin-bottom: 0.9rem;
+}
+
+.company-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  flex-wrap: wrap;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.company-bar-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.company-bar-name-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+}
+
+.company-bar-name {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.company-bar-ticker {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.02em;
+}
+
+.company-bar-classification {
+  font-size: 0.78rem;
+  color: var(--text);
+}
+
+.company-bar-market-data {
+  display: flex;
+  gap: 1.75rem;
+  padding-left: 1.75rem;
+  border-left: 1px solid var(--border);
+}
+
+.company-bar-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.company-bar-metric .metric-label {
+  font-size: 0.7rem;
+  color: var(--text);
+}
+
+.company-bar-metric .metric-value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+.company-bar-provenance {
+  font-size: 0.72rem;
+  color: var(--text);
+  opacity: 0.8;
+}
+
+.company-bar-empty {
+  font-size: 0.85rem;
+  color: var(--text);
+  font-style: italic;
+}
+
+.company-bar-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* Once a company is loaded, search steps back visually (smaller field, ghost primary
+   button) so the company stays the focal point - switching remains one click away, just
+   not competing with the identity block for attention. */
+.company-bar-search--compact input {
+  width: 90px;
+}
+
+/* Higher specificity than feature-form.css's `.feature-page form input` (1 class + 2 type
+   selectors) is required here, or that generic rule silently wins and this compact sizing
+   never actually applies - caught by measuring real rendered input height, not by eye. */
+.company-bar .company-bar-search input {
+  width: 110px;
+  padding: 0.32rem 0.5rem;
+  font-size: 0.82rem;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.company-bar .company-bar-search button {
+  padding: 0.32rem 0.7rem;
+  font-size: 0.8rem;
+}
+
+.company-bar .error {
+  margin-top: 0.5rem;
+  margin-bottom: 0;
+  font-size: 0.82rem;
+}
+
+/* --- Main analytical row: Sourced Data | Assumptions | Valuation Summary ------------ */
+/* Column 1 is deliberately capped, not fr-based like the other two: its content is a
+   compact key-value list with a natural ideal width, and letting it grow with the grid at
+   wide viewports just stretches empty space between label and value (measured: 276px of
+   blank gap per row at 1920px before this cap was added). Columns 2/3 absorb the extra
+   canvas instead, where wider input rows and the support grid actually use it. */
+.analytical-row {
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) minmax(320px, 1fr) minmax(320px, 1fr);
+  column-gap: 2.25rem;
+  align-items: start;
+  margin-bottom: 1.5rem;
+}
+
+.analytical-col {
+  min-width: 0;
+}
+
+.analytical-col:not(:first-child) {
+  border-left: 1px solid var(--border);
+  padding-left: 2.25rem;
+}
+
+.analytical-col-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+}
+
+.step-badge {
+  flex-shrink: 0;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent);
+  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.analytical-col-header h2 {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--text-h);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.analytical-col-header .col-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.analytical-col-header .col-actions button {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.74rem;
+}
+
+.col-empty-hint {
+  font-size: 0.82rem;
+  color: var(--text);
+  opacity: 0.8;
+  font-style: italic;
+  padding: 0.5rem 0;
+  margin: 0;
+}
+
+/* --- Sourced Historical Data: compact key-value list -------------------------------- */
+.kv-list {
+  margin: 0;
+}
+
+.kv-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.28rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+}
+
+.kv-row dt {
+  color: var(--text);
+}
+
+.kv-row dd {
+  margin: 0;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Reads as a statement "subtotal" line - accent color and a top border of its own, since
+   this is the one figure in the column that actually feeds the model below. */
+.kv-row--emphasis {
+  border-bottom: none;
+  border-top: 1px solid var(--border);
+  margin-top: 0.15rem;
+  padding-top: 0.5rem;
+  font-weight: 700;
+}
+
+.kv-row--emphasis dt {
+  color: var(--text-h);
+}
+
+.kv-row--emphasis dd {
+  color: var(--accent);
+  font-size: 0.9rem;
+}
+
+.sourced-data-note {
+  font-size: 0.74rem;
+  color: var(--text);
+  opacity: 0.85;
+  margin: 0.6rem 0 0;
+}
+
+.sourced-data-links {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.55rem;
+}
+
+.link-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.76rem;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.link-toggle:hover {
+  text-decoration: underline;
+}
+
+/* feature-form.css's `.feature-page button` (1 class + 1 type selector) otherwise beats
+   the plain `.link-toggle` class (1 class) on specificity and silently wins - the same
+   issue fixed for inputs earlier, just for buttons this time. Scoping through the parent
+   context these buttons actually live in is a more certain fix than trying to out-rank
+   `.feature-page button` on a bare class alone. Every property `.feature-page button` sets
+   has to be repeated here, not just the ones that look conflicting - color and font-size
+   silently lost to it too on the first pass, because only background/border/padding were
+   re-declared and specificity is resolved per-property, not per-rule. */
+.sourced-data-links button.link-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.76rem;
+  color: var(--accent);
+}
+
+/* --- Full-width 5-year history panel (beneath the 3-column row, not inside Step 1) --- */
+.history-panel {
+  margin-bottom: 1.5rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--border);
+}
+
+.history-panel h3 {
+  font-size: 0.85rem;
+  margin: 0 0 0.6rem;
+  color: var(--text-h);
+  font-weight: 700;
+}
+
+.history-panel table {
+  font-size: 0.78rem;
+}
+
+.history-panel th,
+.history-panel td {
+  padding: 0.35rem 0.6rem;
+}
+
+/* --- Assumptions: compact grouped field rows ----------------------------------------- */
+.field-group {
+  margin-bottom: 0.75rem;
+}
+
+.field-group:last-of-type {
+  margin-bottom: 0.65rem;
+}
+
+.field-group-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text);
+  opacity: 0.8;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+/* `.field-row` is the <label> itself now (not a wrapper around one) - label text +
+   provenance badge sit together on one head line, with the input directly below, so an
+   assumption reads as one coherent row instead of stacked controls. Higher specificity
+   than feature-form.css's `.feature-page form label`/`input` (1 class + 2 type selectors
+   each) is required, or that generic rule silently wins - the same issue fixed for
+   .company-bar-search above. */
+.analytical-col .field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-bottom: 0.45rem;
+}
+
+.analytical-col .field-row:last-child {
+  margin-bottom: 0;
+}
+
+.field-row-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.field-row-label {
+  font-size: 0.78rem;
+  color: var(--text-h);
+}
+
+.analytical-col .field-row input {
+  padding: 0.3rem 0.5rem;
+  font-size: 0.86rem;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+.analytical-col .run-valuation-btn {
+  width: 100%;
+  padding: 0.5rem;
+  font-size: 0.88rem;
+  margin-top: 0.25rem;
+}
+
+/* --- Valuation Summary: hero + market comparison + supporting grid ------------------- */
+.valuation-hero {
+  margin-bottom: 0.85rem;
+}
+
+.valuation-hero .hero-label {
+  display: block;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  margin-bottom: 0.2rem;
+}
+
+.valuation-hero .hero-value {
+  display: block;
+  font-size: 2.4rem;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+/* Deterministic current-price comparison - only rendered when a real sourced price
+   exists. Kept visually distinct (its own contained strip) from the "what assumptions
+   drove this" grid below, since it answers a different question ("what does this compare
+   with") right under the conclusion it relates to. */
+.valuation-comparison {
+  display: flex;
+  gap: 1.5rem;
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 0.9rem;
+  background: var(--panel-bg);
+  border-radius: 4px;
+}
+
+.comparison-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.comparison-row .label {
+  font-size: 0.72rem;
+  color: var(--text);
+}
+
+.comparison-row .value {
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.valuation-support-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem 1.25rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.valuation-support-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.valuation-support-grid .label {
+  font-size: 0.72rem;
+  color: var(--text);
+}
+
+.valuation-support-grid .value {
+  font-size: 0.88rem;
+  color: var(--text-h);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Source / analyst badges ------------------------------------------------------ */
+.source-badge {
+  display: inline-block;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 0.06rem 0.38rem;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+
+.source-badge--sourced {
+  background: var(--sens-tier-4);
+  color: var(--text-h);
+}
+
+.source-badge--adjusted {
+  background: var(--sens-tier-1);
+  color: var(--text-h);
+}
+
+.source-badge--analyst {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+/* --- Vertical value bridge ----------------------------------------------------------- */
+.value-bridge-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+/* Brackets EV / Net Debt / Equity Value together as one visual calculation, distinct from
+   the unit change that follows - a left rule tying the three rows together, same
+   divider-reuse principle as the rest of the page. */
+.vb-calculation {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding-left: 0.75rem;
+  border-left: 2px solid var(--border);
+}
+
+.vb-row {
+  display: grid;
+  grid-template-columns: minmax(90px, auto) 1fr minmax(85px, auto);
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.vb-label {
+  font-size: 0.76rem;
+  color: var(--text);
+}
+
+.vb-row--total .vb-label {
+  color: var(--text-h);
+  font-weight: 600;
+}
+
+.vb-bar-track {
+  height: 18px;
+  background: var(--panel-bg);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.vb-bar {
+  height: 100%;
+  border-radius: 2px;
+}
+
+.vb-bar--ev {
+  background: var(--accent);
+}
+
+.vb-bar--eq {
+  background: var(--accent);
+}
+
+.vb-row--adjustment .vb-bar-track {
+  background: transparent;
+  border: 1px solid var(--flag);
+}
+
+.vb-bar--adjustment {
+  background: var(--flag);
+  opacity: 0.55;
+}
+
+.vb-amount {
+  font-size: 0.82rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-h);
+}
+
+.vb-row--total .vb-amount {
+  font-weight: 700;
+}
+
+.vb-divider {
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--text);
+  padding: 0.15rem 0;
+}
+
+.vb-result {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  background: var(--accent);
+  color: #fff;
+  padding: 0.6rem 0.85rem;
+  border-radius: 4px;
+}
+
+.vb-result-label {
+  font-size: 0.78rem;
+}
+
+.vb-result-value {
+  font-size: 1.3rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Analysis Outputs: side-by-side sensitivity + bridge, tabbed schedule ------------ */
+.workflow-card--dense {
+  padding: 0.9rem 1.35rem 1.15rem;
+  margin-bottom: 1.25rem;
+}
+
+/* A visible rule under the header row - title/tabs above, analytical content below - is
+   what the plain-text "4" (see .workflow-card-step below) and bare whitespace gap were
+   missing; this is a big share of why the section read as "underweight" vs. the numbered
+   columns above it, which already had that same kind of clear visual anchor. */
+.workflow-card--dense .workflow-card-header {
+  margin-bottom: 0.8rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Was entirely unstyled (0px border, width:auto) - a leftover from when WorkflowCard's
+   own step badge stopped being used for steps 1-3 in favor of .step-badge, but nothing
+   ever restyled this one to match. Bringing it into the same circle treatment as
+   .step-badge is most of this refinement: it makes "4" read as continuous with "123"
+   instead of as a stray character next to a heading. */
+.workflow-card-step {
+  flex-shrink: 0;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent);
+  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.workflow-card--dense .workflow-card-header h2 {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--text-h);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.analysis-tabs {
+  display: flex;
+  gap: 1.25rem;
+  margin-left: auto;
+}
+
+/* Underline tabs read closer to institutional data-tool tab strips (Bloomberg/FactSet-
+   style) than filled pill buttons, which lean more generic-SaaS. */
+.analysis-tabs button {
+  padding: 0.15rem 0 0.4rem;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.analysis-tabs button.active {
+  color: var(--text-h);
+  border-bottom-color: var(--accent);
+}
+
+.analysis-outputs-row {
+  display: flex;
+  gap: 2.25rem;
+  align-items: stretch;
+}
+
+.sensitivity-panel {
+  flex: 1 1 60%;
+  min-width: 0;
+}
+
+.workflow-card--dense h3 {
+  font-size: 0.88rem;
+  margin: 0 0 0.55rem;
+}
+
+/* Same border+padding divider pattern as .analytical-col above, deliberately reused
+   rather than invented fresh, so the two side-by-side layouts on this page read as one
+   consistent visual system. */
+.bridge-panel {
+  flex: 1 1 40%;
+  min-width: 240px;
+  border-left: 1px solid var(--border);
+  padding-left: 2.25rem;
+}
+
+.bridge-panel h3 {
+  font-size: 0.88rem;
+  margin: 0 0 0.55rem;
+}
+
+/* Deliberately quieter than the Sensitivity/Forecast tabs above it or the history/SEC
+   links in Step 1: this is background methodology, the lowest-priority disclosure on the
+   page, not a navigational control - muted secondary text color (not --accent), no
+   uppercase/letter-spacing treatment. Scoped through .workflow-card--dense for the same
+   specificity reason as .sourced-data-links button.link-toggle above; feature-form.css's
+   `.feature-page button` would otherwise silently win and render this as a filled button. */
+.workflow-card--dense .methodology-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-top: 0.9rem;
+  font-size: 0.74rem;
+  color: var(--text);
+  opacity: 0.85;
+  cursor: pointer;
+}
+
+.workflow-card--dense .methodology-toggle:hover {
+  opacity: 1;
+}
+
+/* Screen-only tab panels / collapsed-by-default helper text: everything stays in the DOM
+   (so print/export always see the sensitivity grid, bridge, forecast schedule, and full
+   methodology note together) and this just hides whichever isn't currently shown on
+   screen. Deliberately NOT !important: print.css's
+   `@media print { .no-screen { display: block !important } }` override must unconditionally
+   win when printing, and importance beats source order - if this rule were also !important,
+   which one wins would depend on CSS injection order between the two files instead. */
+.no-screen {
+  display: none;
+}
+
+/* --- Compact scenarios (bottom of page, lower visual weight) ------------------------- */
+.scenarios-compact .scenarios {
+  border-top: 1px solid var(--border);
+  padding-top: 1.1rem;
+  margin-top: 0;
+}
+
+.scenarios-compact .scenarios h3 {
+  font-size: 0.92rem;
+  margin-bottom: 0.7rem;
+}
+
+.scenarios-compact .scenario-empty {
+  padding: 0.9rem 1rem;
+  background: var(--panel-bg);
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.scenarios-compact .scenario-list {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.scenarios-compact .scenario-list li {
+  padding: 0.45rem 0.75rem;
+  font-size: 0.86rem;
+}
+
+.scenarios-compact .scenario-list li:not(:last-child) {
+  border-bottom: 1px solid var(--border);
+}
+
+/* --- Responsive ------------------------------------------------------------------------ */
+@media (max-width: 1040px) {
+  .analytical-row {
+    display: block;
+  }
+
+  .analytical-col {
+    margin-bottom: 1.5rem;
+  }
+
+  .analytical-col:not(:first-child) {
+    border-left: none;
+    padding-left: 0;
+    border-top: 1px solid var(--border);
+    padding-top: 1.25rem;
+  }
+
+  .analysis-outputs-row {
+    flex-direction: column;
+  }
+
+  .bridge-panel {
+    min-width: 0;
+    border-left: none;
+    padding-left: 0;
+    border-top: 1px solid var(--border);
+    padding-top: 1.25rem;
+  }
+
+  .company-bar-market-data {
+    padding-left: 0;
+    border-left: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .company-bar-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .company-bar-search {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .company-bar-search input {
+    flex: 1;
+    width: auto;
+  }
+
+  .company-bar-search--compact input {
+    width: auto;
+  }
+
+  .vb-row {
+    grid-template-columns: 70px 1fr 75px;
+  }
+
+  .valuation-comparison {
+    flex-wrap: wrap;
+  }
+}

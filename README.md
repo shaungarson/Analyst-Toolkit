@@ -74,10 +74,19 @@ considered instead — is in [`PROGRESS.md`](PROGRESS.md).
   assumption and explicitly runs the valuation — nothing is auto-calculated or auto-saved.
 - Unlevered FCF projected from a base year at a flat growth rate
 - Gordon Growth terminal value, with WACC and terminal growth as direct inputs
-- Enterprise value → equity value → value per share bridge
+- Enterprise value → equity value → value per share bridge, shown as a proportional value
+  bridge visualization
+- **Current price vs. implied value:** when a ticker is loaded, the sourced market price is
+  shown alongside the model's implied value per share, with a deterministic Implied
+  Upside/Downside — arithmetic only, never framed as a recommendation, and never shown for
+  the manual-entry or example paths, which have no real market price to compare against
 - **Sensitivity analysis:** value per share across a grid of WACC × terminal growth rate
 - Save, load, **duplicate**, and **compare named scenarios** side by side
 - CSV export and print-friendly output
+
+The module is laid out as a dense analyst workstation: sourced data, editable assumptions,
+and the resulting valuation sit side by side in one row on desktop, so the relationship
+between an input and its effect on the valuation is visible without scrolling.
 
 Both modules ship with a one-click worked example, so the tool is understandable in under a
 minute without needing to source your own deal data. The Real Estate example is
@@ -108,6 +117,9 @@ the UI's own assumptions text, never silently assumed:
   below 1.0x) — never an arbitrary composite "risk score."
 - **DCF terminal value:** Gordon Growth (perpetuity growth) method, since WACC and terminal
   growth are given as direct inputs rather than an exit multiple.
+- **Implied Upside/Downside:** `(implied value per share ÷ current price) − 1`, shown only
+  when a real, sourced current price is available (Alpha Vantage's quote endpoint, via
+  ticker search) — deterministic arithmetic, never a buy/sell/attractive framing.
 - **Discounting:** end-of-year convention throughout (not mid-year) — flagged as a genuine,
   material convention choice and decided deliberately, not defaulted into.
 - **Unlevered FCF from sourced company data:** `EBIT × (1 − effective tax rate) + D&A −
@@ -184,7 +196,9 @@ JSON response → populates the DCF form; the analyst still reviews and runs it 
 validation hardening → visual design pass → deployment → multi-year modeling, sensitivity
 analysis, and scenario comparison for both modules → real estate deterministic risk flags
 and Professional Deal Summary → DCF ticker search (public company fundamentals populate the
-workspace; the analyst still reviews and runs the valuation manually).
+workspace; the analyst still reviews and runs the valuation manually) → DCF workstation
+redesign (dense 3-column analyst layout, compact financial-number formatting, current-price
+comparison).
 
 **Long-term direction — not yet built:** the modeling engine above is the foundation, not
 the end state. Analyst Toolkit is meant to grow into an AI-powered analyst *workflow* tool,
