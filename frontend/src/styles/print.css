@@ -143,6 +143,11 @@
     margin-bottom: 1rem;
   }
 
+  .sensitivity-legend {
+    color: #444;
+    max-width: 100%;
+  }
+
   .history-panel {
     border-top-color: #ccc;
   }

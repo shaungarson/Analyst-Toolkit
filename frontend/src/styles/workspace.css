@@ -740,6 +740,33 @@
   border-bottom-color: var(--accent);
 }
 
+.sensitivity-legend {
+  font-size: 0.82rem;
+  color: var(--text);
+  max-width: 72ch;
+  margin: 0 0 1.1rem;
+}
+
+.workflow-card--dense .methodology-toggle,
+.workflow-card--dense .sensitivity-legend-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.74rem;
+  color: var(--text);
+  opacity: 0.85;
+  cursor: pointer;
+}
+
+.workflow-card--dense .methodology-toggle:hover,
+.workflow-card--dense .sensitivity-legend-toggle:hover {
+  opacity: 1;
+}
+
+.workflow-card--dense .sensitivity-legend-toggle {
+  margin-bottom: 0.6rem;
+}
+
 .analysis-outputs-row {
   display: flex;
   gap: 2.25rem;
@@ -778,18 +805,7 @@
    specificity reason as .sourced-data-links button.link-toggle above; feature-form.css's
    `.feature-page button` would otherwise silently win and render this as a filled button. */
 .workflow-card--dense .methodology-toggle {
-  background: none;
-  border: none;
-  padding: 0;
   margin-top: 0.9rem;
-  font-size: 0.74rem;
-  color: var(--text);
-  opacity: 0.85;
-  cursor: pointer;
-}
-
-.workflow-card--dense .methodology-toggle:hover {
-  opacity: 1;
 }
 
 /* Screen-only tab panels / collapsed-by-default helper text: everything stays in the DOM

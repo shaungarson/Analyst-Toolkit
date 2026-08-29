@@ -69,6 +69,7 @@ function DcfValuation() {
   const [loading, setLoading] = useState(false)
   const [analysisTab, setAnalysisTab] = useState('sensitivity')
   const [showMethodology, setShowMethodology] = useState(false)
+  const [showSensitivityLegend, setShowSensitivityLegend] = useState(true)
   const [showHistory, setShowHistory] = useState(false)
 
   const [ticker, setTicker] = useState('')
@@ -554,6 +555,39 @@ function DcfValuation() {
             </div>
           }
         >
+          {sensitivity && (
+            <div
+              className={
+                analysisTab === 'sensitivity' ? 'sensitivity-legend-wrap' : 'sensitivity-legend-wrap no-screen'
+              }
+            >
+              <button
+                type="button"
+                className="sensitivity-legend-toggle no-print"
+                onClick={() => setShowSensitivityLegend((v) => !v)}
+                aria-expanded={showSensitivityLegend}
+              >
+                How to read this <span aria-hidden="true">{showSensitivityLegend ? '▲' : '▼'}</span>
+              </button>
+              <p
+                className={showSensitivityLegend ? 'sensitivity-legend' : 'sensitivity-legend no-screen'}
+              >
+                The highlighted cell is your base case &mdash; {form.wacc}% WACC (the discount
+                rate),{' '}
+                {form.terminalGrowthRate}% terminal growth (the assumed long-run growth rate)
+                &mdash; implying{' '}
+                {dollarsPerShare(results.value_per_share)}/share. A lower WACC or higher terminal
+                growth generally increases value; the reverse generally decreases it.
+                &ldquo;n/a&rdquo; means that combination falls outside the Gordon Growth
+                formula&rsquo;s valid mathematical range &mdash; most commonly because terminal
+                growth equals or exceeds WACC. The Value Bridge subtracts net debt from
+                enterprise value, then divides by diluted shares. Sensitivity warnings below
+                describe how fragile a result is to small assumption changes, not whether the
+                assumptions themselves are reasonable.
+              </p>
+            </div>
+          )}
+
           <div className={analysisTab === 'sensitivity' ? 'analysis-outputs-row' : 'analysis-outputs-row no-screen'}>
             <div className="sensitivity-panel">
               {sensitivity ? (
