@@ -400,8 +400,8 @@ function DcfValuation() {
                 <input
                   type="number"
                   required
-                  min="-5"
-                  max="6"
+                  min="-300"
+                  max="100"
                   step="any"
                   value={form.terminalGrowthRate}
                   onChange={handleChange('terminalGrowthRate')}
@@ -617,6 +617,21 @@ function DcfValuation() {
                 Incl. PV of Terminal Value {compactCurrency(results.pv_terminal_value)} (Terminal Value{' '}
                 {compactCurrency(results.terminal_value)}).
               </p>
+              {results.terminal_growth_warnings?.length > 0 && (
+                <ul className="terminal-growth-warning-list">
+                  {results.terminal_growth_warnings.map((warning) => (
+                    <li
+                      key={warning.id}
+                      className={`terminal-growth-warning terminal-growth-warning--${warning.tier}`}
+                    >
+                      <span className="terminal-growth-warning-tier">{warning.tier}</span>
+                      <span className="terminal-growth-warning-explanation">
+                        {warning.explanation}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
 
@@ -658,6 +673,20 @@ function DcfValuation() {
             revenue/margin/CapEx build-up); terminal value uses the Gordon Growth method off WACC
             and terminal growth as direct inputs; cash flows are discounted using the end-of-year
             convention, not mid-year.
+          </p>
+          <p className={`assumptions ${showMethodology ? '' : 'no-screen'}`}>
+            Terminal growth represents the business&rsquo;s steady-state growth rate forever, not
+            a near-term forecast. Positive values are conventionally benchmarked against
+            sustainable long-run nominal economic growth (real growth plus inflation) in the cash
+            flows&rsquo; own currency &mdash; a figure that varies by market and period, so it
+            isn&rsquo;t hard-coded here. Negative values imply permanent structural decline, not
+            near-term softness (which belongs in the explicit forecast period instead). Only WACC
+            &gt; terminal growth, and Gordon Growth&rsquo;s own convergence requirement, are
+            enforced as hard limits; combinations that are valid but structurally unusual &mdash;
+            a narrow WACC&ndash;terminal growth spread, or terminal growth at or below &minus;100%
+            (at exactly &minus;100%, next period&rsquo;s projected cash flow is zero; below it,
+            repeated compounding produces alternating-sign cash flows) &mdash; surface as
+            warnings above instead of being blocked outright.
           </p>
         </WorkflowCard>
       )}

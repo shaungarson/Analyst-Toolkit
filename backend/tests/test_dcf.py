@@ -4,6 +4,7 @@ from pydantic import ValidationError
 from app.calculations.dcf import (
     dcf_sensitivity,
     discount_factor,
+    gordon_growth_converges,
     present_value,
     project_fcf,
     run_dcf,
@@ -78,21 +79,105 @@ def test_wacc_must_exceed_terminal_growth_rate():
         )
 
 
-def test_terminal_growth_rate_capped_at_a_realistic_level():
-    # A terminal growth rate above ~6% implies the company eventually outgrows the
-    # entire economy forever - a well-known DCF red flag, almost always a typo rather
-    # than a deliberate assumption. Reject it at the input layer rather than silently
-    # producing a wildly inflated valuation.
+def test_terminal_growth_rate_no_longer_capped_at_an_arbitrary_level():
+    # The old 6% ceiling was an economic-judgment call (companies "can't" outgrow the
+    # economy forever), not a mathematical requirement - removed in favor of Gordon
+    # Growth's own convergence domain (see the tests below) plus analyst-facing warnings
+    # instead of a hard block. 8% terminal growth under a 15% WACC must now validate.
+    result = DCFInputs(
+        base_year_fcf=100,
+        fcf_growth_rate=0.05,
+        forecast_years=5,
+        wacc=0.15,
+        terminal_growth_rate=0.08,
+        net_debt=0,
+        diluted_shares_outstanding=10,
+    )
+    assert result.terminal_growth_rate == 0.08
+
+
+def test_gordon_growth_converges_hand_computed():
+    # Comfortable base case.
+    assert gordon_growth_converges(wacc=0.10, terminal_growth_rate=0.02) is True
+    # Equal to WACC: ratio = 1.10 / 1.10 = 1.0, not < 1 in magnitude.
+    assert gordon_growth_converges(wacc=0.10, terminal_growth_rate=0.10) is False
+    # Deeply negative: ratio = (1 - 3.0) / 1.10 ~= -1.818, magnitude > 1 - the closed form
+    # still returns a finite-looking number here, but it isn't the value of anything; g <
+    # WACC alone (-3.0 < 0.10) is not sufficient, which is the mistake this function exists
+    # to prevent from being reintroduced.
+    assert gordon_growth_converges(wacc=0.10, terminal_growth_rate=-3.0) is False
+    # Exactly at the lower convergence boundary -(2 + WACC): ratio = -1.10 / 1.10 = -1.0
+    # exactly - excluded, matching the upper boundary's own exclusion at ratio = 1.0.
+    assert gordon_growth_converges(wacc=0.10, terminal_growth_rate=-2.10) is False
+    # Just inside that same boundary.
+    assert gordon_growth_converges(wacc=0.10, terminal_growth_rate=-2.09) is True
+
+
+def test_deeply_negative_terminal_growth_rejected_when_series_does_not_converge():
+    # g < WACC alone is not sufficient for Gordon Growth to be valid - the underlying
+    # geometric series also requires g > -(2 + WACC). At WACC=10%, that floor is -210%;
+    # -300% sits outside it, even though -300% < 10% would pass a bare "g < WACC" check.
     with pytest.raises(ValidationError):
         DCFInputs(
             base_year_fcf=100,
             fcf_growth_rate=0.05,
             forecast_years=5,
-            wacc=0.50,
-            terminal_growth_rate=0.50,
+            wacc=0.10,
+            terminal_growth_rate=-3.0,
             net_debt=0,
             diluted_shares_outstanding=10,
         )
+
+
+def test_deeply_negative_terminal_growth_accepted_within_convergence_domain():
+    # -150% is far beyond the old (arbitrary) -5% floor, but still comfortably inside the
+    # true convergence domain at WACC=10% (-210%), so it must validate rather than being
+    # rejected by a leftover unit-confused floor.
+    result = DCFInputs(
+        base_year_fcf=100,
+        fcf_growth_rate=0.05,
+        forecast_years=5,
+        wacc=0.10,
+        terminal_growth_rate=-1.5,
+        net_debt=0,
+        diluted_shares_outstanding=10,
+    )
+    assert result.terminal_growth_rate == -1.5
+
+
+def test_run_dcf_has_no_warnings_for_a_comfortable_base_case():
+    result = run_dcf(**VALID_INPUTS)  # wacc=0.10, terminal_growth_rate=0.02: 8pp spread
+    assert result["terminal_growth_warnings"] == []
+
+
+def _warning(wacc, terminal_growth_rate, warning_id):
+    result = run_dcf(
+        base_year_fcf=100,
+        fcf_growth_rate=0.05,
+        forecast_years=5,
+        wacc=wacc,
+        terminal_growth_rate=terminal_growth_rate,
+        net_debt=0,
+        diluted_shares_outstanding=10,
+    )
+    return next(
+        (w for w in result["terminal_growth_warnings"] if w["id"] == warning_id), None
+    )
+
+
+def test_narrow_spread_warning_tiers_hand_computed():
+    warning_id = "narrow_wacc_terminal_growth_spread"
+    assert _warning(0.10, 0.05, warning_id) is None  # 5pp spread - comfortable
+    assert _warning(0.10, 0.075, warning_id)["tier"] == "caution"  # 2.5pp
+    assert _warning(0.10, 0.085, warning_id)["tier"] == "high"  # 1.5pp
+    assert _warning(0.10, 0.095, warning_id)["tier"] == "extreme"  # 0.5pp
+
+
+def test_non_positive_terminal_cash_flow_warning_triggers_at_negative_100_percent():
+    warning_id = "non_positive_terminal_cash_flow"
+    assert _warning(0.10, -0.99, warning_id) is None
+    assert _warning(0.10, -1.0, warning_id)["tier"] == "extreme"
+    assert _warning(0.10, -1.5, warning_id)["tier"] == "extreme"
 
 
 def test_dcf_sensitivity_center_cell_matches_base_case_value_per_share_exactly():
@@ -129,6 +214,32 @@ def test_dcf_sensitivity_invalid_wacc_growth_combinations_are_null_not_crashes()
     wide_row = next(row for row in sensitivity["rows"] if row["wacc"] == pytest.approx(0.075))
     growth_low_idx = sensitivity["terminal_growth_rates"].index(0.045)
     assert wide_row["value_per_share_by_growth"][growth_low_idx] is not None
+
+
+def test_dcf_sensitivity_nulls_cells_outside_convergence_domain_not_just_wacc_le_growth():
+    # Base case sits just inside the lower convergence boundary at its own WACC (-2.09 vs a
+    # floor of -2.10 at wacc=0.10), so the grid's low-WACC/most-negative-growth corner
+    # crosses that boundary - a case the old "WACC <= growth" check would never catch, since
+    # growth here is nowhere near WACC. Proves the grid's null-check uses the full
+    # convergence domain, not just the upper bound.
+    sensitivity = dcf_sensitivity(
+        base_year_fcf=100,
+        fcf_growth_rate=0.05,
+        forecast_years=5,
+        wacc=0.10,
+        terminal_growth_rate=-2.09,
+        net_debt=0,
+        diluted_shares_outstanding=10,
+    )
+    growth_low_idx = sensitivity["terminal_growth_rates"].index(-2.1)
+    low_wacc_row = next(row for row in sensitivity["rows"] if row["wacc"] == pytest.approx(0.09))
+    assert low_wacc_row["value_per_share_by_growth"][growth_low_idx] is None
+
+    # But the grid's least-negative growth value at its highest WACC is comfortably inside
+    # the domain and must still compute normally.
+    growth_high_idx = sensitivity["terminal_growth_rates"].index(-2.08)
+    high_wacc_row = next(row for row in sensitivity["rows"] if row["wacc"] == pytest.approx(0.11))
+    assert high_wacc_row["value_per_share_by_growth"][growth_high_idx] is not None
 
 
 def test_dcf_sensitivity_grid_has_five_by_five_shape_in_the_typical_case():

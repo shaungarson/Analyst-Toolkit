@@ -26,6 +26,85 @@ def terminal_value(final_year_fcf, wacc, terminal_growth_rate):
     return final_year_fcf * (1 + terminal_growth_rate) / (wacc - terminal_growth_rate)
 
 
+def gordon_growth_converges(wacc, terminal_growth_rate):
+    """Whether the Gordon Growth closed form actually represents the infinite growing
+    perpetuity it's derived from, not just whether its arithmetic avoids a divide-by-zero.
+
+    The closed form is the sum of a geometric series with common ratio
+    (1 + g) / (1 + WACC); that series only converges when the ratio's magnitude is below 1,
+    which solves to -(2 + WACC) < g < WACC. Outside that range (always on the low side in
+    practice, since g >= WACC is already the more obviously-broken case) the formula still
+    returns a finite-looking number, but it's not the present value of anything - it's
+    algebra applied outside its domain. This is the single source of truth for that domain:
+    both the hard input validation (schemas/dcf.py) and the sensitivity grid below call this
+    rather than re-deriving the boundary, so the two can't silently drift apart.
+    """
+    return abs((1 + terminal_growth_rate) / (1 + wacc)) < 1
+
+
+# Spread thresholds are diagnostics about the formula's own sensitivity, not claims that an
+# assumption is economically wrong: terminal value scales with 1/(WACC - g), so its
+# sensitivity to a small move in either input scales with 1/(WACC - g)^2 - these tiers track
+# that curve (a 50bp WACC move already swings terminal value ~20% at a 3pp spread, ~100% at
+# 1pp), not an opinion about what WACC or terminal growth "should" be.
+TGR_SPREAD_CAUTION = 0.03
+TGR_SPREAD_HIGH = 0.02
+TGR_SPREAD_EXTREME = 0.01
+
+
+def _narrow_spread_warning(wacc, terminal_growth_rate):
+    spread = wacc - terminal_growth_rate
+    if spread < TGR_SPREAD_EXTREME:
+        tier = "extreme"
+    elif spread < TGR_SPREAD_HIGH:
+        tier = "high"
+    elif spread < TGR_SPREAD_CAUTION:
+        tier = "caution"
+    else:
+        return None
+    return {
+        "id": "narrow_wacc_terminal_growth_spread",
+        "tier": tier,
+        "explanation": (
+            f"WACC and terminal growth are only {spread:.1%} apart. Terminal value already "
+            "typically makes up most of a DCF's enterprise value, and its sensitivity to "
+            "small changes in WACC or terminal growth scales with the inverse square of "
+            "this spread - a narrow gap amplifies the effect of a figure that already "
+            "dominates the valuation. This is a statement about formula sensitivity, not "
+            "about whether the underlying assumptions are reasonable."
+        ),
+    }
+
+
+def _non_positive_terminal_cash_flow_warning(terminal_growth_rate):
+    if terminal_growth_rate > -1:
+        return None
+    return {
+        "id": "non_positive_terminal_cash_flow",
+        "tier": "extreme",
+        "explanation": (
+            "At exactly -100% terminal growth, next period's projected cash flow is zero; "
+            "below -100%, repeated compounding produces alternating-sign cash flows rather "
+            "than continued decline. That's structurally inconsistent with interpreting "
+            "Gordon Growth as a stable-state going concern, even though the formula still "
+            "computes a finite value."
+        ),
+    }
+
+
+def terminal_growth_warnings(wacc, terminal_growth_rate):
+    """Deterministic, explanatory warnings for a mathematically valid but structurally
+    unusual WACC/terminal-growth combination. Assumes the pair has already passed
+    gordon_growth_converges (enforced by DCFInputs before run_dcf is ever called) - these
+    are about scrutiny-worthy results, not a second validity check.
+    """
+    warnings = [
+        _narrow_spread_warning(wacc, terminal_growth_rate),
+        _non_positive_terminal_cash_flow_warning(terminal_growth_rate),
+    ]
+    return [w for w in warnings if w is not None]
+
+
 def enterprise_value(pv_fcfs, pv_terminal_value):
     return sum(pv_fcfs) + pv_terminal_value
 
@@ -78,6 +157,7 @@ def run_dcf(
         "enterprise_value": round(ev, 2),
         "equity_value": round(eq_value, 2),
         "value_per_share": round(per_share, 2),
+        "terminal_growth_warnings": terminal_growth_warnings(wacc, terminal_growth_rate),
     }
 
 
@@ -100,23 +180,19 @@ def dcf_sensitivity(
     else at the base-case values. The center cell (delta 0, 0) always matches the base
     case's own value per share exactly, since it's computed by the same run_dcf function.
 
-    Combinations where WACC <= terminal growth are mathematically invalid (the Gordon
-    Growth formula blows up or goes negative) and are marked null rather than computed.
+    Combinations outside the Gordon Growth convergence domain (see gordon_growth_converges)
+    are mathematically invalid - the closed form either blows up (WACC <= growth) or stops
+    representing a convergent series (growth far enough below -100%) - and are marked null
+    rather than computed.
     """
     wacc_values = sorted({round(wacc + d, 6) for d in WACC_DELTAS if 0 < wacc + d <= 1})
-    growth_values = sorted(
-        {
-            round(terminal_growth_rate + d, 6)
-            for d in TERMINAL_GROWTH_DELTAS
-            if -0.05 <= terminal_growth_rate + d <= 0.06
-        }
-    )
+    growth_values = sorted({round(terminal_growth_rate + d, 6) for d in TERMINAL_GROWTH_DELTAS})
 
     rows = []
     for w in wacc_values:
         value_per_share_by_growth = []
         for g in growth_values:
-            if w <= g:
+            if not gordon_growth_converges(w, g):
                 value_per_share_by_growth.append(None)
                 continue
             result = run_dcf(

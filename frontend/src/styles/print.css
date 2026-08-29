@@ -197,6 +197,23 @@
     color: #000 !important;
   }
 
+  .terminal-growth-warning {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-left: 3px solid #a15c00;
+    break-inside: avoid;
+  }
+
+  .terminal-growth-warning--high,
+  .terminal-growth-warning--extreme {
+    border-left-color: #8a1c16;
+  }
+
+  .terminal-growth-warning-tier,
+  .terminal-growth-warning-explanation {
+    color: #000;
+  }
+
   .valuation-comparison {
     background: #fff;
     border: 1px solid #ccc;

@@ -7,8 +7,11 @@ real-world-inspired example deal all shipped as Phase 8 extensions. DCF ticker s
 (public company data populates the workspace; analyst still reviews/runs manually) shipped
 2026-08-24 — see Decision Log. This is the project's first third-party API dependency. DCF
 workstation redesign (dense 3-column analyst layout, compact financial-number formatting,
-current-price/implied-upside comparison) shipped 2026-08-28 — see Decision Log. No further
-work currently agreed; check with the user for direction.
+current-price/implied-upside comparison) shipped 2026-08-28 — see Decision Log. DCF terminal
+growth validation redesign (hard validation narrowed to genuine Gordon Growth invalidity,
+tiered explanatory warnings replacing the old hard-coded economic-judgment cap) shipped
+2026-08-28 — see Decision Log. No further work currently agreed; check with the user for
+direction.
 
 ## Live Links
 * App: https://analyst-toolkit-ecru.vercel.app
@@ -519,6 +522,59 @@ This completes every item from the Phase 8 plan agreed with the user on 2026-08-
     workspace rather than a narrow centered strip, verified by measuring the actual
     content-to-viewport ratio rather than eyeballing it.
 
+* **DCF terminal growth validation redesign (2026-08-28).** Replaced the old hard-coded
+  `terminal_growth_rate` bounds (`-5%` to `6%`, an economic-judgment cap dressed as
+  validation) with a validation philosophy now stated in CLAUDE.md Section 7: hard-block
+  only for genuine mathematical/structural invalidity; surface everything else as an
+  explanatory warning or methodology guidance, never a silent block on analyst judgment.
+  Reached after a multi-round methodology discussion with the user, including a real error
+  self-caught and corrected mid-discussion (see the Decision Log entry below) — worth
+  reading in full as the first entry in what should become a broader "Model Robustness &
+  Safeguards" inventory across the app.
+  - **Hard validation, corrected to the actual Gordon Growth convergence domain:** `WACC >
+    terminal_growth_rate` alone is not sufficient — the closed form is a geometric series
+    that only converges when `|(1 + g) / (1 + WACC)| < 1`, which also implies a lower bound
+    (`g > -(2 + WACC)`, e.g. -210% at a 10% WACC) that a bare `g < WACC` check misses
+    entirely. A new `gordon_growth_converges(wacc, terminal_growth_rate)` in
+    `backend/app/calculations/dcf.py` is the single source of truth for this domain, used by
+    both `DCFInputs`' cross-field validator (`backend/app/schemas/dcf.py` — the specific
+    `WACC <= terminal growth` message still raised first, for the clearer common-case
+    message, before the general convergence check) and the sensitivity grid's per-cell
+    null-check, so the two can't silently drift apart.
+  - **Latent gap fixed in the sensitivity grid as a side effect:** the grid's own null-check
+    was previously only `WACC <= growth`, never the lower convergence bound — unreachable in
+    practice under the old `-5%` floor, but a real gap once that floor was removed. Caught by
+    tracing through the fix, not by a bug report.
+  - **Two deterministic, explanatory warnings** (not hard blocks) on mathematically valid but
+    structurally unusual combinations, returned as `terminal_growth_warnings` on
+    `DCFResults`: a tiered WACC-terminal-growth spread warning (caution / high / extreme at
+    3pp / 2pp / 1pp, grounded in terminal value's actual 1/(WACC-g)² sensitivity curve, hand
+    -verified rather than assumed), and a single structural warning at terminal growth ≤
+    -100% (the point where next period's projected cash flow reaches zero; below it,
+    repeated compounding produces alternating-sign cash flows, which is inconsistent with
+    Gordon Growth's stable-state going-concern interpretation regardless of the formula
+    still returning a finite value).
+  - **Deliberately not built:** universal magnitude-based "unusual growth" thresholds (e.g.
+    terminal growth > 4%). Considered and rejected — appropriate perpetual growth depends on
+    currency and long-run macro conditions the app doesn't have data for yet, so a hard
+    -coded threshold would just be the old judgment-cap problem wearing warning clothes.
+    Replaced with static methodology guidance text explaining how to interpret positive and
+    negative terminal growth; a real contextual version is a future upgrade once currency
+    /macro reference data is available (see Near-Term Next Steps).
+  - 1 pre-existing test retired (it asserted the old 6% cap), 8 tests added — including its
+    direct replacement — for a net +7 (69 -> 76 total): the convergence-domain fix regression-tested
+    directly against the counterexample that caught the error (WACC=10%, terminal growth=
+    -300% — passes a bare `g < WACC` check but doesn't converge), a deep-negative-but-valid
+    case (-150%) proving the new floor is genuinely permissive and not the old floor renamed,
+    boundary tests at the exact convergence limit, both warning functions at each tier
+    boundary, and a sensitivity-grid test isolating the previously-unreachable lower-bound
+    gap specifically.
+  - Verified end-to-end in the browser: comfortable case (no warnings), each spread tier,
+    the -100% structural warning, the WACC-must-exceed-terminal-growth hard-reject message,
+    the user's own counterexample hard-rejected with the correct message, methodology text,
+    and print-selector/light-dark-mode integrity for every new CSS class. No Real Estate or
+    DCF calculation-engine changes.
+
 ## Near-Term Next Steps
 * Open — no further work is currently agreed. Check with the user for direction (Phase 9
   stays out of scope until explicitly instructed, per CLAUDE.md).
@@ -539,6 +595,10 @@ This completes every item from the Phase 8 plan agreed with the user on 2026-08-
   the same "quick read" need within the core page; a separate print-optimized summary
   artifact remains a distinct, still-unbuilt idea.
 * Screenshots for the README are a reasonable small follow-up whenever convenient.
+* Contextual (currency/macro-aware) terminal-growth plausibility guidance is a deliberately
+  deferred upgrade to the 2026-08-28 terminal growth validation redesign — needs a real
+  reference-rate data source before it can be more than another hard-coded universal
+  threshold; static methodology text covers this for now.
 
 ## Recent verification notes
 * 2026-08-13 — user manually resized the browser window and toggled OS dark mode; both held
@@ -713,3 +773,18 @@ Alternatives considered: implementing the reference screenshots as close to pixe
 
 **2026-08-28 — Implied Upside/Downside: shown only when a real sourced price exists, never a recommendation**
 `current_price` comes from Alpha Vantage's `GLOBAL_QUOTE` endpoint (`app/services/company_data.py`), cached separately from fundamentals on its own 15-minute TTL, and was live-verified against real tickers in the 2026-08-24 milestone (WMT $106.49) - confirmed as real, already-shipped production data before building on it, not a new or mocked field. `Implied Upside/Downside = (value_per_share / current_price) - 1` is the only calculation added; the label swaps between "Implied Upside" and "Implied Downside" by sign rather than always showing one label with a signed number. Deliberately absent (not zero, not a placeholder) for the manual-entry and Load Example paths, since neither has a real market price to compare against - showing nothing there is correct, not an oversight. No "undervalued"/"attractive"/"buy" framing anywhere - deterministic arithmetic only.
+
+**2026-08-28 — DCF terminal growth validation redesign: hard validation narrowed to genuine Gordon Growth invalidity; explanatory warnings and methodology guidance replace hard-coded economic-judgment thresholds**
+Alternatives considered, across a multi-round discussion with the user before any code was written: (1) keep the existing hard `6%` ceiling - rejected, it was always an economic-judgment call dressed as validation, not a mathematical requirement, and it blocked legitimate what-if exploration while doing nothing about the actual danger case (a narrow WACC-terminal-growth spread at a perfectly modest-looking terminal growth rate); (2) raise the ceiling and add universal magnitude-based warning tiers (e.g. terminal growth `>4%`/`>6%`/`>10%`) - rejected on the user's own pushback, since a warning-shaped threshold is still the same hard-coded judgment call in different clothing, and appropriate perpetual growth genuinely depends on currency and long-run macro conditions this app has no data source for; (3) a per-field sanity ceiling (`le=1`, i.e. 100%) as a unit-confusion backstop, mirroring WACC's own `le=1` - proposed, then withdrawn once traced through: WACC's own `<=1` bound combined with the existing `WACC > terminal growth` rule already makes a separate TGR ceiling mathematically redundant.
+
+**What shipped instead - the general principle, now codified in CLAUDE.md Section 7:** hard-block an input only for genuine mathematical or structural invalidity; surface analyst-judgment-dependent assumptions as explanatory warnings or static methodology guidance instead, never a silent universal threshold. Concretely for DCF terminal growth:
+- **Hard validation** - the only blocking rule - is Gordon Growth's actual convergence domain, `|(1 + terminal_growth_rate) / (1 + WACC)| < 1`, not just `WACC > terminal_growth_rate`. A real mistake was caught and corrected mid-discussion: an earlier draft of this recommendation stated `WACC > terminal_growth_rate` as the *only* hard rule, which the user disproved with a direct counterexample (WACC=10%, terminal growth=-300%) - passes `g < WACC` trivially, but the underlying geometric series the closed form represents doesn't converge there (true floor is `g > -(2+WACC)`, -210% at a 10% WACC), so the formula returns a finite-looking number that isn't the value of anything. Implemented once as `gordon_growth_converges()` in `backend/app/calculations/dcf.py`, called from both the schema validator and the sensitivity grid's null-check specifically so the two can't silently drift apart - fixing, as a side effect, a latent gap in the grid's own null-check (previously only `WACC <= growth`) that the old `-5%` floor had kept unreachable.
+- **Explanatory warnings**, not blocks, for combinations that are mathematically valid but structurally worth scrutiny: a tiered WACC-terminal-growth spread warning (grounded in terminal value's real `1/(WACC-g)^2` sensitivity, not a round-number guess - verified by hand that a 50bp WACC move at a 3pp spread already swings terminal value ~20%, ~100% at 1pp) and a single warning at terminal growth `<= -100%` (the point where next period's projected cash flow reaches zero; below it, repeated compounding produces alternating-sign rather than continued-decline cash flows - a genuine structural mismatch with Gordon Growth's stable-state going-concern interpretation, distinguished from the withdrawn magnitude tiers specifically because it's a direct structural reading of the number itself, not a currency/regime-dependent economic judgment).
+- **Methodology guidance, not enforcement**, for the genuinely judgment-dependent question of what perpetual growth rate is "reasonable" - added to the DCF page's collapsible methodology text, explicit that it varies by currency and long-run economic conditions and is deliberately not hard-coded.
+
+**Edge-case/robustness safeguards introduced or corrected in this pass** (flagging explicitly, per the user's request, as the seed of a future cross-app "Model Robustness & Safeguards" inventory - these are the kind of quiet correctness details that don't show up in a feature list but matter to whether the modeling engine can be trusted):
+1. Gordon Growth's true two-sided convergence domain enforced (previously only the upper bound was checked, in effect, since the arbitrary `-5%` floor never let the lower bound matter).
+2. A single shared function as the sole source of truth for that domain, used by both input validation and the sensitivity grid, closing off a class of bug (two independent implementations of the same mathematical rule silently disagreeing) rather than just fixing one instance of it.
+3. A previously-latent gap in the sensitivity grid's own null-check identified and fixed as a direct consequence of removing the old arbitrary floor, not found independently - a reminder that an arbitrary bound can accidentally mask a real gap elsewhere in the system.
+4. A validation-severity taxonomy now stated as a durable principle (CLAUDE.md Section 7) rather than decided ad hoc per field: mathematical/structural invalidity blocks; analyst judgment warns or is left to guidance text.
+One pre-existing test (asserting the old 6% cap) was retired; 8 tests were added in this pass, including its direct replacement - net +7 (69 -> 76 total) - see the Done entry above for the specific list.

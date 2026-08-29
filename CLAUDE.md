@@ -86,6 +86,7 @@ Treat calculations as core logic, not UI output:
 * Build automated tests against known expected results for: cap rate, NOI, cash-on-cash, IRR, equity multiple, debt amortization, terminal value, enterprise value, equity value, value per share, WACC.
 * I don't write the test code — you do. Explain what's tested and why.
 * Where finance conventions genuinely differ (e.g., IRR compounding assumptions, actual/360 vs actual/365), don't silently pick one. Flag it and ask if it materially affects results.
+* Validation philosophy: hard-block an input only for genuine mathematical or structural invalidity — the model literally breaks, or stops meaning what it claims to (e.g., WACC ≤ terminal growth rate, or a Gordon Growth terminal-growth assumption outside the formula's actual convergence domain). Don't hard-block purely on economic judgment — an assumption being aggressive, conservative, or unusual is not the same as it being invalid. Surface those as explanatory warnings (why it deserves scrutiny, not just that it's unusual) or methodology guidance instead, and don't disguise a judgment call as validation by giving it a hard-coded universal threshold. First established for DCF terminal growth rate, 2026-08-28 — see the PROGRESS.md Decision Log for the full reasoning, including a real mathematical error caught and corrected mid-discussion.
 
 ---
 

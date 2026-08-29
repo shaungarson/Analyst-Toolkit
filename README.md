@@ -117,6 +117,14 @@ the UI's own assumptions text, never silently assumed:
   below 1.0x) — never an arbitrary composite "risk score."
 - **DCF terminal value:** Gordon Growth (perpetuity growth) method, since WACC and terminal
   growth are given as direct inputs rather than an exit multiple.
+- **DCF terminal growth validation:** hard-blocked only for genuine Gordon Growth invalidity
+  — WACC must exceed terminal growth, and terminal growth can't sit so far below −100% that
+  the underlying perpetuity stops converging (a derived mathematical boundary, not an
+  arbitrary cap). Assumptions that are valid but structurally unusual — a narrow WACC/
+  terminal-growth spread, or terminal growth at or below −100% — surface as explanatory
+  warnings instead of being blocked; broader "is this economically reasonable" judgment is
+  left to the analyst and to in-app methodology guidance, not a hard-coded universal
+  threshold.
 - **Implied Upside/Downside:** `(implied value per share ÷ current price) − 1`, shown only
   when a real, sourced current price is available (Alpha Vantage's quote endpoint, via
   ticker search) — deterministic arithmetic, never a buy/sell/attractive framing.
@@ -141,7 +149,7 @@ the UI's own assumptions text, never silently assumed:
 Every calculation — cap rate, amortization, IRR, equity multiple, DSCR, debt yield, terminal
 value, enterprise value, unlevered FCF construction — is backed by automated tests checked
 against values computed independently by hand, not just "does the code agree with itself."
-69 backend tests total.
+76 backend tests total.
 
 ## Architecture
 
@@ -198,7 +206,9 @@ analysis, and scenario comparison for both modules → real estate deterministic
 and Professional Deal Summary → DCF ticker search (public company fundamentals populate the
 workspace; the analyst still reviews and runs the valuation manually) → DCF workstation
 redesign (dense 3-column analyst layout, compact financial-number formatting, current-price
-comparison).
+comparison) → DCF terminal growth validation redesign (hard validation limited to genuine
+Gordon Growth invalidity, explanatory warnings for structurally unusual assumptions in
+place of hard-coded economic thresholds).
 
 **Long-term direction — not yet built:** the modeling engine above is the foundation, not
 the end state. Analyst Toolkit is meant to grow into an AI-powered analyst *workflow* tool,

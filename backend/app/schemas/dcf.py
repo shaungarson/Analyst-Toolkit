@@ -1,4 +1,8 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field, model_validator
+
+from app.calculations.dcf import gordon_growth_converges
 
 
 class DCFInputs(BaseModel):
@@ -7,19 +11,25 @@ class DCFInputs(BaseModel):
     forecast_years: int = Field(gt=0, le=15)
     wacc: float = Field(gt=0, le=1)
     terminal_growth_rate: float = Field(
-        ge=-0.05,
-        le=0.06,
-        description="Perpetual growth rate. Capped at 6% — a company can't outgrow the "
-        "long-run economy forever, so higher values are treated as almost always a modeling "
-        "error rather than a deliberate assumption.",
+        description="Perpetual growth rate. No fixed economic ceiling or floor is enforced "
+        "here - analyst judgment varies by currency and long-run economic conditions (see "
+        "the DCF methodology notes). What is enforced is Gordon Growth's own mathematical "
+        "validity: WACC must exceed terminal growth, and terminal growth can't be so far "
+        "below -100% that the underlying perpetuity stops converging. Assumptions that are "
+        "valid but structurally unusual surface as warnings on the result instead.",
     )
     net_debt: float = Field(description="Total debt less cash; negative if net cash")
     diluted_shares_outstanding: float = Field(gt=0)
 
     @model_validator(mode="after")
-    def wacc_must_exceed_terminal_growth(self):
+    def terminal_growth_rate_must_be_valid_for_gordon_growth(self):
         if self.wacc <= self.terminal_growth_rate:
             raise ValueError("WACC must be greater than the terminal growth rate.")
+        if not gordon_growth_converges(self.wacc, self.terminal_growth_rate):
+            raise ValueError(
+                "Terminal growth rate is too far below -100% for the Gordon Growth "
+                "perpetuity to converge at this WACC."
+            )
         return self
 
 
@@ -30,6 +40,12 @@ class ForecastYear(BaseModel):
     present_value: float
 
 
+class TerminalGrowthWarning(BaseModel):
+    id: Literal["narrow_wacc_terminal_growth_spread", "non_positive_terminal_cash_flow"]
+    tier: Literal["caution", "high", "extreme"]
+    explanation: str
+
+
 class DCFResults(BaseModel):
     forecast: list[ForecastYear]
     terminal_value: float
@@ -37,6 +53,7 @@ class DCFResults(BaseModel):
     enterprise_value: float
     equity_value: float
     value_per_share: float
+    terminal_growth_warnings: list[TerminalGrowthWarning] = []
 
 
 class DcfSensitivityRow(BaseModel):
