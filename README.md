@@ -125,6 +125,15 @@ the UI's own assumptions text, never silently assumed:
   warnings instead of being blocked; broader "is this economically reasonable" judgment is
   left to the analyst and to in-app methodology guidance, not a hard-coded universal
   threshold.
+- **DCF explicit-period FCF growth validation:** no fixed ceiling or floor — the same
+  judgment-not-threshold reasoning as terminal growth. The arithmetic stays well-defined at
+  any value, so nothing is hard-blocked on economic grounds: exactly −100% (every forecast
+  year becomes $0) and below −100% (projected cash flow alternates between negative and
+  positive each year rather than continuing to decline) are both computed and flagged with a
+  specific warning, not rejected. Only a genuine computational failure — overflow or a
+  non-finite result from an extreme combination of base FCF, growth rate, and forecast
+  length — is rejected outright, enforced at the actual computation rather than a fixed
+  ceiling on any single input, and returns a clean error rather than a server failure.
 - **Implied Upside/Downside:** `(implied value per share ÷ current price) − 1`, shown only
   when a real, sourced current price is available (Alpha Vantage's quote endpoint, via
   ticker search) — deterministic arithmetic, never a buy/sell/attractive framing.
@@ -149,7 +158,7 @@ the UI's own assumptions text, never silently assumed:
 Every calculation — cap rate, amortization, IRR, equity multiple, DSCR, debt yield, terminal
 value, enterprise value, unlevered FCF construction — is backed by automated tests checked
 against values computed independently by hand, not just "does the code agree with itself."
-84 backend tests total, plus a GitHub Actions CI pipeline that runs the backend suite and the
+101 backend tests total, plus a GitHub Actions CI pipeline that runs the backend suite and the
 frontend lint/build checks on every push and pull request.
 
 ## Architecture
@@ -209,7 +218,9 @@ workspace; the analyst still reviews and runs the valuation manually) → DCF wo
 redesign (dense 3-column analyst layout, compact financial-number formatting, current-price
 comparison) → DCF terminal growth validation redesign (hard validation limited to genuine
 Gordon Growth invalidity, explanatory warnings for structurally unusual assumptions in
-place of hard-coded economic thresholds) → DCF hardening pass (route-level API tests, CI).
+place of hard-coded economic thresholds) → DCF hardening pass (route-level API tests, CI) →
+DCF FCF-growth-rate validation (no fixed ceiling or floor, specific warnings at and below
+−100%, and numeric-overflow protection at the actual computation).
 
 **Long-term direction — not yet built:** the modeling engine above is the foundation, not
 the end state. Analyst Toolkit is meant to grow into an AI-powered analyst *workflow* tool,

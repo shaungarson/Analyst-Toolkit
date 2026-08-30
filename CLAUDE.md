@@ -77,6 +77,8 @@ For a stop-and-ask decision: explain the decision briefly → present real optio
 
 Don't implement an idea just because I suggested it. If something is overcomplicated, financially questionable, poor UX, premature, or worse than an available alternative — say so, explain why, and propose the better option. I bring financial judgment; you bring technical and product judgment. Both matter.
 
+**Materiality and stop rule:** Before expanding a task or recommending another implementation or review cycle, identify the realistic user scenario, its likelihood, and its material impact. Block a milestone only for issues that could meaningfully affect normal analyst use, financial correctness, data integrity, security, or deployment. If an issue requires implausible inputs and is already covered by a general safeguard, classify it as deferred or informational rather than expanding the milestone. Consolidate related feedback into one review pass when practical, and do not repeatedly reopen a working solution for progressively narrower edge cases unless new material evidence appears. Weigh the time, token usage, and opportunity cost of further review against the value of the next planned milestone.
+
 ---
 
 ## 7. Financial Accuracy
@@ -86,7 +88,12 @@ Treat calculations as core logic, not UI output:
 * Build automated tests against known expected results for: cap rate, NOI, cash-on-cash, IRR, equity multiple, debt amortization, terminal value, enterprise value, equity value, value per share, WACC.
 * I don't write the test code — you do. Explain what's tested and why.
 * Where finance conventions genuinely differ (e.g., IRR compounding assumptions, actual/360 vs actual/365), don't silently pick one. Flag it and ask if it materially affects results.
-* Validation philosophy: hard-block an input only for genuine mathematical or structural invalidity — the model literally breaks, or stops meaning what it claims to (e.g., WACC ≤ terminal growth rate, or a Gordon Growth terminal-growth assumption outside the formula's actual convergence domain). Don't hard-block purely on economic judgment — an assumption being aggressive, conservative, or unusual is not the same as it being invalid. Surface those as explanatory warnings (why it deserves scrutiny, not just that it's unusual) or methodology guidance instead, and don't disguise a judgment call as validation by giving it a hard-coded universal threshold. First established for DCF terminal growth rate, 2026-08-28 — see the PROGRESS.md Decision Log for the full reasoning, including a real mathematical error caught and corrected mid-discussion.
+* Validation philosophy — separate computational validity from economic reasonableness:
+  * Hard-block an input only when it prevents the model from producing a mathematically/computationally valid result: an undefined formula (e.g., division by zero), a failed convergence requirement, missing required structure, overflow, or a non-finite result.
+  * If the calculation stays well-defined but the assumption is economically impossible, incoherent, highly unusual, or likely nonsensical, let the analyst enter it and run the model. Surface a prominent, specific warning explaining what the assumption actually causes — not just that it's unusual.
+  * Never impose a universal economic cap, and never silently substitute a different value.
+  * Watch for "this output looks economically strange" quietly substituting for "the calculation is undefined" — the two are easy to conflate without noticing. That happened once already: a per-year alternating-sign FCF projection was hard-blocked as "no longer representing what the field claims to," even though the arithmetic itself stays finite and well-defined at any input — corrected once caught.
+  * First established for DCF terminal growth rate, 2026-08-28; sharpened for DCF `fcf_growth_rate`, 2026-08-30. See the PROGRESS.md Decision Log for the full reasoning on both, including a real mathematical error caught mid-discussion and this conflation caught afterward.
 
 ---
 

@@ -11,11 +11,15 @@ current-price/implied-upside comparison) shipped 2026-08-28 — see Decision Log
 growth validation redesign (hard validation narrowed to genuine Gordon Growth invalidity,
 tiered explanatory warnings replacing the old hard-coded economic-judgment cap) shipped
 2026-08-28 — see Decision Log. DCF hardening pass (route-level API tests, CI pipeline)
-shipped 2026-08-29 — see Decision Log. Real estate is intentionally frozen: further changes
-to that module are deferred until the user validates underwriting conventions (in particular
-the missing CapEx/reserve line, surfaced in the 2026-08-29 project review) with a CRE
-professional. On the DCF side, an agreed forward sequence is in place as of 2026-08-29:
-(1) hardening [done, above] → (2) SEC EDGAR as the primary historical-financials source →
+committed and pushed 2026-08-29 (`24a31f8`) — see Decision Log. DCF FCF-growth-rate
+validation (no fixed ceiling or floor; growth at or below −100% is allowed and flagged with
+a specific warning rather than blocked; numeric-overflow protection at the actual
+computation) shipped 2026-08-30 — see Decision Log; this completes item (1) below. Real
+estate is intentionally frozen: further changes to that module are deferred
+until the user validates underwriting conventions (in particular the missing CapEx/reserve
+line, surfaced in the 2026-08-29 project review) with a CRE professional. On the DCF side,
+an agreed forward sequence is in place as of 2026-08-29:
+(1) hardening [done] → (2) SEC EDGAR as the primary historical-financials source →
 (3) per-value provenance (filing period, filing date, accession number, source link, XBRL
 tag, reported/combined/calculated) → (4) an editable, dated reference share price (no
 real-time requirement) → (5) reverse DCF (analyst case vs. historical performance vs.
@@ -607,8 +611,57 @@ This completes every item from the Phase 8 plan agreed with the user on 2026-08-
     new dependency wasn't part of this milestone's scope, so it's left as a known, harmless
     warning rather than fixed in passing.
   - `fcf_growth_rate`'s validation bounds were reviewed against the CLAUDE.md §7 principle at
-    the same time, but deliberately not changed yet - see the Decision Log entry below for
-    the analysis and the recommendation awaiting approval.
+    the same time; implemented in a follow-up pass - see the Done entry and Decision Log
+    entry immediately below.
+
+* **DCF `fcf_growth_rate` validation follow-up (2026-08-30).** Implements CLAUDE.md Section
+  7's validation principle - an interim design was caught and corrected during review before
+  any of it was committed; see the Decision Log for what changed and why.
+  - **No hard block below -100%.** The explicit forecast alternates between negative and
+    positive cash flow each year below -100%, which doesn't describe a coherent ongoing
+    growth assumption - but the arithmetic itself stays finite and well-defined at any
+    value, so per Section 7 that's not grounds for a hard block. Flagged with a new warning
+    instead (`alternating_sign_explicit_period_fcf`), explaining exactly what the assumption
+    causes. This also makes `fcf_growth_rate` and terminal growth's identically-shaped
+    -100% case consistent with each other, which they weren't in the interim shape.
+  - **Exactly -100% stays valid**, flagged with a warning (`zero_explicit_period_fcf`,
+    `fcf_growth_warnings` on `DCFResults`, mirroring `terminal_growth_warnings`'s shape)
+    noting every explicit-period year becomes $0. Both warnings render in the same list as
+    terminal-growth warnings in the frontend, reusing the existing CSS unchanged.
+  - **No fixed upper bound either** - the same unexplained-economic-judgment pattern already
+    removed from terminal growth.
+  - **Numeric-overflow protection moved to the actual computation**, not a fixed ceiling on
+    any one field - a new `NonFiniteResultError` (`calculations/dcf.py`) is raised when
+    `project_fcf`'s exponentiation overflows (Python's `float ** int` raises `OverflowError`
+    directly - verified, doesn't silently return `inf`) or when any headline output
+    (each year's FCF, terminal value, enterprise value, equity value, value per share) fails
+    a `math.isfinite()` check (plain multiplication/addition/subtraction *does* overflow
+    silently elsewhere in the computation). Checked this covers combinations beyond the
+    three fields named in the original ask - extreme `net_debt` and near-zero
+    `diluted_shares_outstanding` can each independently push a result non-finite too, and
+    both are caught by the same final-output checks without any field-specific logic.
+    `routers/dcf.py` catches `NonFiniteResultError` and returns a clean 422, mirroring the
+    existing typed-exception pattern in `routers/company.py`, instead of an unhandled 500.
+  - **Sensitivity grid**: an overflowing base (center) cell re-raises, failing the whole
+    request cleanly, since an ostensibly-successful grid with its own center cell blank
+    would be worse than a clear rejection. An overflowing off-base cell becomes `null`,
+    the same treatment already used for mathematically-invalid cells - verified as a
+    genuinely distinct code path (not a restatement of the existing convergence-domain
+    check) with a hand-constructed case where a valid, converging off-base cell still
+    overflows on its own.
+  - No likely-typo warning added - explicitly deferred, per instruction.
+  - 17 new backend tests overall (calculation- and route-layer; 84 -> 101 total), including
+    hand-verified alternating-sign math, all three warning paths (exactly -100%, below
+    -100%, and terminal growth's own), four independent overflow triggers (extreme growth
+    rate via the `**` path, extreme base FCF via the `isfinite()` path, extreme net debt,
+    and the sensitivity base-vs-off-base distinction), and route-level tests proving
+    overflow returns 422 rather than an unhandled 500 while below -100% returns 200 with a
+    warning rather than a rejection.
+  - Verified end-to-end in the browser, not just via the test suite: comfortable case (no
+    warnings), exactly -100% (warning text and all-zero forecast table confirmed), below
+    -100% (warning text confirmed, request succeeds), 5000% growth (upper-bound removal),
+    and an extreme base FCF producing a real 422 confirmed via the network tab, not just the
+    on-screen message.
 
 ## Near-Term Next Steps
 * DCF has an agreed forward sequence as of 2026-08-29 — see Current Phase above for the full
@@ -846,3 +899,8 @@ Recommendation pending approval, nothing implemented yet:
 2. Treat exactly -100% as valid, flagged with a non-blocking warning.
 3. Protect numeric safety at the actual computation, not via a fixed input ceiling: catch `OverflowError` (raised directly by Python's `float ** int` on overflow - verified empirically, it does not silently return `inf`) and separately verify computed results are finite via `math.isfinite()` (plain float multiplication/addition/subtraction *does* overflow silently to `inf`/`nan` rather than raising - also verified). Convert either failure into a clean validation-style response instead of a raw 500. Natural home is the router layer, mirroring the typed-exception pattern already used in `routers/company.py` (`routers/dcf.py` currently has none). For the sensitivity grid specifically, an overflowing cell should most likely become `null`, consistent with how mathematically-invalid cells already work, rather than failing the whole grid.
 4. A separate, non-blocking likely-typo warning for `fcf_growth_rate` remains worth considering, entirely independent of (3) - a UX nudge, not a safety mechanism. Its threshold is a judgment call, still awaiting the user's input.
+
+**2026-08-30 — DCF `fcf_growth_rate` validation: no fixed ceiling or floor; CLAUDE.md Section 7 sharpened to separate computational validity from economic reasonableness**
+Final, shipped behavior: `fcf_growth_rate` carries no economic ceiling or floor at all. At or below -100%, the result is computed and flagged with a specific warning instead of rejected (`zero_explicit_period_fcf` at exactly -100%; `alternating_sign_explicit_period_fcf` below it) - the arithmetic stays finite and well-defined at any value, so per Section 7 that isn't grounds for a hard block. This makes `fcf_growth_rate` consistent with terminal growth's identically-shaped -100% case for the first time. Only a genuine computational failure - overflow or a non-finite result - is rejected outright, enforced at the actual computation (`calculations/dcf.py`'s `NonFiniteResultError`, caught cleanly by `routers/dcf.py`) rather than a fixed ceiling on any single field; verified this also covers an extreme `net_debt` or a near-zero `diluted_shares_outstanding` independently pushing a result non-finite, not just base FCF/growth rate/forecast length.
+An interim design - hard-blocking below -100% as "structural invalidity" - was caught and corrected during review, before any of it was committed or deployed. Extending "stops meaning what it claims to" to a case where the arithmetic stays well-defined and only the *interpretation* is economically odd was itself an inconsistent application of the principle it was meant to enforce. CLAUDE.md Section 7 was rewritten to state the line explicitly - computational validity vs. economic reasonableness - and names this conflation as a documented failure mode, not just a one-off correction, so it's recognizable if it threatens to recur elsewhere.
+See the Done entry above for the full implementation and test list.

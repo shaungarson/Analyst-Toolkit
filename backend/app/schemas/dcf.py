@@ -7,7 +7,16 @@ from app.calculations.dcf import gordon_growth_converges
 
 class DCFInputs(BaseModel):
     base_year_fcf: float = Field(gt=0, description="Most recent year's unlevered FCF")
-    fcf_growth_rate: float = Field(ge=-0.5, le=1, description="Flat annual growth during the forecast period")
+    fcf_growth_rate: float = Field(
+        description="Flat annual growth during the forecast period. No fixed economic "
+        "ceiling or floor is enforced - analyst judgment, not a hard-coded threshold (see "
+        "the DCF methodology notes). The arithmetic itself stays well-defined at any value "
+        "(unlike terminal growth, this isn't an infinite series), so there is no structural "
+        "reason to block it; assumptions that are valid but economically unusual - at or "
+        "below -100% - surface as warnings on the result instead. Only overflow or a "
+        "non-finite result (an actual computational failure, not a judgment call) is "
+        "rejected outright.",
+    )
     forecast_years: int = Field(gt=0, le=15)
     wacc: float = Field(gt=0, le=1)
     terminal_growth_rate: float = Field(
@@ -46,6 +55,12 @@ class TerminalGrowthWarning(BaseModel):
     explanation: str
 
 
+class FCFGrowthWarning(BaseModel):
+    id: Literal["zero_explicit_period_fcf", "alternating_sign_explicit_period_fcf"]
+    tier: Literal["extreme"]
+    explanation: str
+
+
 class DCFResults(BaseModel):
     forecast: list[ForecastYear]
     terminal_value: float
@@ -54,6 +69,7 @@ class DCFResults(BaseModel):
     equity_value: float
     value_per_share: float
     terminal_growth_warnings: list[TerminalGrowthWarning] = []
+    fcf_growth_warnings: list[FCFGrowthWarning] = []
 
 
 class DcfSensitivityRow(BaseModel):

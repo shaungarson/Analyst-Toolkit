@@ -9,9 +9,42 @@ Modeling assumptions, explicit by design:
   by (1 + WACC)^t, not a mid-year-adjusted exponent.
 """
 
+import math
+
+
+class NonFiniteResultError(Exception):
+    """Raised when a DCF computation would produce a non-finite (infinite or NaN) result.
+
+    Not a validation failure of any single input - overflow depends on base_year_fcf,
+    growth rate, forecast length, net debt, and share count together (a large enough
+    base_year_fcf alone can push toward the float ceiling with zero growth involved), so no
+    single field's bound can guarantee this on its own. Checked at the actual computation
+    instead: project_fcf's exponentiation raises Python's own OverflowError on overflow
+    (verified - it does not silently return inf), while plain multiplication/addition/
+    subtraction elsewhere in this module does overflow silently to inf/nan rather than
+    raising, so every headline output is also explicitly checked with math.isfinite().
+    """
+
+
+def _require_finite(value, label):
+    if not math.isfinite(value):
+        raise NonFiniteResultError(
+            f"This combination of inputs produces a {label} that can't be computed safely "
+            "(the result is too large or otherwise not a finite number). Try a smaller base "
+            "year FCF, a less extreme growth rate, or fewer forecast years."
+        )
+    return value
+
 
 def project_fcf(base_year_fcf, growth_rate, forecast_years):
-    return [base_year_fcf * (1 + growth_rate) ** t for t in range(1, forecast_years + 1)]
+    try:
+        return [base_year_fcf * (1 + growth_rate) ** t for t in range(1, forecast_years + 1)]
+    except OverflowError as exc:
+        raise NonFiniteResultError(
+            "This combination of base year FCF, growth rate, and forecast length can't be "
+            "computed safely (the projected cash flow is too large to represent). Try a "
+            "smaller base year FCF, a less extreme growth rate, or fewer forecast years."
+        ) from exc
 
 
 def discount_factor(rate, period):
@@ -105,6 +138,40 @@ def terminal_growth_warnings(wacc, terminal_growth_rate):
     return [w for w in warnings if w is not None]
 
 
+def fcf_growth_warnings(growth_rate):
+    """Deterministic, explanatory warnings for a valid-but-economically-extreme
+    fcf_growth_rate. No value here is hard-blocked - the arithmetic stays well-defined at
+    any growth rate (see NonFiniteResultError for the actual computational-safety line) -
+    so this is scrutiny, not a second validity check.
+    """
+    if growth_rate == -1:
+        return [
+            {
+                "id": "zero_explicit_period_fcf",
+                "tier": "extreme",
+                "explanation": (
+                    "At exactly -100% FCF growth, the base year's cash flow is fully "
+                    "extinguished in year one - every year of the explicit forecast is $0, "
+                    "rather than continuing to decline."
+                ),
+            }
+        ]
+    if growth_rate < -1:
+        return [
+            {
+                "id": "alternating_sign_explicit_period_fcf",
+                "tier": "extreme",
+                "explanation": (
+                    "Below -100% FCF growth, the projected cash flow alternates between "
+                    "negative and positive each year rather than continuing to decline. "
+                    "The result is mechanically computed, but doesn't represent a coherent "
+                    "ongoing growth assumption - double-check this reflects what you intend."
+                ),
+            }
+        ]
+    return []
+
+
 def enterprise_value(pv_fcfs, pv_terminal_value):
     return sum(pv_fcfs) + pv_terminal_value
 
@@ -131,6 +198,7 @@ def run_dcf(
     forecast = []
     pv_fcfs = []
     for t, fcf in enumerate(fcfs, start=1):
+        _require_finite(fcf, "projected free cash flow")
         df = discount_factor(wacc, t)
         pv = fcf * df
         pv_fcfs.append(pv)
@@ -143,12 +211,14 @@ def run_dcf(
             }
         )
 
-    tv = terminal_value(fcfs[-1], wacc, terminal_growth_rate)
+    tv = _require_finite(terminal_value(fcfs[-1], wacc, terminal_growth_rate), "terminal value")
     pv_tv = present_value(tv, wacc, forecast_years)
 
-    ev = enterprise_value(pv_fcfs, pv_tv)
-    eq_value = equity_value(ev, net_debt)
-    per_share = value_per_share(eq_value, diluted_shares_outstanding)
+    ev = _require_finite(enterprise_value(pv_fcfs, pv_tv), "enterprise value")
+    eq_value = _require_finite(equity_value(ev, net_debt), "equity value")
+    per_share = _require_finite(
+        value_per_share(eq_value, diluted_shares_outstanding), "value per share"
+    )
 
     return {
         "forecast": forecast,
@@ -158,6 +228,7 @@ def run_dcf(
         "equity_value": round(eq_value, 2),
         "value_per_share": round(per_share, 2),
         "terminal_growth_warnings": terminal_growth_warnings(wacc, terminal_growth_rate),
+        "fcf_growth_warnings": fcf_growth_warnings(fcf_growth_rate),
     }
 
 
@@ -183,7 +254,10 @@ def dcf_sensitivity(
     Combinations outside the Gordon Growth convergence domain (see gordon_growth_converges)
     are mathematically invalid - the closed form either blows up (WACC <= growth) or stops
     representing a convergent series (growth far enough below -100%) - and are marked null
-    rather than computed.
+    rather than computed. A cell that overflows (see NonFiniteResultError) is treated the
+    same way - EXCEPT the base case itself (delta 0, 0), which re-raises instead of quietly
+    going null: if the analyst's own inputs can't be computed, the whole request should fail
+    cleanly rather than return an ostensibly-successful grid with its own center cell blank.
     """
     wacc_values = sorted({round(wacc + d, 6) for d in WACC_DELTAS if 0 < wacc + d <= 1})
     growth_values = sorted({round(terminal_growth_rate + d, 6) for d in TERMINAL_GROWTH_DELTAS})
@@ -195,15 +269,22 @@ def dcf_sensitivity(
             if not gordon_growth_converges(w, g):
                 value_per_share_by_growth.append(None)
                 continue
-            result = run_dcf(
-                base_year_fcf=base_year_fcf,
-                fcf_growth_rate=fcf_growth_rate,
-                forecast_years=forecast_years,
-                wacc=w,
-                terminal_growth_rate=g,
-                net_debt=net_debt,
-                diluted_shares_outstanding=diluted_shares_outstanding,
-            )
+            is_base_cell = w == wacc and g == terminal_growth_rate
+            try:
+                result = run_dcf(
+                    base_year_fcf=base_year_fcf,
+                    fcf_growth_rate=fcf_growth_rate,
+                    forecast_years=forecast_years,
+                    wacc=w,
+                    terminal_growth_rate=g,
+                    net_debt=net_debt,
+                    diluted_shares_outstanding=diluted_shares_outstanding,
+                )
+            except NonFiniteResultError:
+                if is_base_cell:
+                    raise
+                value_per_share_by_growth.append(None)
+                continue
             value_per_share_by_growth.append(result["value_per_share"])
         rows.append({"wacc": w, "value_per_share_by_growth": value_per_share_by_growth})
 

@@ -651,19 +651,22 @@ function DcfValuation() {
                 Incl. PV of Terminal Value {compactCurrency(results.pv_terminal_value)} (Terminal Value{' '}
                 {compactCurrency(results.terminal_value)}).
               </p>
-              {results.terminal_growth_warnings?.length > 0 && (
+              {(results.terminal_growth_warnings?.length > 0 ||
+                results.fcf_growth_warnings?.length > 0) && (
                 <ul className="terminal-growth-warning-list">
-                  {results.terminal_growth_warnings.map((warning) => (
-                    <li
-                      key={warning.id}
-                      className={`terminal-growth-warning terminal-growth-warning--${warning.tier}`}
-                    >
-                      <span className="terminal-growth-warning-tier">{warning.tier}</span>
-                      <span className="terminal-growth-warning-explanation">
-                        {warning.explanation}
-                      </span>
-                    </li>
-                  ))}
+                  {[...results.terminal_growth_warnings, ...results.fcf_growth_warnings].map(
+                    (warning) => (
+                      <li
+                        key={warning.id}
+                        className={`terminal-growth-warning terminal-growth-warning--${warning.tier}`}
+                      >
+                        <span className="terminal-growth-warning-tier">{warning.tier}</span>
+                        <span className="terminal-growth-warning-explanation">
+                          {warning.explanation}
+                        </span>
+                      </li>
+                    ),
+                  )}
                 </ul>
               )}
             </div>
@@ -721,6 +724,17 @@ function DcfValuation() {
             (at exactly &minus;100%, next period&rsquo;s projected cash flow is zero; below it,
             repeated compounding produces alternating-sign cash flows) &mdash; surface as
             warnings above instead of being blocked outright.
+          </p>
+          <p className={`assumptions ${showMethodology ? '' : 'no-screen'}`}>
+            Explicit-period FCF growth has no fixed economic ceiling or floor &mdash; analyst
+            judgment, not a hard-coded threshold. The arithmetic itself stays well-defined at
+            any value, so nothing is blocked on economic grounds; assumptions that are valid
+            but unusual surface as warnings instead. Exactly &minus;100% means every forecast
+            year becomes $0. Below &minus;100%, projected cash flow alternates between
+            negative and positive each year rather than continuing to decline &mdash;
+            mechanically computed, but worth confirming it&rsquo;s what you intend. Only
+            overflow or a non-finite result is rejected outright, since that genuinely cannot
+            be computed.
           </p>
         </WorkflowCard>
       )}
