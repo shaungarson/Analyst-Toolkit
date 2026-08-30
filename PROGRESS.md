@@ -10,8 +10,18 @@ workstation redesign (dense 3-column analyst layout, compact financial-number fo
 current-price/implied-upside comparison) shipped 2026-08-28 — see Decision Log. DCF terminal
 growth validation redesign (hard validation narrowed to genuine Gordon Growth invalidity,
 tiered explanatory warnings replacing the old hard-coded economic-judgment cap) shipped
-2026-08-28 — see Decision Log. No further work currently agreed; check with the user for
-direction.
+2026-08-28 — see Decision Log. DCF hardening pass (route-level API tests, CI pipeline)
+shipped 2026-08-29 — see Decision Log. Real estate is intentionally frozen: further changes
+to that module are deferred until the user validates underwriting conventions (in particular
+the missing CapEx/reserve line, surfaced in the 2026-08-29 project review) with a CRE
+professional. On the DCF side, an agreed forward sequence is in place as of 2026-08-29:
+(1) hardening [done, above] → (2) SEC EDGAR as the primary historical-financials source →
+(3) per-value provenance (filing period, filing date, accession number, source link, XBRL
+tag, reported/combined/calculated) → (4) an editable, dated reference share price (no
+real-time requirement) → (5) reverse DCF (analyst case vs. historical performance vs.
+market-implied FCF growth) → (6) deterministic "Explain This Valuation" diagnostics, before
+any AI commentary. Only (1) is shipped; (2)-(6) are agreed direction, not yet started — see
+Decision Log for the dependency chain and risks flagged for each.
 
 ## Live Links
 * App: https://analyst-toolkit-ecru.vercel.app
@@ -575,12 +585,40 @@ This completes every item from the Phase 8 plan agreed with the user on 2026-08-
     and print-selector/light-dark-mode integrity for every new CSS class. No Real Estate or
     DCF calculation-engine changes.
 
+* **DCF hardening pass (2026-08-29).** First milestone after a full project review (see
+  Decision Log) identified two concrete, low-effort gaps worth closing before any new DCF
+  feature work: zero HTTP-layer test coverage, and no automated gate enforcing that tests
+  actually run before code ships.
+  - **Route-level tests** (`backend/tests/test_dcf_routes.py`, 8 new tests) exercise
+    `/api/dcf/valuation` and `/api/dcf/sensitivity` through FastAPI's `TestClient` -
+    response shape and key serialization (`terminal_growth_warnings` round-trips correctly
+    as JSON, invalid sensitivity cells serialize as JSON `null`), HTTP-level validation
+    errors (422 on an invalid WACC/terminal-growth combination, a missing field, a wrong
+    field type), and method restriction (405 on `GET`). Deliberately does not re-verify the
+    underlying math - that's `test_dcf.py`'s job - so this adds route-layer coverage without
+    duplicating calculation-layer assertions. 76 -> 84 backend tests.
+  - **CI** (`.github/workflows/ci.yml`): two parallel jobs on every push and pull request -
+    backend (`pytest`) and frontend (`oxlint` then `vite build`). Versions pinned to match
+    local dev exactly (Python 3.14, Node 24) rather than a generic "latest," to avoid a
+    passes-locally-fails-in-CI version mismatch. Converts "the tests were run" from a manual
+    discipline into an enforced gate.
+  - Noted, not acted on: `fastapi.testclient` currently emits a `StarletteDeprecationWarning`
+    recommending `httpx2` in place of `httpx` - tests pass correctly either way, and adding a
+    new dependency wasn't part of this milestone's scope, so it's left as a known, harmless
+    warning rather than fixed in passing.
+  - `fcf_growth_rate`'s validation bounds were reviewed against the CLAUDE.md §7 principle at
+    the same time, but deliberately not changed yet - see the Decision Log entry below for
+    the analysis and the recommendation awaiting approval.
+
 ## Near-Term Next Steps
-* Open — no further work is currently agreed. Check with the user for direction (Phase 9
-  stays out of scope until explicitly instructed, per CLAUDE.md).
+* DCF has an agreed forward sequence as of 2026-08-29 — see Current Phase above for the full
+  six-item list and the Decision Log for dependencies/risks. Next up: SEC EDGAR as the
+  primary historical-financials source. Real estate stays frozen until the user validates
+  underwriting conventions with a CRE professional (see Current Phase). Phase 9 stays out of
+  scope until explicitly instructed, per CLAUDE.md.
 * SEC EDGAR as an actual fundamentals *values* source (not just the CIK/filings-index link
-  it provides today) is a deliberately deferred future upgrade — the internal data model
-  is already shaped for it; see the Decision Log.
+  it provides today) is next in the agreed DCF sequence, not just a deferred idea anymore —
+  the internal data model is already shaped for it; see the Decision Log.
 * A driver-based DCF forecast (revenue → margin → taxes → D&A → CapEx → ΔNWC, replacing
   the current flat-growth model) is the long-signaled next evolution of the DCF engine,
   now that the underlying data layer is shaped to support it — not started.
@@ -788,3 +826,23 @@ Alternatives considered, across a multi-round discussion with the user before an
 3. A previously-latent gap in the sensitivity grid's own null-check identified and fixed as a direct consequence of removing the old arbitrary floor, not found independently - a reminder that an arbitrary bound can accidentally mask a real gap elsewhere in the system.
 4. A validation-severity taxonomy now stated as a durable principle (CLAUDE.md Section 7) rather than decided ad hoc per field: mathematical/structural invalidity blocks; analyst judgment warns or is left to guidance text.
 One pre-existing test (asserting the old 6% cap) was retired; 8 tests were added in this pass, including its direct replacement - net +7 (69 -> 76 total) - see the Done entry above for the specific list.
+
+**2026-08-29 — Full project review completed; real estate module frozen pending domain-expert validation**
+A full-repository review (usefulness, financial credibility, modeling safeguards, UX, code quality, data sourcing, portfolio impact) was run at the user's request, covering the DCF module directly and the real estate module plus data-sourcing services via a background agent instructed to read every file in full rather than sample it. Findings included: real estate has no CapEx/reserve line item anywhere in the cash-flow-to-equity calculation (`noi - debt_service` only) - the single most likely gap an experienced CRE reviewer would flag; real estate's UX is now a visible generation behind DCF's redesigned workstation; zero HTTP-layer test coverage existed anywhere in the backend; and the CLAUDE.md §7 validation principle had been applied to exactly one field (DCF terminal growth) rather than swept to analogous fields. Full findings recorded in a published review artifact, not duplicated here.
+Decision: the user will validate real-estate underwriting conventions (starting with the CapEx/reserve gap) with a CRE-professional contact before any further changes to that module. Until then, real estate is explicitly frozen - all real-estate findings from the review are deferred, not rejected, and should be revisited once that conversation happens. Work continues on the DCF side in the meantime, starting with the hardening pass below.
+
+**2026-08-29 — DCF forward sequence agreed: hardening → SEC EDGAR → provenance → reference price → reverse DCF → explain-this-valuation diagnostics, before AI commentary**
+User-proposed, reviewed for dependencies and risk before starting. Real dependencies: SEC EDGAR (2) must land before per-value provenance (3), since accession numbers/XBRL tags can't be shown for data that doesn't come from XBRL; the dated reference price (4) and SEC EDGAR (2) are independent of each other but both must land before reverse DCF (5), which needs a real price to solve against and real historical performance to compare against; a *full* explain-this-valuation layer (6) benefits from (5) being done first, though a narrower version (explaining sensitivity/warnings already computed today) has no such dependency and could be pulled forward on its own if ever wanted.
+Risks flagged, not yet designed: SEC XBRL tags aren't fully standardized across filers (the same concept can appear under different `us-gaap` tags depending on company/filing year, e.g. the ASC 606 revenue-tag transition) - expect iterative tag-fallback logic discovered against real filings, the same pattern as the existing `currentDebt`→`shortTermDebt` fallback, not a clean one-shot mapping. Per-value provenance for a *calculated* figure (unlevered FCF is derived from five-plus sourced components) needs its own small design decision about what "provenance" means for a derived value - flagged for a short methodology pass before implementation, not decided here. Reverse DCF is new numerical territory (root-finding, not formula evaluation) and must respect the Gordon Growth convergence domain already shipped - if the market price implies a terminal growth rate outside the valid range entirely, the tool needs to say so honestly, not clip or crash. Whether Alpha Vantage remains in the DCF pipeline at all once (2) and (4) land is worth an explicit decision when the time comes, not a silent drift.
+Only item (1), the hardening pass, is started/shipped as of this entry - see the entry below.
+
+**2026-08-29 — DCF hardening milestone: route tests and CI shipped; `fcf_growth_rate` validation recommendation pending approval, no validation code changed yet**
+Chosen as the first concrete step after the review specifically because it had zero dependencies on anything else being decided first (unlike SEC EDGAR sourcing, per-value provenance, or reverse DCF, which the user separately sequenced as later milestones) and because it makes every subsequent change safer to land. See the Done entry above for what shipped (route tests, CI) - the analysis below did not change any validation code and is not yet approved.
+`fcf_growth_rate`'s bounds (`ge=-0.5, le=1` in `schemas/dcf.py`) were reviewed against CLAUDE.md §7. Final analysis only, below - two real errors were caught and corrected across earlier drafts of this review.
+**Below -100% is genuine structural invalidity, not a warning.** Terminal value is one aggregated present-value figure, exact throughout its convergence domain regardless of the (never separately displayed) underlying per-year terms. Explicit FCF is different: each year is individually computed, individually displayed, and directly claimed by the field's own description ("flat annual growth"). Below -100%, `(1 + growth_rate)` goes negative and alternates sign year to year - not flat, not a coherent decline, not what the model claims to compute. This is CLAUDE.md §7's second hard-block clause ("stops meaning what it claims to"), correctly distinct from terminal growth's treatment of the same threshold. Exactly -100% stays separate: every explicit year becomes a clean, uniform $0 - extreme but coherent, not self-contradictory - so it's warning-worthy, not blocked.
+**No fixed ceiling on `fcf_growth_rate` alone can guarantee numeric safety.** `base_year_fcf` has no upper bound at all (`gt=0` only), and overflow in `project_fcf()` depends on `base_year_fcf`, `growth_rate`, and `forecast_years` together - a large enough `base_year_fcf` pushes toward the float ceiling regardless of what `growth_rate` is capped at (verified: `1e300 * (1+0)**15` already sits at the edge of the representable range with zero growth involved at all). A single-field ceiling only patches one of three contributing dimensions and would give a false sense of safety - this corrects an earlier draft of this entry that treated a `fcf_growth_rate`-only ceiling as a sufficient derived safety boundary.
+Recommendation pending approval, nothing implemented yet:
+1. Hard-block `fcf_growth_rate < -100%` (structural invalidity, per above).
+2. Treat exactly -100% as valid, flagged with a non-blocking warning.
+3. Protect numeric safety at the actual computation, not via a fixed input ceiling: catch `OverflowError` (raised directly by Python's `float ** int` on overflow - verified empirically, it does not silently return `inf`) and separately verify computed results are finite via `math.isfinite()` (plain float multiplication/addition/subtraction *does* overflow silently to `inf`/`nan` rather than raising - also verified). Convert either failure into a clean validation-style response instead of a raw 500. Natural home is the router layer, mirroring the typed-exception pattern already used in `routers/company.py` (`routers/dcf.py` currently has none). For the sensitivity grid specifically, an overflowing cell should most likely become `null`, consistent with how mathematically-invalid cells already work, rather than failing the whole grid.
+4. A separate, non-blocking likely-typo warning for `fcf_growth_rate` remains worth considering, entirely independent of (3) - a UX nudge, not a safety mechanism. Its threshold is a judgment call, still awaiting the user's input.

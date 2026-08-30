@@ -149,7 +149,8 @@ the UI's own assumptions text, never silently assumed:
 Every calculation — cap rate, amortization, IRR, equity multiple, DSCR, debt yield, terminal
 value, enterprise value, unlevered FCF construction — is backed by automated tests checked
 against values computed independently by hand, not just "does the code agree with itself."
-76 backend tests total.
+84 backend tests total, plus a GitHub Actions CI pipeline that runs the backend suite and the
+frontend lint/build checks on every push and pull request.
 
 ## Architecture
 
@@ -208,7 +209,7 @@ workspace; the analyst still reviews and runs the valuation manually) → DCF wo
 redesign (dense 3-column analyst layout, compact financial-number formatting, current-price
 comparison) → DCF terminal growth validation redesign (hard validation limited to genuine
 Gordon Growth invalidity, explanatory warnings for structurally unusual assumptions in
-place of hard-coded economic thresholds).
+place of hard-coded economic thresholds) → DCF hardening pass (route-level API tests, CI).
 
 **Long-term direction — not yet built:** the modeling engine above is the foundation, not
 the end state. Analyst Toolkit is meant to grow into an AI-powered analyst *workflow* tool,
@@ -255,4 +256,5 @@ works with no key configured; ticker search alone returns a clear error until on
 ## Tech stack
 
 React 19 · Vite 8 · FastAPI · Pydantic · pytest · numpy-financial · httpx · Alpha Vantage
-(company fundamentals & quotes) · SEC EDGAR (filer identification) · Vercel · Render
+(company fundamentals & quotes) · SEC EDGAR (filer identification) · Vercel · Render ·
+GitHub Actions (CI)
