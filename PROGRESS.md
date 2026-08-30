@@ -14,17 +14,21 @@ tiered explanatory warnings replacing the old hard-coded economic-judgment cap) 
 committed and pushed 2026-08-29 (`24a31f8`) — see Decision Log. DCF FCF-growth-rate
 validation (no fixed ceiling or floor; growth at or below −100% is allowed and flagged with
 a specific warning rather than blocked; numeric-overflow protection at the actual
-computation) shipped 2026-08-30 — see Decision Log; this completes item (1) below. Real
+computation) shipped 2026-08-30 — see Decision Log; this completes item (1) below. SEC EDGAR
+is now the primary source for DCF historical fundamentals (XBRL company facts, field-by-field
+merge with Alpha Vantage as fallback; Alpha Vantage remains the only current-price source) —
+implemented, tested, and live-verified against AAPL/CAT/WMT 2026-08-30; completes item (2)
+below — see Decision Log. Real
 estate is intentionally frozen: further changes to that module are deferred
 until the user validates underwriting conventions (in particular the missing CapEx/reserve
 line, surfaced in the 2026-08-29 project review) with a CRE professional. On the DCF side,
 an agreed forward sequence is in place as of 2026-08-29:
-(1) hardening [done] → (2) SEC EDGAR as the primary historical-financials source →
+(1) hardening [done] → (2) SEC EDGAR as the primary historical-financials source [done] →
 (3) per-value provenance (filing period, filing date, accession number, source link, XBRL
 tag, reported/combined/calculated) → (4) an editable, dated reference share price (no
 real-time requirement) → (5) reverse DCF (analyst case vs. historical performance vs.
 market-implied FCF growth) → (6) deterministic "Explain This Valuation" diagnostics, before
-any AI commentary. Only (1) is shipped; (2)-(6) are agreed direction, not yet started — see
+any AI commentary. (1)-(2) are shipped; (3)-(6) are agreed direction, not yet started — see
 Decision Log for the dependency chain and risks flagged for each.
 
 ## Live Links
@@ -663,15 +667,100 @@ This completes every item from the Phase 8 plan agreed with the user on 2026-08-
     and an extreme base FCF producing a real 422 confirmed via the network tab, not just the
     on-screen message.
 
+* **SEC EDGAR as the primary source for DCF historical fundamentals (2026-08-30).** Item (2)
+  of the agreed DCF sequence. Real SEC XBRL company-facts data was inspected (tag presence,
+  then actual values, periods, duplicate/amended facts, and units) against AAPL, CAT, and WMT
+  before any implementation, per the bounded-mapping-check requirement — not designed from
+  documentation alone.
+  - **New `app/services/sec_fundamentals.py`** maps 11 XBRL concepts (revenue, EBIT, pretax
+    income, income tax expense, D&A, CapEx, current assets/liabilities, cash, debt, diluted
+    shares) onto the DCF's existing field set, each via a fallback chain built from real,
+    confirmed tag variation - not speculative. Concrete findings that shaped it: Caterpillar
+    never adopted the ASC606 revenue tag and reports `Revenues` even in FY2025 filings;
+    Walmart's D&A tag changed from `DepreciationDepletionAndAmortization` to
+    `DepreciationAmortizationAndAccretionNet` starting FY2020 - a chain stopping at the first
+    tag would have silently returned no D&A for Walmart's 5 most recent years, exactly the
+    window this app uses. Annual-period selection requires filtering by duration
+    (~340-380 days), not just `fp=="FY"` - confirmed live that Apple's company facts contain
+    a fact end-dated in FY2020 tagged `fp="FY"` whose actual duration is one quarter.
+    Duplicate facts (every 10-K re-reports the prior two years as comparatives) are resolved
+    by taking the most-recently-filed fact per period - proven necessary, not just a
+    tie-break, by Walmart's February 2024 3-for-1 stock split: the as-originally-filed and
+    later-restated diluted share counts for the same fiscal year differ by exactly 3x, and
+    only the restated figure is comparable to a current share price.
+  - **Cash** (decision approved before implementation): preserves this app's existing
+    "cash and short-term investments" combined meaning (matching
+    `net_working_capital`'s pre-existing docstring and Alpha Vantage's
+    `cashAndShortTermInvestments` field) rather than switching to SEC's cash-only tag, which
+    would have materially understated cash for a company like Apple with large marketable-
+    securities holdings. Sums `CashAndCashEquivalentsAtCarryingValue` +
+    `MarketableSecuritiesCurrent`/`AvailableForSaleSecuritiesCurrent`/`ShortTermInvestments`
+    (whichever is present), falling back to SEC's own pre-combined
+    `CashCashEquivalentsAndShortTermInvestments` tag where the split isn't reported
+    (Caterpillar's pre-2021 filings). Each component's tag, value, and filing metadata is
+    preserved.
+  - **Debt** (decision approved before implementation): total debt sums whichever
+    non-overlapping, recognized interest-bearing components a filer reports
+    (`LongTermDebtNoncurrent`/`LongTermDebtCurrent`/`ShortTermBorrowings`/
+    `OtherShortTermBorrowings`, plus finance-lease liabilities) - real, different, non-
+    overlapping compositions were confirmed live (Apple has no `ShortTermBorrowings` tag at
+    all; Caterpillar has no `LongTermDebtCurrent` tag at all). Finance lease liabilities are
+    included (interest-bearing, not an operating lease); operating-lease liabilities are
+    never included. Flagged once mid-implementation per the user's explicit stop condition:
+    finance leases are immaterial for Apple (<1% of total debt) but material for Walmart
+    (~17%) - included per the user's own criteria (recognized interest-bearing, excluding
+    only operating leases) rather than re-opened as a fresh decision. The result is marked
+    `confidence: "calculated"` internally. If no recognized debt tag is found at all for a
+    filer, total/current debt fall back to Alpha Vantage entirely for that period rather than
+    silently reporting zero.
+  - **Diluted shares outstanding**: `WeightedAverageNumberOfDilutedSharesOutstanding`, most
+    recent annual period, via the same validated period-selection rules - explicitly not
+    `dei:EntityCommonStockSharesOutstanding` (a point-in-time basic count, not diluted) per
+    the user's direction. Feeds `CompanyProfile.shares_outstanding` directly (a single
+    current figure, not a per-period series - the profile-level field this concept already
+    matched); the frontend input remains editable, unchanged.
+  - **Field-by-field merge, not all-or-nothing**: `app/services/company_data.py` now merges
+    SEC (primary) and Alpha Vantage (fallback) per concept per period. A new
+    `FinancialPeriod.source` field ("sec_edgar" / "alpha_vantage" / "mixed") discloses
+    provider mixing rather than leaving it silent, satisfying the "don't silently mix
+    providers" requirement without building a full provenance UI yet.
+  - **Real bug found and fixed via live verification, not just fixture tests**: Alpha Vantage
+    normalizes a 52/53-week fiscal year end to calendar month-end (Apple's real FY2025 ended
+    2025-09-27 per SEC's own filings; Alpha Vantage reports `fiscalDateEnding` "2025-09-30"
+    for the same fiscal year). An exact-string date match between the two providers' periods
+    silently missed the SEC match for 4 of Apple's 5 most recent fiscal years on first live
+    verification (only FY2023 happened to coincide with month-end) - defeating SEC-as-primary
+    for one of the most common real-world fiscal-calendar conventions, for one of the most
+    obvious tickers a user would try. Fixed with a 10-day-tolerance closest-date match
+    (`_closest_sec_period` in `company_data.py`); re-verified live afterward, all 5 AAPL
+    periods now source from SEC. Two regression tests added for this specifically (matches
+    within tolerance despite a date mismatch; does not match beyond it).
+  - **Full per-fact provenance retained internally, not yet UI-exposed**: each mapped value's
+    XBRL tag(s), accession number, filed date, form, fiscal year/period, unit, and a
+    "direct"/"calculated" confidence marker are computed and returned by
+    `sec_fundamentals.extract_annual_periods()`, ready for a future milestone - not attached
+    to the `CompanyData` API response schema yet, per the scope agreed for this milestone
+    (item (3), per-value provenance, is next).
+  - SEC EDGAR failures (network/unreachable) degrade gracefully to the pre-existing
+    Alpha-Vantage-only path rather than surfacing as a hard error - Alpha Vantage alone was
+    already a fully working path before SEC was added.
+  - 22 new backend tests (101 -> 123 total): a dedicated `test_sec_fundamentals.py` covering
+    every tag-fallback chain, the cash and debt derivation rules (including Apple's and
+    Caterpillar's real, different debt compositions), duration filtering, and
+    most-recently-filed-wins, plus new `test_company_data.py` coverage for the SEC/Alpha
+    Vantage merge, graceful degradation when SEC is unreachable, and the date-tolerance fix.
+    All fixture-based - no live SEC calls in the test suite. One bounded live verification
+    run against AAPL, CAT, and WMT after tests passed (see the bug found above).
+
 ## Near-Term Next Steps
 * DCF has an agreed forward sequence as of 2026-08-29 — see Current Phase above for the full
-  six-item list and the Decision Log for dependencies/risks. Next up: SEC EDGAR as the
-  primary historical-financials source. Real estate stays frozen until the user validates
-  underwriting conventions with a CRE professional (see Current Phase). Phase 9 stays out of
-  scope until explicitly instructed, per CLAUDE.md.
-* SEC EDGAR as an actual fundamentals *values* source (not just the CIK/filings-index link
-  it provides today) is next in the agreed DCF sequence, not just a deferred idea anymore —
-  the internal data model is already shaped for it; see the Decision Log.
+  six-item list and the Decision Log for dependencies/risks. Next up: per-value provenance
+  (filing period, filing date, accession number, source link, XBRL tag,
+  reported/combined/calculated) — the full per-fact data already exists internally
+  (`sec_fundamentals.py`), so this is a UI/schema-exposure milestone, not a new data-fetching
+  one. Real estate stays frozen until the user validates underwriting conventions with a CRE
+  professional (see Current Phase). Phase 9 stays out of scope until explicitly instructed,
+  per CLAUDE.md.
 * A driver-based DCF forecast (revenue → margin → taxes → D&A → CapEx → ΔNWC, replacing
   the current flat-growth model) is the long-signaled next evolution of the DCF engine,
   now that the underlying data layer is shaped to support it — not started.
@@ -904,3 +993,12 @@ Recommendation pending approval, nothing implemented yet:
 Final, shipped behavior: `fcf_growth_rate` carries no economic ceiling or floor at all. At or below -100%, the result is computed and flagged with a specific warning instead of rejected (`zero_explicit_period_fcf` at exactly -100%; `alternating_sign_explicit_period_fcf` below it) - the arithmetic stays finite and well-defined at any value, so per Section 7 that isn't grounds for a hard block. This makes `fcf_growth_rate` consistent with terminal growth's identically-shaped -100% case for the first time. Only a genuine computational failure - overflow or a non-finite result - is rejected outright, enforced at the actual computation (`calculations/dcf.py`'s `NonFiniteResultError`, caught cleanly by `routers/dcf.py`) rather than a fixed ceiling on any single field; verified this also covers an extreme `net_debt` or a near-zero `diluted_shares_outstanding` independently pushing a result non-finite, not just base FCF/growth rate/forecast length.
 An interim design - hard-blocking below -100% as "structural invalidity" - was caught and corrected during review, before any of it was committed or deployed. Extending "stops meaning what it claims to" to a case where the arithmetic stays well-defined and only the *interpretation* is economically odd was itself an inconsistent application of the principle it was meant to enforce. CLAUDE.md Section 7 was rewritten to state the line explicitly - computational validity vs. economic reasonableness - and names this conflation as a documented failure mode, not just a one-off correction, so it's recognizable if it threatens to recur elsewhere.
 See the Done entry above for the full implementation and test list.
+
+**2026-08-30 — SEC EDGAR as primary DCF fundamentals source: cash/debt/shares decisions, and a real provider date-mismatch bug found via live verification**
+Item (2) of the 2026-08-29 agreed DCF sequence. Started with a bounded mapping check (tag presence, then real values/periods/duplicates/units) against AAPL, CAT, and WMT, per the user's explicit requirement not to choose ad hoc if fields were ambiguous. Two fields - cash and debt - turned out to involve a genuine "what does this mean" decision with real economic consequences, not just a technical mapping, so implementation was paused once and consolidated options presented before any code was written; see the Done entry above for the full technical findings (tag fallback chains, duration filtering, most-recently-filed-wins) and what was decided:
+1. **Cash** = cash-and-cash-equivalents + short-term investments, summed component-by-component, preserving the app's pre-existing combined meaning rather than switching to SEC's narrower cash-only tag (which would have understated cash materially for a company like Apple).
+2. **Debt** = a defined set of non-overlapping, recognized interest-bearing components, summed; operating-lease liabilities never included; falls back to Alpha Vantage entirely (never zero, never silent) if a filer's composition can't be confidently and completely mapped. Finance-lease liabilities specifically were flagged mid-implementation per the user's own stop condition (immaterial for Apple, ~17% of total debt for Walmart) and included, since they're interest-bearing and the user's own instruction already excluded only operating leases - a judgment call applied per already-agreed criteria, not a fresh open question.
+3. **Diluted shares outstanding** = `WeightedAverageNumberOfDilutedSharesOutstanding` only, explicitly not the SEC cover-page point-in-time basic count (`dei:EntityCommonStockSharesOutstanding`), per the user's direction that the latter doesn't match this app's existing diluted-share field.
+
+A real, material bug was found only because of the live-verification step, not the fixture tests: Alpha Vantage normalizes a 52/53-week fiscal year end to calendar month-end, while SEC reports the filer's actual date. Apple's real FY2025 ended 2025-09-27; Alpha Vantage reports that same fiscal year as "2025-09-30". An exact-string match between the two providers' period dates silently missed the SEC match for 4 of Apple's 5 most recent years on the first live run (only FY2023's real year end happened to coincide with month-end) - Apple, arguably the single most likely ticker a user would try first, would have shown mostly Alpha-Vantage-sourced data despite SEC being "primary." Fixed with a 10-day-tolerance closest-date match rather than exact equality; confirmed live afterward that all 5 AAPL periods, and all of CAT's and WMT's (whose fiscal calendars already coincide with month-end, so they were unaffected either way), now source correctly from SEC. This is the second time in this project a live check against real data caught something a fixture-only test suite would not have (the first being the `currentDebt`/`shortTermDebt` Alpha Vantage fallback from the original ticker-search milestone) - reinforcing that the "one bounded live verification" step in this kind of milestone is load-bearing, not a formality.
+Full per-fact provenance (XBRL tag, accession number, filed date, form, fiscal year/period, unit, direct-vs-calculated confidence) is computed and returned internally by `sec_fundamentals.py` but not yet attached to the API response schema, per the scope agreed for this milestone - item (3), per-value provenance, is next and will expose it.

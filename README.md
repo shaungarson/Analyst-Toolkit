@@ -152,13 +152,13 @@ the UI's own assumptions text, never silently assumed:
 - **Deliberately deferred for now** (see `PROGRESS.md` for the full list): refinancing,
   multiple debt tranches, waterfalls/promotes, driver-based DCF forecasting (revenue →
   margin → taxes → D&A → CapEx → ΔNWC), WACC build-up from capital structure,
-  comparable-company inputs, SEC EDGAR as a values source (currently used only for a
-  filings-index link, not fundamentals — see the Decision Log for why).
+  comparable-company inputs, per-value provenance in the UI (filing period, accession
+  number, XBRL tag — retained internally, not yet surfaced — see the Decision Log).
 
 Every calculation — cap rate, amortization, IRR, equity multiple, DSCR, debt yield, terminal
 value, enterprise value, unlevered FCF construction — is backed by automated tests checked
 against values computed independently by hand, not just "does the code agree with itself."
-101 backend tests total, plus a GitHub Actions CI pipeline that runs the backend suite and the
+123 backend tests total, plus a GitHub Actions CI pipeline that runs the backend suite and the
 frontend lint/build checks on every push and pull request.
 
 ## Architecture
@@ -183,11 +183,14 @@ layer in front of external data:
 Browser: GET /api/company/{ticker}
     ▼
 FastAPI backend (Render)
-    │  Alpha Vantage: fundamentals + quote (server-side only — API key never reaches the browser)
-    │  SEC EDGAR: ticker → CIK lookup + filings-index link (no key required)
+    │  SEC EDGAR: primary source for historical fundamentals (XBRL company facts, no key
+    │             required) plus ticker → CIK lookup and a filings-index link
+    │  Alpha Vantage: fills any field SEC EDGAR can't confidently map for a period, and
+    │             remains the sole source for current price (server-side-only API key)
     ▼
-app/services/company_data.py — normalizes both into one provider-agnostic shape,
-    computes unlevered FCF via app/calculations/company_financials.py (pure, tested)
+app/services/company_data.py — merges both, field by field, into one provider-agnostic
+    shape (FinancialPeriod.source discloses "sec_edgar" / "alpha_vantage" / "mixed" per
+    period), computes unlevered FCF via app/calculations/company_financials.py (pure, tested)
     ▼
 JSON response → populates the DCF form; the analyst still reviews and runs it manually
 ```
@@ -266,6 +269,6 @@ works with no key configured; ticker search alone returns a clear error until on
 
 ## Tech stack
 
-React 19 · Vite 8 · FastAPI · Pydantic · pytest · numpy-financial · httpx · Alpha Vantage
-(company fundamentals & quotes) · SEC EDGAR (filer identification) · Vercel · Render ·
-GitHub Actions (CI)
+React 19 · Vite 8 · FastAPI · Pydantic · pytest · numpy-financial · httpx · SEC EDGAR
+(primary historical fundamentals via XBRL) · Alpha Vantage (fallback fundamentals & current
+price/quotes) · Vercel · Render · GitHub Actions (CI)

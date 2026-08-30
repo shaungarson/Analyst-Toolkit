@@ -1,6 +1,6 @@
 import pytest
 
-from app.services import company_data
+from app.services import company_data, sec_edgar
 from app.services.alpha_vantage import RateLimitedError, TickerNotFoundError
 
 # Shapes below mirror real Alpha Vantage responses (values are strings, missing fields are
@@ -102,6 +102,15 @@ def mock_providers(monkeypatch):
         "app.services.company_data.sec_edgar.lookup_cik",
         lambda ticker: {"cik": "0000123456", "title": "Test Corp", "filings_url": "https://example.com"},
     )
+    # An empty us-gaap fact set means sec_fundamentals.extract_annual_periods finds no
+    # annual EBIT fact to anchor on and returns no periods at all - every field for every
+    # period falls back to Alpha Vantage, so the pre-existing hand-computed assertions
+    # below stay valid unchanged. This also guarantees no real network call reaches SEC
+    # EDGAR from this test module.
+    monkeypatch.setattr(
+        "app.services.company_data.sec_edgar.fetch_company_facts",
+        lambda cik: {"facts": {"us-gaap": {}}},
+    )
     # Each test gets a clean cache, since the module-level cache would otherwise leak
     # state between tests (and between real requests for different tickers in prod).
     company_data._fundamentals_cache.clear()
@@ -146,6 +155,10 @@ def test_get_company_data_most_recent_period_hand_computed():
 
     # Net debt = total debt - cash = 67,154,000,000 - 13,641,000,000
     assert latest["net_debt"] == pytest.approx(53_513_000_000)
+
+    # This test's mock_providers fixture gives SEC EDGAR an empty fact set, so every field
+    # falls back to Alpha Vantage.
+    assert latest["source"] == "alpha_vantage"
 
 
 def test_get_company_data_revenue_growth_hand_computed():
@@ -246,4 +259,181 @@ def test_current_debt_falls_back_to_short_term_debt(monkeypatch):
     # Same hand-computed NWC as the primary test above, but sourced via the shortTermDebt
     # fallback instead of currentDebt: (35,860,000,000 - 13,641,000,000) - (38,658,000,000 - 5,000,000,000) = -11,439,000,000
     assert latest["change_in_nwc"] is not None
-    assert latest["unlevered_fcf"] is not None
+
+
+# --- SEC EDGAR primary / Alpha Vantage fallback merge -----------------------------------
+# These fixtures deliberately give SEC data for only the most recent period (2025-12-31),
+# and only some fields within it, and use values that differ from the Alpha Vantage fixture
+# above wherever both are present - so a passing assertion proves which provider's number
+# actually won, not just that some number came through.
+
+
+def _sec_fact(val, end, start=None, fy=2025, fp="FY", accn="0001-25-000001", filed="2026-02-01"):
+    fact = {"val": val, "end": end, "fy": fy, "fp": fp, "accn": accn, "filed": filed, "form": "10-K"}
+    if start:
+        fact["start"] = start
+    return fact
+
+
+def _sec_facts_for_2025_only(*, include_debt_split=True):
+    duration = {"start": "2025-01-01"}
+    return {
+        "facts": {
+            "us-gaap": {
+                "Revenues": {"units": {"USD": [_sec_fact(70_000_000_000, "2025-12-31", **duration)]}},
+                "OperatingIncomeLoss": {"units": {"USD": [_sec_fact(13_000_000_000, "2025-12-31", **duration)]}},
+                "AssetsCurrent": {"units": {"USD": [_sec_fact(36_000_000_000, "2025-12-31")]}},
+                "LiabilitiesCurrent": {"units": {"USD": [_sec_fact(39_000_000_000, "2025-12-31")]}},
+                "CashAndCashEquivalentsAtCarryingValue": {
+                    "units": {"USD": [_sec_fact(10_000_000_000, "2025-12-31")]}
+                },
+                "MarketableSecuritiesCurrent": {"units": {"USD": [_sec_fact(4_000_000_000, "2025-12-31")]}},
+                **(
+                    {
+                        "LongTermDebtNoncurrent": {"units": {"USD": [_sec_fact(60_000_000_000, "2025-12-31")]}},
+                        "LongTermDebtCurrent": {"units": {"USD": [_sec_fact(8_000_000_000, "2025-12-31")]}},
+                    }
+                    if include_debt_split
+                    else {}
+                ),
+                "WeightedAverageNumberOfDilutedSharesOutstanding": {
+                    "units": {"shares": [_sec_fact(950_000_000, "2025-12-31", **duration)]}
+                },
+                # pretax_income, income_tax_expense, D&A, and capex are deliberately absent -
+                # these fields must fall back to Alpha Vantage for this period.
+            }
+        }
+    }
+
+
+def test_get_company_data_merges_sec_primary_with_alpha_vantage_fallback(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.company_data.sec_edgar.fetch_company_facts",
+        lambda cik: _sec_facts_for_2025_only(),
+    )
+
+    result = company_data.get_company_data("TEST")
+    latest = result["periods"][0]
+
+    # SEC-sourced fields use SEC's numbers (which deliberately differ from the AV fixture).
+    assert latest["revenue"] == pytest.approx(70_000_000_000)
+    assert latest["ebit"] == pytest.approx(13_000_000_000)
+    assert latest["cash"] == pytest.approx(14_000_000_000)  # 10bn cash + 4bn short-term investments
+    assert latest["total_debt"] == pytest.approx(68_000_000_000)  # 60bn noncurrent + 8bn current
+
+    # Fields SEC didn't map for this period (pretax income, tax expense, D&A, capex) still
+    # fall back to Alpha Vantage's numbers rather than going missing.
+    assert latest["income_tax_expense"] == pytest.approx(2_166_000_000)
+    assert latest["depreciation_and_amortization"] == pytest.approx(5_021_000_000)
+
+    # A period blending both providers must say so, not silently look SEC-pure or AV-pure.
+    assert latest["source"] == "mixed"
+
+    # NWC (2025, SEC-sourced) = (36bn - 14bn) - (39bn - 8bn) = 22bn - 31bn = -9bn
+    # NWC (2024, no SEC data for this period, fully AV-sourced) = -10,200,000,000 (as in the
+    # primary hand-computed test above)
+    # change_in_nwc = -9,000,000,000 - (-10,200,000,000) = 1,200,000,000
+    assert latest["change_in_nwc"] == pytest.approx(1_200_000_000)
+
+    tax_rate = 2_166_000_000 / 10_328_000_000  # pretax_income also fell back to AV: 10,328,000,000
+    expected_ufcf = 13_000_000_000 * (1 - tax_rate) + 5_021_000_000 - 1_091_000_000 - 1_200_000_000
+    assert latest["unlevered_fcf"] == pytest.approx(expected_ufcf)
+
+    assert latest["net_debt"] == pytest.approx(68_000_000_000 - 14_000_000_000)
+
+    # SEC's diluted share count takes over the profile-level shares_outstanding field.
+    assert result["profile"]["shares_outstanding"] == pytest.approx(950_000_000)
+    assert result["source"]["fundamentals_provider"] == "sec_edgar"
+
+
+def test_get_company_data_reports_sec_edgar_source_when_every_field_maps(monkeypatch):
+    # Build a fixture identical to the mixed one but with the four gap fields filled too,
+    # so every merged field for this period is SEC-sourced.
+    facts = _sec_facts_for_2025_only()
+    duration = {"start": "2025-01-01"}
+    facts["facts"]["us-gaap"].update(
+        {
+            "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest": {
+                "units": {"USD": [_sec_fact(12_500_000_000, "2025-12-31", **duration)]}
+            },
+            "IncomeTaxExpenseBenefit": {"units": {"USD": [_sec_fact(2_500_000_000, "2025-12-31", **duration)]}},
+            "DepreciationDepletionAndAmortization": {
+                "units": {"USD": [_sec_fact(5_100_000_000, "2025-12-31", **duration)]}
+            },
+            "PaymentsToAcquirePropertyPlantAndEquipment": {
+                "units": {"USD": [_sec_fact(1_200_000_000, "2025-12-31", **duration)]}
+            },
+        }
+    )
+    monkeypatch.setattr("app.services.company_data.sec_edgar.fetch_company_facts", lambda cik: facts)
+
+    result = company_data.get_company_data("TEST")
+    assert result["periods"][0]["source"] == "sec_edgar"
+
+
+def test_get_company_data_matches_sec_period_despite_provider_date_mismatch(monkeypatch):
+    # Confirmed live against the real API: Alpha Vantage normalizes a 52/53-week fiscal
+    # year end to calendar month-end (Apple's real FY2025 ended 2025-09-27 per SEC's own
+    # filings; Alpha Vantage reports fiscalDateEnding "2025-09-30" for that same year). This
+    # fixture's Alpha Vantage period is dated 2025-12-31 (see BALANCE_REPORTS/INCOME_REPORTS
+    # above); the SEC fact below is end-dated a few days earlier, as a 52/53-week filer's
+    # real year end would be - the merge must still find it.
+    facts = _sec_facts_for_2025_only()
+    for tag in ["Revenues", "OperatingIncomeLoss", "AssetsCurrent", "LiabilitiesCurrent",
+                "CashAndCashEquivalentsAtCarryingValue", "MarketableSecuritiesCurrent",
+                "LongTermDebtNoncurrent", "LongTermDebtCurrent",
+                "WeightedAverageNumberOfDilutedSharesOutstanding"]:
+        for unit_facts in facts["facts"]["us-gaap"][tag]["units"].values():
+            unit_facts[0]["end"] = "2025-12-28"
+            if "start" in unit_facts[0]:
+                unit_facts[0]["start"] = "2024-12-30"
+    monkeypatch.setattr("app.services.company_data.sec_edgar.fetch_company_facts", lambda cik: facts)
+
+    result = company_data.get_company_data("TEST")
+    latest = result["periods"][0]
+    assert latest["fiscal_year_end"] == "2025-12-31"  # the canonical (Alpha Vantage) date is kept
+    assert latest["revenue"] == pytest.approx(70_000_000_000)  # but the SEC value is the one used
+    assert latest["source"] == "mixed"
+
+
+def test_get_company_data_does_not_match_sec_period_beyond_date_tolerance(monkeypatch):
+    # A gap this large would only happen for a genuinely different fiscal year - must not
+    # be treated as a match. Moving only the anchor tag (OperatingIncomeLoss) is enough:
+    # period discovery finds no annual period near the Alpha Vantage target date at all.
+    facts = _sec_facts_for_2025_only()
+    facts["facts"]["us-gaap"]["OperatingIncomeLoss"]["units"]["USD"][0]["end"] = "2025-11-01"
+    facts["facts"]["us-gaap"]["OperatingIncomeLoss"]["units"]["USD"][0]["start"] = "2024-11-01"
+    monkeypatch.setattr("app.services.company_data.sec_edgar.fetch_company_facts", lambda cik: facts)
+
+    result = company_data.get_company_data("TEST")
+    assert result["periods"][0]["source"] == "alpha_vantage"
+
+
+def test_get_company_data_falls_back_to_alpha_vantage_when_debt_composition_unrecognized(monkeypatch):
+    # No LongTermDebtNoncurrent/LongTermDebtCurrent (or any other recognized debt tag) at
+    # all - simulates a filer whose debt-tag composition this app doesn't recognize. Per
+    # the explicit debt-derivation requirement, this must fall back to Alpha Vantage for
+    # debt rather than silently reporting zero or omitting it.
+    facts = _sec_facts_for_2025_only(include_debt_split=False)
+    monkeypatch.setattr("app.services.company_data.sec_edgar.fetch_company_facts", lambda cik: facts)
+
+    result = company_data.get_company_data("TEST")
+    latest = result["periods"][0]
+
+    # total_debt and current_debt both fall back to Alpha Vantage's figures.
+    assert latest["total_debt"] == pytest.approx(67_154_000_000)
+    # net_debt = AV total_debt - SEC cash = 67,154,000,000 - 14,000,000,000
+    assert latest["net_debt"] == pytest.approx(67_154_000_000 - 14_000_000_000)
+
+
+def test_get_company_data_degrades_gracefully_when_sec_edgar_is_unreachable(monkeypatch):
+    def raise_unavailable(cik):
+        raise sec_edgar.SECDataUnavailableError("simulated network failure")
+
+    monkeypatch.setattr("app.services.company_data.sec_edgar.fetch_company_facts", raise_unavailable)
+
+    # Must not raise - SEC being down degrades to the Alpha-Vantage-only path, the same as
+    # it behaved before SEC EDGAR fundamentals were added.
+    result = company_data.get_company_data("TEST")
+    assert result["periods"][0]["source"] == "alpha_vantage"
+    assert result["source"]["fundamentals_provider"] == "alpha_vantage"

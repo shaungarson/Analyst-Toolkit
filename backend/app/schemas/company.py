@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel
 
 
@@ -17,6 +19,13 @@ class FinancialPeriod(BaseModel):
     net_debt: float | None
     revenue_growth: float | None
     operating_margin: float | None
+    # Which provider this period's figures came from. "mixed" means at least one field
+    # (e.g. debt, when a filer's XBRL debt tags couldn't be confidently mapped) fell back
+    # to Alpha Vantage while others came from SEC - disclosed here rather than silently
+    # blended. Full per-field provenance (XBRL tag, accession number, filing date) is
+    # retained internally (app/services/sec_fundamentals.py) for a future milestone, not
+    # exposed on this model yet.
+    source: Literal["sec_edgar", "alpha_vantage", "mixed"]
 
 
 class CompanyProfile(BaseModel):
