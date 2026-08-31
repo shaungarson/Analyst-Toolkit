@@ -40,8 +40,9 @@ Browser: GET /api/company/{ticker}
 FastAPI backend (Render)
     │  SEC EDGAR: primary source for historical fundamentals (XBRL company facts, no key
     │             required) plus ticker → CIK lookup and a filings-index link
-    │  Alpha Vantage: fills any field SEC EDGAR can't confidently map for a period, and
-    │             remains the sole source for current price (server-side-only API key)
+    │  Alpha Vantage: optional field-level enrichment/fallback for anything SEC couldn't
+    │             confidently map, and the sole source for current price - genuinely
+    │             independent, not a hard dependency (server-side-only API key)
     ▼
 app/services/company_data.py — merges both, field by field, into one provider-agnostic
     shape (FinancialPeriod.source discloses "sec_edgar" / "alpha_vantage" / "mixed" per
@@ -49,6 +50,14 @@ app/services/company_data.py — merges both, field by field, into one provider-
     ▼
 JSON response → populates the DCF form; the analyst still reviews and runs it manually
 ```
+
+For an SEC-supported ticker, Alpha Vantage being rate-limited, unconfigured, or unreachable
+never blocks the request - company periods build directly from SEC's own fiscal dates, not
+Alpha Vantage's, and Alpha Vantage-only profile fields (sector, industry, exchange, market
+cap, current price) are simply absent rather than fabricated. A clean, typed error is only
+raised when neither provider can produce a usable result at all - live-verified with the
+Alpha Vantage key removed entirely (AAPL, WMT: full 5-period SEC-sourced responses, current
+price and Alpha-Vantage-only profile fields correctly absent, not defaulted).
 
 Key backend modules:
 - `app/services/sec_edgar.py` — ticker→CIK lookup, raw SEC XBRL company-facts fetch, typed
@@ -60,16 +69,22 @@ Key backend modules:
   exposed via the API.
 - `app/services/alpha_vantage.py` — fundamentals/quote client, typed errors, request
   throttling, 24h fundamentals / 15min quote caches.
-- `app/services/company_data.py` — orchestrates both providers, merges field-by-field
-  (SEC primary, Alpha Vantage fallback), matches periods across providers with a
-  10-day date tolerance (Alpha Vantage normalizes 52/53-week fiscal years to calendar
-  month-end; SEC reports the filer's actual date).
+- `app/services/company_data.py` — orchestrates both providers. Company periods are built
+  from the union of both providers' own fiscal dates (SEC's date wins as canonical wherever
+  the two are within a 10-day tolerance of each other - Alpha Vantage normalizes 52/53-week
+  fiscal years to calendar month-end; SEC reports the filer's actual date), then merged
+  field-by-field (SEC primary, Alpha Vantage fallback). Alpha Vantage fundamentals and the
+  Alpha Vantage quote are each fetched best-effort and independently of everything else - a
+  failure in either degrades gracefully rather than propagating; a typed error is only
+  raised when neither provider produced anything usable for the ticker at all.
 - `app/schemas/company.py` — the provider-agnostic `CompanyData`/`FinancialPeriod`/
   `CompanyProfile` shape the frontend consumes; carries no provider-specific structure.
+  `CompanyDataSource.market_data_provider` is nullable - `None` when no current price came
+  from anywhere, not a claim that Alpha Vantage supplied one.
 
 `ALPHA_VANTAGE_API_KEY` is a server-side-only environment variable, never accepted from or
-returned to the browser. Every other feature works with no key configured; ticker search
-alone returns a typed error until one is set.
+returned to the browser. Ticker search for an SEC-supported company works with no key
+configured at all; only current price and Alpha-Vantage-only profile fields are absent.
 
 ## Calculation and validation layers
 
@@ -87,7 +102,7 @@ alone returns a typed error until one is set.
 
 ## Testing and CI
 
-123 backend tests (`backend/tests/`), fixture-based — no live network calls in the suite.
+133 backend tests (`backend/tests/`), fixture-based — no live network calls in the suite.
 `.github/workflows/ci.yml` runs on every push and pull request: `pytest` for the backend,
 `oxlint` + `vite build` for the frontend, pinned to the same Python/Node versions used in
 local dev.

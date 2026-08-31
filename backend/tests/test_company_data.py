@@ -1,7 +1,12 @@
 import pytest
 
 from app.services import company_data, sec_edgar
-from app.services.alpha_vantage import RateLimitedError, TickerNotFoundError
+from app.services.alpha_vantage import (
+    ProviderNotConfiguredError,
+    ProviderUnavailableError,
+    RateLimitedError,
+    TickerNotFoundError,
+)
 
 # Shapes below mirror real Alpha Vantage responses (values are strings, missing fields are
 # the literal string "None") - verified against the live API for IBM before writing this
@@ -377,7 +382,8 @@ def test_get_company_data_matches_sec_period_despite_provider_date_mismatch(monk
     # filings; Alpha Vantage reports fiscalDateEnding "2025-09-30" for that same year). This
     # fixture's Alpha Vantage period is dated 2025-12-31 (see BALANCE_REPORTS/INCOME_REPORTS
     # above); the SEC fact below is end-dated a few days earlier, as a 52/53-week filer's
-    # real year end would be - the merge must still find it.
+    # real year end would be - the merge must still find it, and SEC's own date (not Alpha
+    # Vantage's) is now what gets reported, since periods are built directly from SEC data.
     facts = _sec_facts_for_2025_only()
     for tag in ["Revenues", "OperatingIncomeLoss", "AssetsCurrent", "LiabilitiesCurrent",
                 "CashAndCashEquivalentsAtCarryingValue", "MarketableSecuritiesCurrent",
@@ -391,8 +397,8 @@ def test_get_company_data_matches_sec_period_despite_provider_date_mismatch(monk
 
     result = company_data.get_company_data("TEST")
     latest = result["periods"][0]
-    assert latest["fiscal_year_end"] == "2025-12-31"  # the canonical (Alpha Vantage) date is kept
-    assert latest["revenue"] == pytest.approx(70_000_000_000)  # but the SEC value is the one used
+    assert latest["fiscal_year_end"] == "2025-12-28"  # SEC's own date, not Alpha Vantage's
+    assert latest["revenue"] == pytest.approx(70_000_000_000)
     assert latest["source"] == "mixed"
 
 
@@ -437,3 +443,297 @@ def test_get_company_data_degrades_gracefully_when_sec_edgar_is_unreachable(monk
     result = company_data.get_company_data("TEST")
     assert result["periods"][0]["source"] == "alpha_vantage"
     assert result["source"]["fundamentals_provider"] == "alpha_vantage"
+
+
+# --- DCF data resilience: Alpha Vantage becomes optional, SEC EDGAR becomes genuinely -----
+# independent. Fixtures below build a *complete* SEC period (every field mapped, no gaps)
+# specifically so these tests exercise "Alpha Vantage contributes nothing" cleanly, without
+# a field-level fallback masking whether the overall request still succeeds.
+
+
+def _complete_sec_facts_for_two_periods():
+    """Two full SEC periods (2025-12-31 and, for the prior-year NWC delta, 2024-12-31) with
+    every merged field mapped for both - no Alpha Vantage fallback needed for any of them -
+    so tests built on this fixture can cleanly assert "the response is fully usable, UFCF
+    included, on SEC data alone." A single period can't exercise this: unlevered_fcf
+    genuinely requires a prior period for the NWC delta, a real calculation requirement, not
+    a resilience gap."""
+
+    def two_year_tag(tag, val_2025, val_2024, unit="USD", duration=True):
+        facts = [_sec_fact(val_2025, "2025-12-31", start="2025-01-01" if duration else None, fy=2025)]
+        facts.append(_sec_fact(val_2024, "2024-12-31", start="2024-01-01" if duration else None, fy=2024))
+        return {"units": {unit: facts}}
+
+    return {
+        "facts": {
+            "us-gaap": {
+                "Revenues": two_year_tag("Revenues", 70_000_000_000, 64_000_000_000),
+                "OperatingIncomeLoss": two_year_tag("OperatingIncomeLoss", 13_000_000_000, 11_500_000_000),
+                "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest": (
+                    two_year_tag("pretax", 12_500_000_000, 11_000_000_000)
+                ),
+                "IncomeTaxExpenseBenefit": two_year_tag("tax", 2_500_000_000, 2_200_000_000),
+                "DepreciationDepletionAndAmortization": two_year_tag("da", 5_100_000_000, 4_900_000_000),
+                "PaymentsToAcquirePropertyPlantAndEquipment": two_year_tag("capex", 1_200_000_000, 1_100_000_000),
+                "AssetsCurrent": two_year_tag("assets", 36_000_000_000, 34_000_000_000, duration=False),
+                "LiabilitiesCurrent": two_year_tag("liabilities", 39_000_000_000, 37_000_000_000, duration=False),
+                "CashAndCashEquivalentsAtCarryingValue": two_year_tag(
+                    "cash", 10_000_000_000, 9_000_000_000, duration=False
+                ),
+                "MarketableSecuritiesCurrent": two_year_tag(
+                    "sti", 4_000_000_000, 3_500_000_000, duration=False
+                ),
+                "LongTermDebtNoncurrent": two_year_tag(
+                    "ltd_noncurrent", 60_000_000_000, 58_000_000_000, duration=False
+                ),
+                "LongTermDebtCurrent": two_year_tag("ltd_current", 8_000_000_000, 7_500_000_000, duration=False),
+                "WeightedAverageNumberOfDilutedSharesOutstanding": two_year_tag(
+                    "shares", 950_000_000, 960_000_000, unit="shares"
+                ),
+            }
+        }
+    }
+
+
+def _raise_provider_error(exc):
+    def _raiser(*args, **kwargs):
+        raise exc
+
+    return _raiser
+
+
+def test_get_company_data_succeeds_on_sec_data_alone_when_alpha_vantage_unconfigured(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.company_data.sec_edgar.fetch_company_facts", lambda cik: _complete_sec_facts_for_two_periods()
+    )
+    error = ProviderNotConfiguredError("ALPHA_VANTAGE_API_KEY is not configured on the server.")
+    monkeypatch.setattr("app.services.company_data.alpha_vantage.fetch_overview", _raise_provider_error(error))
+    monkeypatch.setattr("app.services.company_data.alpha_vantage.fetch_income_statement", _raise_provider_error(error))
+    monkeypatch.setattr("app.services.company_data.alpha_vantage.fetch_balance_sheet", _raise_provider_error(error))
+    monkeypatch.setattr("app.services.company_data.alpha_vantage.fetch_cash_flow", _raise_provider_error(error))
+    monkeypatch.setattr("app.services.company_data.alpha_vantage.fetch_quote", _raise_provider_error(error))
+
+    # Must not raise - a missing Alpha Vantage key must never block a SEC-supported ticker.
+    result = company_data.get_company_data("TEST")
+
+    latest = result["periods"][0]
+    assert latest["source"] == "sec_edgar"
+    assert latest["revenue"] == pytest.approx(70_000_000_000)
+    assert latest["unlevered_fcf"] is not None
+
+    profile = result["profile"]
+    # Alpha-Vantage-only profile fields are honestly absent, never fabricated.
+    assert profile["sector"] is None
+    assert profile["industry"] is None
+    assert profile["exchange"] is None
+    assert profile["market_capitalization"] is None
+    assert profile["current_price"] is None
+    # SEC's own filer title stands in for the company name Alpha Vantage would have supplied.
+    assert profile["company_name"] == "Test Corp"
+    # SEC's diluted shares still populate this even with Alpha Vantage entirely absent.
+    assert profile["shares_outstanding"] == pytest.approx(950_000_000)
+
+    assert result["source"]["fundamentals_provider"] == "sec_edgar"
+    assert result["source"]["market_data_provider"] is None
+
+
+def test_get_company_data_succeeds_on_sec_data_alone_when_alpha_vantage_rate_limited(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.company_data.sec_edgar.fetch_company_facts", lambda cik: _complete_sec_facts_for_two_periods()
+    )
+    error = RateLimitedError("The market-data provider's request limit has been reached.")
+    monkeypatch.setattr("app.services.company_data.alpha_vantage.fetch_overview", _raise_provider_error(error))
+    monkeypatch.setattr("app.services.company_data.alpha_vantage.fetch_income_statement", _raise_provider_error(error))
+    monkeypatch.setattr("app.services.company_data.alpha_vantage.fetch_balance_sheet", _raise_provider_error(error))
+    monkeypatch.setattr("app.services.company_data.alpha_vantage.fetch_cash_flow", _raise_provider_error(error))
+    monkeypatch.setattr("app.services.company_data.alpha_vantage.fetch_quote", _raise_provider_error(error))
+
+    result = company_data.get_company_data("TEST")
+
+    assert result["periods"][0]["source"] == "sec_edgar"
+    assert result["profile"]["current_price"] is None
+    assert result["source"]["market_data_provider"] is None
+
+
+def test_get_company_data_falls_back_to_alpha_vantage_only_when_sec_has_no_extractable_periods(monkeypatch):
+    # SEC recognizes the ticker (a CIK resolves) but has no us-gaap facts for it - a real
+    # scenario for a very recently IPO'd company, distinct from "ticker not on SEC at all".
+    monkeypatch.setattr(
+        "app.services.company_data.sec_edgar.fetch_company_facts", lambda cik: {"facts": {"us-gaap": {}}}
+    )
+
+    result = company_data.get_company_data("TEST")
+
+    assert result["periods"][0]["source"] == "alpha_vantage"
+    assert result["periods"][0]["fiscal_year_end"] == "2025-12-31"  # Alpha Vantage's own date
+    assert result["source"]["fundamentals_provider"] == "alpha_vantage"
+    # The CIK/filings link is independent of whether SEC had extractable financial data.
+    assert result["profile"]["sec_cik"] == "0000123456"
+
+
+def test_get_company_data_quote_failure_returns_no_current_price_not_an_error(monkeypatch):
+    # Fundamentals succeed normally (default fixture); only the quote fails.
+    def raise_rate_limited(ticker):
+        raise RateLimitedError("simulated quote rate limit")
+
+    monkeypatch.setattr("app.services.company_data.alpha_vantage.fetch_quote", raise_rate_limited)
+
+    result = company_data.get_company_data("TEST")
+
+    assert result["profile"]["current_price"] is None
+    assert result["source"]["market_data_provider"] is None
+    # Everything else is unaffected - the quote is an independent failure, not a partial one.
+    assert result["periods"][0]["revenue"] == pytest.approx(67_536_000_000)
+    assert result["periods"][0]["unlevered_fcf"] is not None
+
+
+def test_get_company_data_raises_when_neither_provider_has_anything_rate_limited(monkeypatch):
+    monkeypatch.setattr("app.services.company_data.sec_edgar.lookup_cik", lambda ticker: None)
+
+    def raise_rate_limited(ticker):
+        raise RateLimitedError("both providers unavailable")
+
+    monkeypatch.setattr("app.services.company_data.alpha_vantage.fetch_overview", raise_rate_limited)
+
+    with pytest.raises(RateLimitedError):
+        company_data.get_company_data("TEST")
+
+
+def test_get_company_data_raises_when_neither_provider_has_anything_provider_down(monkeypatch):
+    # SEC resolves a CIK but the facts fetch itself fails (not just "no data"), and Alpha
+    # Vantage is unreachable too - a genuine both-providers-down scenario, not just an
+    # unsupported ticker.
+    def raise_sec_unavailable(cik):
+        raise sec_edgar.SECDataUnavailableError("simulated SEC network failure")
+
+    monkeypatch.setattr("app.services.company_data.sec_edgar.fetch_company_facts", raise_sec_unavailable)
+
+    def raise_provider_unavailable(ticker):
+        raise ProviderUnavailableError("simulated Alpha Vantage outage")
+
+    monkeypatch.setattr("app.services.company_data.alpha_vantage.fetch_overview", raise_provider_unavailable)
+
+    with pytest.raises(ProviderUnavailableError):
+        company_data.get_company_data("TEST")
+
+
+def test_get_company_data_invalid_ticker_not_recognized_by_either_provider(monkeypatch):
+    monkeypatch.setattr("app.services.company_data.sec_edgar.lookup_cik", lambda ticker: None)
+
+    def raise_not_found(ticker):
+        raise TickerNotFoundError("no such ticker")
+
+    monkeypatch.setattr("app.services.company_data.alpha_vantage.fetch_overview", raise_not_found)
+
+    with pytest.raises(TickerNotFoundError):
+        company_data.get_company_data("NOPE")
+
+
+def test_get_company_data_fundamentals_failure_is_not_cached(monkeypatch):
+    # A failed Alpha Vantage fetch must not poison the cache - the next request (e.g. after
+    # the outage clears) should retry, not keep serving a cached failure or a cached None.
+    call_count = {"overview": 0}
+    monkeypatch.setattr("app.services.company_data.sec_edgar.lookup_cik", lambda ticker: None)
+
+    def failing_then_working_overview(ticker):
+        call_count["overview"] += 1
+        if call_count["overview"] == 1:
+            raise ProviderUnavailableError("transient failure")
+        return OVERVIEW
+
+    monkeypatch.setattr("app.services.company_data.alpha_vantage.fetch_overview", failing_then_working_overview)
+
+    with pytest.raises(ProviderUnavailableError):
+        company_data.get_company_data("TEST")
+
+    # Second call succeeds - the first failure wasn't cached as if it were a valid result.
+    result = company_data.get_company_data("TEST")
+    assert result["profile"]["company_name"] == "Test Corp"
+    assert call_count["overview"] == 2
+
+
+def test_get_company_data_quote_cached_independently_of_fundamentals(monkeypatch):
+    call_count = {"quote": 0}
+
+    def counting_quote(ticker):
+        call_count["quote"] += 1
+        return QUOTE
+
+    monkeypatch.setattr("app.services.company_data.alpha_vantage.fetch_quote", counting_quote)
+
+    company_data.get_company_data("TEST")
+    company_data.get_company_data("TEST")
+
+    assert call_count["quote"] == 1
+
+
+def test_get_company_data_oldest_displayed_period_gets_nwc_from_sixth_balance_report(monkeypatch):
+    # Regression test: the pre-refactor Alpha-Vantage-only path fetched one extra (sixth)
+    # balance-sheet report specifically to give the oldest of five *displayed* years a
+    # prior-year balance sheet for its NWC delta - income/cash-flow reports were never
+    # fetched with this extra year, since a prior period's NWC only needs balance-sheet
+    # fields. Building the canonical period list from income-statement dates alone (not
+    # balance-sheet dates) silently drops that extra year, leaving the oldest displayed
+    # period's change_in_nwc and unlevered_fcf undefined - caught before this shipped.
+    monkeypatch.setattr("app.services.company_data.sec_edgar.lookup_cik", lambda ticker: None)
+
+    income_reports = [
+        {
+            "fiscalDateEnding": f"{year}-12-31",
+            "totalRevenue": str(60_000_000_000 + year * 1_000_000_000),
+            "operatingIncome": str(10_000_000_000 + year * 100_000_000),
+            "incomeBeforeTax": str(9_000_000_000 + year * 100_000_000),
+            "incomeTaxExpense": str(2_000_000_000 + year * 10_000_000),
+        }
+        for year in range(2025, 2020, -1)  # five years: 2025..2021
+    ]
+    cash_flow_reports = [
+        {
+            "fiscalDateEnding": f"{year}-12-31",
+            "depreciationDepletionAndAmortization": "4000000000",
+            "capitalExpenditures": "1000000000",
+        }
+        for year in range(2025, 2020, -1)  # five years: 2025..2021
+    ]
+    balance_reports = [
+        {
+            "fiscalDateEnding": f"{year}-12-31",
+            "cashAndShortTermInvestments": str(10_000_000_000 + year * 100_000_000),
+            "shortLongTermDebtTotal": "30000000000",
+            "totalCurrentAssets": "20000000000",
+            "totalCurrentLiabilities": "15000000000",
+            "currentDebt": "3000000000",
+        }
+        for year in range(2025, 2019, -1)  # six years: 2025..2020
+    ]
+
+    monkeypatch.setattr(
+        "app.services.company_data.alpha_vantage.fetch_income_statement",
+        lambda ticker: {"annualReports": income_reports},
+    )
+    monkeypatch.setattr(
+        "app.services.company_data.alpha_vantage.fetch_cash_flow",
+        lambda ticker: {"annualReports": cash_flow_reports},
+    )
+    monkeypatch.setattr(
+        "app.services.company_data.alpha_vantage.fetch_balance_sheet",
+        lambda ticker: {"annualReports": balance_reports},
+    )
+
+    result = company_data.get_company_data("TEST")
+
+    # Exactly five periods displayed - the sixth (balance-only) year is used for the NWC
+    # lookup below, never promoted into the displayed list itself.
+    assert len(result["periods"]) == 5
+    assert [p["fiscal_year_end"] for p in result["periods"]] == [
+        "2025-12-31",
+        "2024-12-31",
+        "2023-12-31",
+        "2022-12-31",
+        "2021-12-31",
+    ]
+
+    oldest = result["periods"][-1]
+    assert oldest["fiscal_year_end"] == "2021-12-31"
+    assert oldest["change_in_nwc"] is not None
+    assert oldest["unlevered_fcf"] is not None

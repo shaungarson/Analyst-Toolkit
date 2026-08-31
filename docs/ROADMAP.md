@@ -11,16 +11,22 @@ conventions with a CRE professional. See "Real estate freeze" in
 ## Next
 
 The agreed DCF sequence (see "Revised DCF sequence: data resilience, combined
-provenance/price milestone, and a validated real-company demo" in `decisions.md`) — hardening
-and SEC EDGAR as primary fundamentals are done; remaining items, in dependency order:
+provenance/price milestone, and a validated real-company demo" in `decisions.md`) — hardening,
+SEC EDGAR as primary fundamentals, and DCF data resilience are done; remaining items, in
+dependency order:
 
-1. **DCF data resilience.** Alpha Vantage fundamentals and current price become genuinely
-   optional — a ticker-search request succeeds on SEC-sourced data alone if Alpha Vantage is
-   unavailable, rate-limited, or unconfigured, with any Alpha-Vantage-only field simply absent
-   rather than the whole request failing. A real backend refactor (today's
-   `get_company_data()` fetches Alpha Vantage unconditionally and propagates its failures as a
-   hard error), not a small tweak — needs tests plus live verification with Alpha Vantage
-   intentionally made unavailable.
+1. ~~**DCF data resilience.**~~ **Done (2026-08-31).** Alpha Vantage fundamentals and current
+   price are now genuinely optional — a ticker-search request succeeds on SEC-sourced data
+   alone if Alpha Vantage is unavailable, rate-limited, or unconfigured, with any
+   Alpha-Vantage-only field honestly absent rather than the whole request failing. Company
+   periods are now built from the union of both providers' own fiscal dates rather than
+   requiring Alpha Vantage's first. 10 new backend tests (including a regression test for the
+   oldest displayed period's prior-year NWC lookup, caught and fixed before this shipped -
+   the canonical period list must never include a balance-sheet-only year, but the extra
+   balance-only year Alpha Vantage provides specifically for that NWC delta still needs to be
+   found); live-verified against AAPL and WMT with the Alpha Vantage key removed entirely
+   (full 5-period SEC-sourced responses) and with it configured normally (unchanged
+   behavior). See `docs/ARCHITECTURE.md` for the resulting pipeline shape.
 2. **Per-value provenance and an editable, dated reference share price — one combined
    milestone.** Filing period, filing date, accession number, source link, XBRL tag, and a
    reported/combined/calculated confidence marker for historical fundamentals, plus an

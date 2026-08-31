@@ -124,7 +124,7 @@ Every calculation is a pure, tested function, separate from the API and UI layer
 Every calculation — cap rate, amortization, IRR, equity multiple, DSCR, debt yield, terminal
 value, enterprise value, unlevered FCF construction — is backed by automated tests checked
 against values computed independently by hand, not just "does the code agree with itself."
-123 backend tests total, plus a GitHub Actions CI pipeline that runs the backend suite and
+133 backend tests total, plus a GitHub Actions CI pipeline that runs the backend suite and
 the frontend lint/build checks on every push and pull request.
 
 ## Architecture
@@ -179,7 +179,8 @@ Full technical detail (module-by-module, testing, CI): [`docs/ARCHITECTURE.md`](
 validation hardening → visual design → deployment → multi-year modeling, sensitivity, and
 scenario comparison → real estate risk flags and Deal Summary → DCF ticker search and
 workstation redesign → hardened DCF validation → SEC EDGAR as the primary DCF fundamentals
-source. Detail: [`PROGRESS.md`](PROGRESS.md), [`docs/decisions.md`](docs/decisions.md).
+source → SEC-independent DCF data resilience (Alpha Vantage optional, never a hard
+dependency). Detail: [`PROGRESS.md`](PROGRESS.md), [`docs/decisions.md`](docs/decisions.md).
 What's next: [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 **Long-term direction — not yet built:** the modeling engine above is the foundation, not
@@ -204,7 +205,7 @@ this repository today. Full detail: [`docs/ROADMAP.md`](docs/ROADMAP.md)'s Parke
 cd backend
 python -m venv venv
 ./venv/Scripts/pip install -r requirements.txt
-cp .env.example .env  # then fill in ALPHA_VANTAGE_API_KEY (free, see below) to enable DCF ticker search
+cp .env.example .env  # ALPHA_VANTAGE_API_KEY is optional (free, see below) - ticker search works without it for SEC-supported tickers
 ./venv/Scripts/python -m uvicorn app.main:app --reload --port 8001
 
 # Frontend (separate terminal)
@@ -218,11 +219,11 @@ automatically — see `frontend/vite.config.js`.
 
 Run the backend test suite with `./venv/Scripts/python -m pytest` from `backend/`.
 
-The DCF module's ticker search needs a free Alpha Vantage API key
-(<https://www.alphavantage.co/support/#api-key>, no credit card) set as
-`ALPHA_VANTAGE_API_KEY` — locally in `backend/.env` (gitignored, never committed), and as an
-environment variable in Render for the deployed backend. Every other feature in the app
-works with no key configured; ticker search alone returns a clear error until one is set.
+A free Alpha Vantage API key (<https://www.alphavantage.co/support/#api-key>, no credit
+card) set as `ALPHA_VANTAGE_API_KEY` — locally in `backend/.env`, and as an environment
+variable in Render — enriches ticker search with a current price and a few extra fields.
+It's optional: SEC EDGAR is ticker search's independent primary path, so a SEC-supported
+ticker loads with no key at all, current price simply absent.
 
 ## Tech stack
 

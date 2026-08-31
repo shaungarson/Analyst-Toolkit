@@ -43,7 +43,10 @@ class CompanyProfile(BaseModel):
 
 class CompanyDataSource(BaseModel):
     fundamentals_provider: str
-    market_data_provider: str
+    # None when the Alpha Vantage quote fetch didn't succeed this request (rate limited,
+    # unconfigured, unreachable) - honest disclosure that no current price came from
+    # anywhere, not a claim that Alpha Vantage supplied one.
+    market_data_provider: str | None
     sec_filings_provider: str | None
 
 
