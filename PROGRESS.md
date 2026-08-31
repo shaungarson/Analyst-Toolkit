@@ -1,12 +1,14 @@
 # Analyst Toolkit — Progress
 
-**Last verified:** 2026-08-31 against commit `160df8f`
+**Last verified:** 2026-08-31 against commit `36efe74`
 
 ## Current Milestone
 
-None — awaiting direction. Documentation and context restructuring (splitting the former
-monolithic `PROGRESS.md` into current-state, roadmap, decisions, and reference docs) is
-complete as of 2026-08-31.
+None — awaiting direction. A documentation update recording the revised DCF forward
+sequence (data resilience → combined provenance/reference-price → bounded Costco-candidate
+validation → embedded, provider-independent real-company demo → reverse DCF/explain-valuation) is complete as of
+2026-08-31 — see `docs/ROADMAP.md` and `docs/decisions.md`. No application code has changed;
+implementation of the sequence's first step has not started.
 
 ## Blockers / Frozen Areas
 
@@ -24,9 +26,12 @@ complete as of 2026-08-31.
 
 ## Next Three Actions
 
-1. Await user review/approval of this documentation restructuring.
-2. Per-value provenance is next in the agreed DCF sequence (see `docs/ROADMAP.md`) — not
-   started, not authorized to begin yet.
+1. **DCF data resilience** (Alpha Vantage becomes a genuinely optional fallback, not a hard
+   dependency) is the next planned milestone — see `docs/ROADMAP.md`. Not started, not
+   authorized to begin yet.
+2. The remaining sequence (combined provenance/reference-price → bounded Costco-candidate
+   validation → embedded demo → reverse DCF) stays queued behind step 1; nothing beyond it is
+   scheduled to start until each prior step ships.
 3. Real estate: no action planned until the user has the CRE-professional conversation.
 
 ## See Also

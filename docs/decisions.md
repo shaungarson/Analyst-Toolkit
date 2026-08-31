@@ -272,7 +272,8 @@ any further changes to that module) are deferred, not rejected. Work continues o
 side in the meantime.
 
 ## DCF forward-sequence rationale
-**Status:** Accepted (sequence itself; live status tracked in `docs/ROADMAP.md`)
+**Status:** Superseded — by "Revised DCF sequence: data resilience, combined provenance/price
+milestone, and a validated real-company demo" below (2026-08-31)
 
 Agreed order (2026-08-29): hardening → SEC EDGAR as primary fundamentals → per-value
 provenance → an editable dated reference price → reverse DCF → deterministic
@@ -286,3 +287,85 @@ version (explaining sensitivity/warnings already computed today) has no such dep
 Risk flagged and still open: whether Alpha Vantage remains in the DCF pipeline at all once
 SEC EDGAR and the reference price both land is worth an explicit decision when the time
 comes, not a silent drift.
+
+The dependency reasoning above (why provenance needs SEC EDGAR first, why reverse DCF needs a
+real price) remains valid; what changed is the order itself, and two new items were inserted
+ahead of what this entry originally called "next." The open question about Alpha Vantage's
+place in the pipeline is answered, not left open, by the entry below: it stays, but becomes a
+genuinely optional fallback rather than a hard dependency.
+
+## Revised DCF sequence: data resilience, combined provenance/price milestone, and a validated real-company demo
+**Status:** Accepted
+
+Reached after a candid critique-and-revision pass on a proposed real-company demo, not
+approved as first drafted. Revised order: (1) DCF data resilience, (2) per-value provenance
+and an editable dated reference price as one milestone, (3) bounded validation of a
+real-company demo candidate, (4) an embedded, provider-independent demo with three ephemeral
+cases, (5) reverse DCF,
+followed later by deterministic valuation explanations.
+
+**Data resilience is first because it has independent value, not because the demo strictly
+requires it.** SEC EDGAR being "primary" for fundamentals today doesn't mean independent:
+`get_company_data()` still fetches Alpha Vantage unconditionally and propagates its failures
+(rate limit, missing key, unreachable) as a hard error, even when SEC data alone would be
+sufficient for the fields that matter. Alpha Vantage's currently documented standard
+free-service limit is 25 requests/day (see
+[alphavantage.co/support](https://www.alphavantage.co/support/) — the same page notes that
+verified educational or open-source projects can request an exception, so this isn't
+necessarily true of every key; the fix must make the architecture resilient regardless of
+what any specific key's actual limit turns out to be, not assume one fixed number). Hitting
+whatever limit applies currently takes SEC-sourced data down with it for no reason, for real
+live ticker-search users today — that's worth fixing on its own merits. The embedded,
+provider-independent demo (item 4) doesn't strictly need this fix first, since its data is
+frozen and embedded and makes no live provider requests when it loads — but the demo must
+not be used to paper over the live-path reliability problem instead of fixing it. The
+reliability fix stays first because of its own independent user value, not because of a hard
+technical dependency on it.
+
+**Provenance and the reference price are one milestone, not two,** because they share the
+same underlying shape — value, source, date, sourced-vs-manual status — already partially
+built as the DCF workstation's `Sourced/Analyst/Adjusted` field badges. Building them
+together avoids shipping one UI pattern for historical fundamentals and a second,
+incompatible one for the reference price a milestone later.
+
+**One company with three cases, not two companies,** because this app has no
+comparable-company framework — comparable-company inputs are listed among this project's
+deferred items in `README.md` — and building one just to make a two-ticker comparison
+meaningful would be out-of-scope expansion beyond the current roadmap, not a small addition. A Downside/Base/Upside spread
+on one company also reuses the naming convention and scenario-comparison pattern already
+established for real estate (see "Deterministic risk analysis" above), and demonstrates what
+this app actually does — how assumptions move an output for a fixed business — better than an
+apples-to-oranges cross-company comparison would.
+
+**Costco is the preferred candidate, not a final commitment.** It fits the current
+flat-growth model reasonably well — a single, well-understood business, historically stable
+growth, no segment-blending problem the way a multi-segment conglomerate would have — but it
+is untested territory for `sec_fundamentals.py`'s extraction pipeline, which has only been
+validated against AAPL, CAT, and WMT. Item 3 exists specifically to confirm, not assume, that
+Costco's real SEC data maps completely and that the resulting historical UFCF series is clean
+enough to be pedagogically useful — not distorted by unusual working-capital or CapEx timing
+— before committing to it. If it isn't, a different candidate gets the same validation rather
+than shipping a confusing example.
+
+**Demo mechanics, decided in advance:** the three cases never touch `localStorage` — they
+render in a compact, contextual panel that only appears while the frozen snapshot is active,
+never as persistent saved scenarios. Every case's results are calculated live through the
+real `/api/dcf/valuation` engine from frozen inputs, never hardcoded, so the demo can't
+silently drift out of sync with the actual calculation logic. WACC and terminal growth stay
+constant across all three cases; only explicit-period FCF growth varies — the clearest
+possible story for what's being demonstrated, with a more elaborate multi-variable version
+left as a future option rather than the default.
+
+**Disclosure is not optional.** The frozen financial period, the reference price's "as of"
+date, the data sources, and the fact that this is a demo (not live data) must all be
+prominent and visually distinct from how the live ticker-search experience presents current
+data — a viewer must never be able to mistake a frozen snapshot for something current.
+
+**Valuation gaps get neutral, not candidate-specific, framing.** Any gap between the model's
+implied value and the reference price is presented with fixed, direction-agnostic language —
+the difference reflects the model's selected assumptions and simplified flat-growth
+methodology, not an investment recommendation — decided before the actual numbers are known,
+not a bespoke explanation for why the candidate specifically looks over- or undervalued. A
+company-specific defense would read as the tool excusing its own result and would edge toward
+commentary on a real company, which this app's "arithmetic only, never a recommendation"
+principle (see "Implied upside/downside" above) is meant to avoid.

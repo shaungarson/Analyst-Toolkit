@@ -10,24 +10,51 @@ conventions with a CRE professional. See "Real estate freeze" in
 
 ## Next
 
-The agreed DCF sequence (see "DCF forward-sequence rationale" in `decisions.md`) — hardening
+The agreed DCF sequence (see "Revised DCF sequence: data resilience, combined
+provenance/price milestone, and a validated real-company demo" in `decisions.md`) — hardening
 and SEC EDGAR as primary fundamentals are done; remaining items, in dependency order:
 
-1. **Per-value provenance** — filing period, filing date, accession number, source link, XBRL
-   tag, and a reported/combined/calculated confidence marker, surfaced in the UI. The
-   underlying data already exists internally (`backend/app/services/sec_fundamentals.py`);
-   this is a schema/UI-exposure milestone, not new data-fetching work.
-2. **Editable, dated reference share price** — no real-time requirement.
-3. **Reverse DCF** — analyst case vs. historical performance vs. market-implied FCF growth.
-   Needs (1) and (2) done first.
-4. **Deterministic "Explain This Valuation" diagnostics** — before any AI commentary. A full
-   version benefits from reverse DCF being done first; a narrower version (explaining
-   sensitivity/warnings already computed today) has no such dependency and could be pulled
-   forward independently if ever wanted.
-
-Open question flagged for when this sequence completes: whether Alpha Vantage remains in the
-DCF pipeline at all once SEC EDGAR and the reference price both land — an explicit decision
-to make then, not a silent drift.
+1. **DCF data resilience.** Alpha Vantage fundamentals and current price become genuinely
+   optional — a ticker-search request succeeds on SEC-sourced data alone if Alpha Vantage is
+   unavailable, rate-limited, or unconfigured, with any Alpha-Vantage-only field simply absent
+   rather than the whole request failing. A real backend refactor (today's
+   `get_company_data()` fetches Alpha Vantage unconditionally and propagates its failures as a
+   hard error), not a small tweak — needs tests plus live verification with Alpha Vantage
+   intentionally made unavailable.
+2. **Per-value provenance and an editable, dated reference share price — one combined
+   milestone.** Filing period, filing date, accession number, source link, XBRL tag, and a
+   reported/combined/calculated confidence marker for historical fundamentals, plus an
+   editable reference price with an "as of" date and a clear sourced-vs-manual status — both
+   extend the same underlying pattern (value, source, date, status) as the DCF workstation's
+   existing `Sourced/Analyst/Adjusted` field badges, so building them together avoids a
+   schema/UI rework had they shipped separately. Progressive disclosure so the workstation
+   doesn't get more cluttered. The provenance data already exists internally
+   (`backend/app/services/sec_fundamentals.py`).
+3. **Bounded validation of a real-company demo candidate.** Costco (COST) is the preferred
+   candidate, not a final commitment — see `decisions.md` for why, and what would trigger
+   reconsidering it. Run its real SEC XBRL facts through the existing extraction pipeline,
+   confirm every field the DCF needs maps confidently, and examine the resulting historical
+   UFCF series for working-capital or CapEx distortions that would make it a confusing rather
+   than illustrative example. Keep the candidate only if the result is complete and
+   pedagogically clean.
+4. **Embedded, provider-independent real-company DCF demonstration**, once (3) confirms a
+   suitable candidate — a frozen, embedded five-year financial snapshot and dated reference
+   price (no live SEC/Alpha Vantage requests when the demo loads; valuations still run through
+   the deployed backend), with three
+   ephemeral Downside/Base/Upside cases. Results calculated live through the real DCF engine,
+   never hardcoded. WACC and terminal growth stay constant across the three cases; only
+   explicit-period FCF growth varies. The cases never touch `localStorage` — a compact panel
+   that only appears while the snapshot is active, not a permanent addition to the
+   saved-scenario system. Frozen financial period, reference-price date, sources, and demo
+   status are disclosed prominently, visually distinct from live ticker-search data. Any
+   valuation gap against the reference price gets neutral, direction-agnostic framing, not
+   candidate-specific commentary.
+5. **Reverse DCF** — analyst case vs. historical performance vs. market-implied FCF growth.
+   Needs (2) done first (a real price to solve against). Followed later by deterministic
+   "Explain This Valuation" diagnostics, before any AI commentary — a full version benefits
+   from reverse DCF being done first; a narrower version (explaining sensitivity/warnings
+   already computed today) has no such dependency and could be pulled forward independently
+   if ever wanted.
 
 ## Later
 
