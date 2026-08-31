@@ -412,15 +412,27 @@ established for real estate (see "Deterministic risk analysis" above), and demon
 this app actually does — how assumptions move an output for a fixed business — better than an
 apples-to-oranges cross-company comparison would.
 
-**Costco is the preferred candidate, not a final commitment.** It fits the current
-flat-growth model reasonably well — a single, well-understood business, historically stable
-growth, no segment-blending problem the way a multi-segment conglomerate would have — but it
-is untested territory for `sec_fundamentals.py`'s extraction pipeline, which has only been
-validated against AAPL, CAT, and WMT. Item 3 exists specifically to confirm, not assume, that
-Costco's real SEC data maps completely and that the resulting historical UFCF series is clean
-enough to be pedagogically useful — not distorted by unusual working-capital or CapEx timing
-— before committing to it. If it isn't, a different candidate gets the same validation rather
-than shipping a confusing example.
+**Costco was the preferred candidate, and item 3's validation (2026-08-31) confirmed it.** It
+fits the current flat-growth model reasonably well — a single, well-understood business,
+historically stable growth, no segment-blending problem the way a multi-segment conglomerate
+would have — but was untested territory for `sec_fundamentals.py`'s extraction pipeline,
+which had only been validated against AAPL, CAT, and WMT. Item 3 existed specifically to
+confirm, not assume, that Costco's real SEC data maps completely and that the resulting
+historical UFCF series is clean enough to be pedagogically useful — not distorted by unusual
+working-capital or CapEx timing — before committing to it.
+
+Run live against the deployed production API, not a local fixture: all 5 years map with zero
+`fallback` to Alpha Vantage anywhere — every field is `reported`, `combined` (cash and total
+debt, both sensible, non-overlapping components), or `calculated`, a cleaner result than
+AAPL/WMT's own original validation runs. Revenue, D&A, and CapEx all grow smoothly year over
+year; operating margin holds in a tight 3.4–3.8% band throughout, itself a legible teaching
+point about the wholesale-club business model. One real, non-disqualifying pattern: FY2022
+unlevered FCF dips to roughly half the surrounding years' margin, traced by hand back to a
+genuine year-over-year swing in change-in-NWC (a large retailer's working-capital cycle, not
+a mapping defect) - confirmed by re-deriving UFCF manually from the reported EBIT/tax/D&A/
+CapEx/ΔNWC components. It doesn't touch the most recent year (FY2025, the likely demo base
+year) and is itself explainable via this milestone's own provenance UI, so it did not trigger
+reconsidering the candidate.
 
 **Demo mechanics, decided in advance:** the three cases never touch `localStorage` — they
 render in a compact, contextual panel that only appears while the frozen snapshot is active,

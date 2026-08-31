@@ -12,8 +12,8 @@ conventions with a CRE professional. See "Real estate freeze" in
 
 The agreed DCF sequence (see "Revised DCF sequence: data resilience, combined
 provenance/price milestone, and a validated real-company demo" in `decisions.md`) — hardening,
-SEC EDGAR as primary fundamentals, DCF data resilience, and per-value provenance/reference
-price are done; remaining items, in dependency order:
+SEC EDGAR as primary fundamentals, DCF data resilience, per-value provenance/reference price,
+and Costco candidate validation are done; remaining items, in dependency order:
 
 1. ~~**DCF data resilience.**~~ **Done (2026-08-31).** Alpha Vantage fundamentals and current
    price are now genuinely optional — a ticker-search request succeeds on SEC-sourced data
@@ -39,13 +39,22 @@ price are done; remaining items, in dependency order:
    plus 3 new tests (reference-price sourcing, and a new route-level test file covering
    full-schema serialization) — 136 backend tests total, up from 133; live-verified against
    AAPL. See `docs/decisions.md` for the full design record.
-3. **Bounded validation of a real-company demo candidate.** Costco (COST) is the preferred
-   candidate, not a final commitment — see `decisions.md` for why, and what would trigger
-   reconsidering it. Run its real SEC XBRL facts through the existing extraction pipeline,
-   confirm every field the DCF needs maps confidently, and examine the resulting historical
-   UFCF series for working-capital or CapEx distortions that would make it a confusing rather
-   than illustrative example. Keep the candidate only if the result is complete and
-   pedagogically clean.
+3. ~~**Bounded validation of a real-company demo candidate.**~~ **Done (2026-08-31) — Costco
+   confirmed.** Run live against the deployed production API (`/api/company/COST`), not a
+   local fixture. Result: complete and clean. Every field across all 5 SEC-sourced years is
+   `reported`/`combined`/`calculated` — zero `fallback` to Alpha Vantage anywhere, a cleaner
+   result than AAPL/WMT's original validation runs. `cash`/`total_debt` components are
+   sensible (cash + short-term investments; long-term + current debt plus finance leases, no
+   overlap). Revenue, D&A, and CapEx all grow smoothly year over year (steady warehouse
+   footprint expansion), and operating margin holds in a tight 3.4–3.8% band throughout - the
+   thin-margin, high-volume characteristic that makes Costco a legible teaching example in the
+   first place. One real, non-disqualifying pattern worth knowing before (4) is built: FY2022
+   unlevered FCF dips to ~1.2% of revenue (vs. ~1.9–2.4% every other year), driven by a
+   genuine swing in change-in-NWC that year (+$1.08B vs. negative in 4 of 5 years) rather than
+   any data-mapping issue - confirmed by re-deriving UFCF by hand from the reported EBIT/tax/
+   D&A/CapEx/ΔNWC components. Doesn't affect the most recent year (FY2025, the likely demo
+   base year), and is itself fully explained by this milestone's own provenance UI if a viewer
+   expands it. See `docs/decisions.md` for the full validation record.
 4. **Embedded, provider-independent real-company DCF demonstration**, once (3) confirms a
    suitable candidate — a frozen, embedded five-year financial snapshot and dated reference
    price (no live SEC/Alpha Vantage requests when the demo loads; valuations still run through
