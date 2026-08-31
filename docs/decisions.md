@@ -1,0 +1,288 @@
+# Decision Log
+
+Durable architecture, product, and methodology decisions — consolidated from the project's
+full chronological log, which remains intact at
+[`docs/archive/PROGRESS_HISTORY.md`](archive/PROGRESS_HISTORY.md). This file exists to make
+*why* things are the way they are findable without reading a development journal; it is not
+itself a journal, and not every historical decision appears here — routine implementation
+choices, UI-detail decisions, and dev-tooling notes stay archive-only.
+
+**Status labels:** **Accepted** — current, in force. **Superseded** — replaced; the record
+explains what replaced it and why. **Deferred** — deliberately not decided yet, with a
+stated trigger condition.
+
+---
+
+## Core stack, backend, and deployment
+**Status:** Accepted
+
+React + Vite, plain JavaScript (TypeScript deferred until the codebase justifies it — see
+`docs/ROADMAP.md`). Python/FastAPI backend from day one, ahead of when the frontend-first
+default would normally introduce one — chosen because Python is the language most associated
+with analyst/data work, keeping the door open for heavier data analysis later without a
+rewrite. Deployment: GitHub → Render (backend) + Vercel (frontend), chosen as the
+best-documented free-tier pairing for a static frontend + small Python API with no database.
+Alternatives considered and rejected: JS-only calculations in the browser (simpler, but wrong
+language for the domain's future direction); Railway/Fly.io for the backend and GitHub Pages
+for the frontend (more setup complexity or a poor fit for a Vite SPA, no clear benefit).
+
+## Stateless architecture: local persistence and client-side export
+**Status:** Accepted
+
+Saved scenarios live in browser `localStorage`, not a backend database — consistent with
+keeping the backend stateless (see Architecture in `CLAUDE.md`) until cloud-saved analyses,
+collaboration, or another real need justifies one. Revisit only if `localStorage` proves
+genuinely limiting. CSV export is generated entirely client-side (the data needed is already
+rendered in the browser), so no export endpoint exists — adding one would be backend
+complexity with no corresponding benefit.
+
+## Long-term product direction and scope gates
+**Status:** Accepted
+
+The modeling engine (real estate + DCF calculators) is the foundation, not the end state —
+this project is not meant to become "just" an increasingly sophisticated financial
+calculator. The long-term differentiator is an AI-powered analyst *workflow* tool: raw
+deal/company information → structured assumptions → financial model → scenarios/sensitivities
+→ risks/insights → decision-ready summary/export, with AI and automation progressively
+reducing the manual effort between those stages. This is explicitly gated on the modeling
+engine being solid first and is not scoped or scheduled — see `docs/ROADMAP.md`'s Parked
+column for the full capability list and the Tenant/Rent-Roll Underwriting Module concept,
+which applies the same mental model to real estate specifically and is itself gated on
+validating tenant-level data needs with real CRE professionals before any scoping work.
+
+## Real estate: cash-flow and debt conventions
+**Status:** Accepted
+
+Debt amortization is monthly-pay, monthly-compounding (the real commercial-mortgage
+convention), rolled up into annual schedule rows for display — flagged to the user as a
+genuine convention choice before being decided. NOI grows at one flat annual rate from Year 2
+onward (Year 1 is the unescalated going-in NOI); exit value capitalizes NOI one year past the
+end of the hold period, i.e. what a buyer is actually purchasing. **Superseded:** the original
+V1 approach used flat going-in NOI for exit valuation with no acquisition/disposition costs —
+replaced once multi-year growth modeling shipped (2026-08-13), which fixed that simplification
+for free. Loan maturity is modeled separately from amortization period (standard "5-year term,
+30-year am" CRE phrasing) and is hard-validated to be at least as long as the hold period —
+alternatives considered were modeling a balloon payoff (adds refinancing-adjacent complexity,
+explicitly deferred) or allowing the input with only a warning (would silently compute cash
+flows under financing that had contractually expired — rejected as misleading, not just
+imprecise).
+
+## DCF: forecast and discounting conventions
+**Status:** Accepted
+
+Discounting is end-of-year, not mid-year — flagged as a genuine, material convention choice
+(mid-year typically increases valuation a few percent) and decided deliberately for V1
+simplicity; mid-year remains a natural future enhancement. The explicit forecast period
+applies one flat annual FCF growth rate rather than a revenue-driver build-up (revenue →
+margin → taxes → D&A → CapEx → ΔNWC) — deferred scope, not yet built; see
+`docs/ROADMAP.md`. Unlevered FCF uses the proper enterprise-value construction, `EBIT × (1 −
+effective tax rate) + D&A − CapEx − change in NWC`, not an operating-cash-flow-minus-CapEx
+shortcut, which would blend in after-tax-interest and other financing effects that don't
+belong in an unlevered figure — implemented as pure, independently tested functions,
+deliberately shaped so a future driver-based forecast is the same construction applied to
+projected rather than historical figures, not a rewrite.
+
+## Sensitivity and scenario-comparison design
+**Status:** Accepted
+
+Both sensitivity grids (real estate: exit cap rate × hold period; DCF: WACC × terminal growth)
+use fixed deltas around the base case, not user-configurable ranges — both exist to answer one
+question fast ("how exposed am I to X and Y moving against me") without turning a risk view
+into another form to fill in. Both compute their center cell through the exact same function
+used for the headline result, verified by dedicated tests to reproduce it exactly. Scenario
+comparison recalculates from each scenario's saved *inputs* on every view rather than storing
+past computed results — because calculation logic has already changed multiple times in this
+project (LTV bounds, exit valuation convention, terminal growth validation), and stored
+results would silently go stale. A scenario whose saved inputs no longer pass current
+validation surfaces as a visible, per-scenario error rather than a silently wrong number.
+
+## Deterministic risk analysis, no black-box scoring
+**Status:** Accepted
+
+Real estate risk flags (low Year-1 DSCR, exit cap-rate compression, capital-loss exposure
+across the sensitivity grid) are a third architectural layer reading already-computed output,
+not modifying it. Each flag is transparent and rule-based — a named reference threshold and an
+explanation, never a composite "risk score." Explicitly excluded from scope for the same
+reason: a debt-yield flag (no defensible universal threshold) and any generic LTV/leverage
+warning (low marginal insight over a value the analyst already typed in). This is a standing
+design principle, not specific to real estate risk flags alone: saved scenarios use a
+free-text name rather than a fixed `Base/Downside/Upside` enum field, for the same reason — a
+rigid taxonomy doesn't fit every deal and doesn't feed any calculation a free-text name
+doesn't already support. The same principle is the explicit design constraint for the future
+Tenant/Rent-Roll Underwriting Module (`docs/ROADMAP.md`): transparent, evidence-based
+tenant-level inputs, never an arbitrary "tenant health score."
+
+## Institutional visual direction
+**Status:** Accepted
+
+Navy/charcoal on warm neutrals, muted and conservative, chosen over a lighter "modern
+fintech" alternative (indigo/emerald accents, softer corners) — both were built as real
+mockups and compared side by side, not decided from description alone. Chosen because the
+target audience (PE, real estate asset management, recruiters) is more likely to read
+navy/charcoal as "understands finance culture" than a startup-fintech look, which risks
+reading as generic SaaS. Implemented as CSS custom properties so the palette is centralized
+and revisitable from one place, not hand-picked per component.
+
+## External-data architecture and provider evolution
+**Status:** Accepted
+
+The DCF ticker-search feature is this project's first and only third-party API dependency,
+added deliberately once the DCF module needed real company financial data the app had no way
+to source itself. The internal `CompanyData`/`FinancialPeriod` shape is deliberately
+provider-agnostic — a plain per-fiscal-year record with a `source` field, no
+provider-specific structure — so adding or changing a values provider is additive, not a
+rewrite. **Superseded:** the original architecture (2026-08-24) used Alpha Vantage for all
+fundamentals and quotes, with SEC EDGAR scoped down to a ticker→CIK lookup and filings-index
+link only — SEC XBRL tag naming was found to vary genuinely by company (e.g. D&A reported as
+one combined tag for some filers, split across two for others), which was assessed at the
+time as more open-ended engineering than that milestone's scope. This was superseded
+2026-08-30 once that XBRL normalization work was actually built — SEC EDGAR is now the
+primary fundamentals source; see the SEC financial-field conventions record below. Provider
+selection itself was verified live, not from documentation: IEX Cloud was confirmed fully
+shut down, Finnhub and Financial Modeling Prep were confirmed to have removed free-tier
+fundamentals access since older write-ups were published, and Alpha Vantage's actual
+endpoints were called live and confirmed working on the free tier before being chosen as a
+provider at all. Two independent caches (fundamentals: 24h TTL; quote: 15min TTL) avoid
+serving stale prices or burning through Alpha Vantage's 25-requests/day budget unnecessarily.
+
+## SEC financial-field conventions and derivation rules
+**Status:** Accepted
+
+SEC EDGAR (XBRL company facts) is the primary source for DCF historical fundamentals; Alpha
+Vantage fills any field SEC can't confidently map for a period, and remains the sole current-
+price source. Every fallback chain was built from real tag variation confirmed against
+AAPL/CAT/WMT filings, not guessed from documentation (e.g. Walmart's D&A tag changed between
+2020 and 2025; Caterpillar never adopted the modern revenue tag at all). Two fields required
+an explicit methodology decision rather than a mechanical mapping: **cash** sums
+cash-and-equivalents plus short-term investments, preserving the app's pre-existing combined
+meaning rather than SEC's narrower cash-only tag, which would have materially understated
+cash for a company like Apple. **Debt** sums a defined set of non-overlapping, recognized
+interest-bearing components (including finance leases, explicitly never operating leases),
+marked as a calculated (not directly-reported) figure internally, falling back to Alpha
+Vantage entirely — never zero, never silent — if a filer's composition can't be confidently
+and completely mapped. Diluted shares use `WeightedAverageNumberOfDilutedSharesOutstanding`,
+not SEC's point-in-time basic share count, to match this app's existing diluted-share field.
+Full per-fact provenance (XBRL tag, accession number, filed date, form, confidence) is
+computed and retained internally, not yet exposed via the API — the next planned DCF
+milestone.
+
+## DCF terminal-growth validation
+**Status:** Accepted
+
+Hard-blocked only for genuine Gordon Growth mathematical invalidity: WACC must exceed
+terminal growth, and terminal growth can't sit low enough that the underlying perpetuity
+stops converging (`|(1 + g) / (1 + WACC)| < 1`, a derived boundary, not an arbitrary cap).
+Assumptions that are valid but structurally unusual — a narrow WACC/terminal-growth spread,
+or terminal growth at or below −100% — surface as explanatory warnings instead of being
+blocked. **Superseded:** the original V1 approach hard-capped terminal growth at a flat 6%,
+an economic-judgment call dressed as validation — replaced 2026-08-28 after a multi-round
+methodology discussion that also caught and corrected a real error in an intermediate
+proposal (a bare `WACC > g` check, which misses the convergence domain's actual lower bound).
+Universal magnitude-based "unusual growth" thresholds were considered and rejected — what's
+economically reasonable depends on currency and macro conditions this app has no data source
+for; a hard-coded threshold would just be the same judgment-cap problem in warning-shaped
+clothing. This is the origin of the validation principle now stated in `CLAUDE.md`: hard-block
+only for genuine computational/structural invalidity, never for analyst-judgment-dependent
+economic reasonableness.
+
+## DCF explicit-period FCF-growth validation
+**Status:** Accepted
+
+No fixed ceiling or floor on `fcf_growth_rate`, applying the same principle as terminal
+growth. At or below −100% the arithmetic stays finite and well-defined, so it's computed and
+flagged with a specific warning rather than rejected — exactly −100% means every forecast
+year becomes $0; below it, projected cash flow alternates sign year to year rather than
+continuing to decline. Only a genuine computational failure (overflow, or a non-finite
+result from an extreme combination of base FCF, growth rate, and forecast length) is rejected
+outright, enforced at the actual computation rather than any fixed input ceiling — a
+single-field ceiling can't guarantee numeric safety, since overflow depends on base FCF,
+growth rate, and forecast length together. An interim design — hard-blocking below −100% as
+"structural invalidity" — was proposed, then corrected during review before anything was
+committed: the arithmetic there stays well-defined and only the *interpretation* is
+economically odd, which is a case for a warning under the principle above, not a block. This
+correction is why `CLAUDE.md`'s validation principle explicitly names "economically strange"
+quietly substituting for "computationally invalid" as a recurring failure mode to watch for.
+
+## Live verification requirement for provider integrations
+**Status:** Accepted
+
+Every external-data integration in this project has shipped with a bounded live verification
+step against real tickers, in addition to fixture-based tests — and every time, it has found
+at least one real bug fixtures alone did not surface. First instance (2026-08-24): Alpha
+Vantage's free tier enforces ~1 request/second and the first real-key call tripped its own
+rate limit; Apple's real balance sheet reports the literal string `"None"` for `currentDebt`
+while reporting a usable `shortTermDebt` for the same period, silently producing undefined
+NWC/UFCF for one of the largest public companies. Second instance (2026-08-30): Alpha Vantage
+normalizes a 52/53-week fiscal year end to calendar month-end while SEC reports the filer's
+actual date, which silently broke the SEC-primary match for most of Apple's history until
+live verification caught it. This record exists specifically so the requirement doesn't get
+skipped as "just extra work" on a future integration — it has concretely paid for itself
+twice already, on two unrelated provider quirks a hand-written fixture would not have
+guessed.
+
+## Upstream-error sanitization and credential protection
+**Status:** Accepted
+
+Found live in production (2026-08-24): Alpha Vantage's own rate-limit response echoes the
+caller's API key back in plain text ("We have detected your API key as ..."). Since this
+app's key is shared across every visitor (not issued per-user) and the error was being
+relayed straight through as the API's `detail` response, any user who hit the rate-limited
+state would see the shared key exposed in their browser's network tab — a real, live-
+confirmed exposure. Fixed by raising a generic, fixed message for this specific case instead
+of relaying upstream text; the original detail is still printed server-side (visible in
+Render's Logs) for actual debugging, never returned to the client. This is now a standing
+rule for any provider integration, stated in `CLAUDE.md`: upstream error responses are never
+relayed to the client verbatim without checking whether they can carry a secret or other
+sensitive detail.
+
+## Sourced facts vs. illustrative assumptions
+**Status:** Accepted
+
+Where a worked example uses real-world data, only what's actually verifiable is presented as
+sourced, and everything else is clearly labeled illustrative — never presented as if it were
+sourced fact. The real estate worked example (100 Symes Road, Toronto) sources purchase price
+and going-in NOI from the public listing (verified directly against the brokerage's own page)
+while financing, growth, hold, and exit assumptions are explicitly labeled illustrative via an
+always-visible disclaimer. The illustrative assumptions were deliberately not engineered for
+an attractive return — the resulting case is moderate and believable specifically because it
+demonstrates the app's sensitivity grid and risk flags doing real analytical work, not because
+it looks good.
+
+## Implied upside/downside: arithmetic, not a recommendation
+**Status:** Accepted
+
+`Implied Upside/Downside = (implied value per share ÷ current price) − 1`, shown only when a
+real, sourced current price is available (Alpha Vantage's quote endpoint via ticker search) —
+never shown for the manual-entry or example paths, which have no market price to compare
+against, and never framed as "undervalued," "attractive," or "buy." This is deliberate
+positioning against giving personalized investment advice: the app performs deterministic
+arithmetic on numbers the analyst can see and can invalidate; it does not make or imply a
+recommendation.
+
+## Real estate freeze pending professional validation
+**Status:** Deferred — trigger: user validates real-estate underwriting conventions with a
+CRE professional
+
+A full project review (2026-08-29) found real estate has no CapEx/reserve line item anywhere
+in the cash-flow-to-equity calculation — the single most likely gap an experienced CRE
+reviewer would flag, and one among several findings suggesting real estate's underwriting
+conventions should be validated against real commercial-real-estate practice before further
+investment. Until that conversation happens, all real-estate findings from the review (and
+any further changes to that module) are deferred, not rejected. Work continues on the DCF
+side in the meantime.
+
+## DCF forward-sequence rationale
+**Status:** Accepted (sequence itself; live status tracked in `docs/ROADMAP.md`)
+
+Agreed order (2026-08-29): hardening → SEC EDGAR as primary fundamentals → per-value
+provenance → an editable dated reference price → reverse DCF → deterministic
+"Explain This Valuation" diagnostics, before any AI commentary. Real dependencies, not an
+arbitrary ordering: SEC EDGAR must land before per-value provenance, since accession numbers
+and XBRL tags can't be shown for data that doesn't come from XBRL; the reference price and
+SEC EDGAR are independent of each other but both must land before reverse DCF, which needs a
+real price to solve against and real historical performance to compare against; a full
+explain-this-valuation layer benefits from reverse DCF being done first, though a narrower
+version (explaining sensitivity/warnings already computed today) has no such dependency.
+Risk flagged and still open: whether Alpha Vantage remains in the DCF pipeline at all once
+SEC EDGAR and the reference price both land is worth an explicit decision when the time
+comes, not a silent drift.

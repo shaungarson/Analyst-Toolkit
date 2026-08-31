@@ -4,7 +4,8 @@ Company facts (the full set of a filer's historical XBRL data, all concepts and 
 are fetched raw here; mapping those concepts into the DCF's financial fields lives in
 app/services/sec_fundamentals.py, since XBRL tag naming for the same concept is genuinely
 inconsistent across companies and that normalization is substantial enough to deserve its
-own module. See the PROGRESS.md Decision Log entry for the evaluation behind that split.
+own module. See docs/decisions.md's "External-data architecture and provider evolution"
+entry for the evaluation behind that split.
 
 No API key required, but SEC requires a descriptive User-Agent identifying the caller, and
 fair-access norms call for conservative request pacing - both honored here the same way

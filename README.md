@@ -35,7 +35,8 @@ decided together rather than silently assumed by the AI.
 
 This is the honest story: **I supplied domain expertise and direction, Claude implemented.**
 The full decision history — every methodology choice, why it was made, and what was
-considered instead — is in [`PROGRESS.md`](PROGRESS.md).
+considered instead — is in [`docs/decisions.md`](docs/decisions.md), with the complete
+chronological development log in [`docs/archive/PROGRESS_HISTORY.md`](docs/archive/PROGRESS_HISTORY.md).
 
 ## Current capabilities
 
@@ -43,8 +44,8 @@ considered instead — is in [`PROGRESS.md`](PROGRESS.md).
 
 - Multi-year cash flow model: NOI grows at a flat annual rate from Year 2 onward (Year 1 is
   the unescalated going-in NOI)
-- Financing with a full debt amortization schedule (monthly-pay, monthly-compounding,
-  rolled up annually), with loan maturity modeled separately from the amortization period
+- Financing with a full debt amortization schedule (monthly-pay, monthly-compounding),
+  loan maturity modeled separately from the amortization period
 - Acquisition and disposition costs (flat percentages)
 - Exit valuation based on forward-looking NOI (the income the buyer is purchasing, not the
   flat going-in figure)
@@ -65,6 +66,9 @@ considered instead — is in [`PROGRESS.md`](PROGRESS.md).
   dedicated one-page print/print-to-PDF output
 - CSV export and print-friendly output
 
+*Currently frozen pending validation of underwriting conventions with a CRE professional —
+see [`docs/decisions.md`](docs/decisions.md).*
+
 ### DCF Valuation
 
 - **Ticker search:** enter a public company ticker and load it — purchase-relevant
@@ -76,10 +80,9 @@ considered instead — is in [`PROGRESS.md`](PROGRESS.md).
 - Gordon Growth terminal value, with WACC and terminal growth as direct inputs
 - Enterprise value → equity value → value per share bridge, shown as a proportional value
   bridge visualization
-- **Current price vs. implied value:** when a ticker is loaded, the sourced market price is
-  shown alongside the model's implied value per share, with a deterministic Implied
-  Upside/Downside — arithmetic only, never framed as a recommendation, and never shown for
-  the manual-entry or example paths, which have no real market price to compare against
+- **Current price vs. implied value:** the sourced market price shown alongside the model's
+  implied value per share, with a deterministic Implied Upside/Downside — arithmetic only,
+  never a recommendation
 - **Sensitivity analysis:** value per share across a grid of WACC × terminal growth rate
 - Save, load, **duplicate**, and **compare named scenarios** side by side
 - CSV export and print-friendly output
@@ -88,78 +91,41 @@ The module is laid out as a dense analyst workstation: sourced data, editable as
 and the resulting valuation sit side by side in one row on desktop, so the relationship
 between an input and its effect on the valuation is visible without scrolling.
 
-Both modules ship with a one-click worked example, so the tool is understandable in under a
-minute without needing to source your own deal data. The Real Estate example is
+Both modules ship with a one-click worked example. The Real Estate example is
 real-world-inspired: purchase price and NOI are sourced from a public industrial/flex
-listing (100 Symes Road, Toronto), with financing, growth, hold, and exit assumptions
-clearly labeled as illustrative rather than presented as if they were sourced facts.
+listing (100 Symes Road, Toronto), with everything else clearly labeled illustrative rather
+than presented as sourced fact.
 
 ## Financial methodology
 
 Every calculation is a pure, tested function, separate from the API and UI layers — see
-`backend/app/calculations/`. The modeling conventions are stated explicitly in code and in
-the UI's own assumptions text, never silently assumed:
+`backend/app/calculations/`. Full current methodology (all conventions, stated explicitly):
+[`docs/MODELING_CONVENTIONS.md`](docs/MODELING_CONVENTIONS.md). Highlights:
 
-- **Real estate debt:** monthly-pay, monthly-compounding amortization — the standard
-  commercial mortgage convention — rolled up into annual schedule rows.
-- **Real estate loan maturity:** modeled separately from the amortization period (e.g. a
-  5-year loan term on a 30-year amortization schedule), and constrained to be at least as
-  long as the hold period — refinancing, extensions, and balloon payoffs beyond the
-  original loan term aren't modeled, so the engine never computes cash flows using
-  financing that would have contractually expired.
-- **Real estate DSCR and debt yield:** DSCR (NOI ÷ debt service) is computed per year and
-  becomes undefined once the loan is paid off; debt yield (going-in NOI ÷ loan amount) is a
-  Day-1-only figure, matching standard lender convention.
-- **Real estate exit value:** capitalizes NOI one year past the end of the hold period (what
-  the buyer is actually purchasing), not the flat going-in NOI.
-- **Real estate risk flags:** deterministic, explainable rules only (e.g. DSCR below a
-  named reference level, exit cap-rate compression, sensitivity cells with equity multiple
-  below 1.0x) — never an arbitrary composite "risk score."
-- **DCF terminal value:** Gordon Growth (perpetuity growth) method, since WACC and terminal
-  growth are given as direct inputs rather than an exit multiple.
-- **DCF terminal growth validation:** hard-blocked only for genuine Gordon Growth invalidity
-  — WACC must exceed terminal growth, and terminal growth can't sit so far below −100% that
-  the underlying perpetuity stops converging (a derived mathematical boundary, not an
-  arbitrary cap). Assumptions that are valid but structurally unusual — a narrow WACC/
-  terminal-growth spread, or terminal growth at or below −100% — surface as explanatory
-  warnings instead of being blocked; broader "is this economically reasonable" judgment is
-  left to the analyst and to in-app methodology guidance, not a hard-coded universal
-  threshold.
+- **DCF terminal growth validation:** hard-blocked only for genuine Gordon Growth
+  invalidity — WACC must exceed terminal growth, and terminal growth can't sit so far below
+  −100% that the underlying perpetuity stops converging (a derived mathematical boundary,
+  not an arbitrary cap). Structurally unusual but valid assumptions surface as explanatory
+  warnings instead of being blocked.
 - **DCF explicit-period FCF growth validation:** no fixed ceiling or floor — the same
-  judgment-not-threshold reasoning as terminal growth. The arithmetic stays well-defined at
-  any value, so nothing is hard-blocked on economic grounds: exactly −100% (every forecast
-  year becomes $0) and below −100% (projected cash flow alternates between negative and
-  positive each year rather than continuing to decline) are both computed and flagged with a
-  specific warning, not rejected. Only a genuine computational failure — overflow or a
-  non-finite result from an extreme combination of base FCF, growth rate, and forecast
-  length — is rejected outright, enforced at the actual computation rather than a fixed
-  ceiling on any single input, and returns a clean error rather than a server failure.
-- **Implied Upside/Downside:** `(implied value per share ÷ current price) − 1`, shown only
-  when a real, sourced current price is available (Alpha Vantage's quote endpoint, via
-  ticker search) — deterministic arithmetic, never a buy/sell/attractive framing.
-- **Discounting:** end-of-year convention throughout (not mid-year) — flagged as a genuine,
-  material convention choice and decided deliberately, not defaulted into.
+  judgment-not-threshold reasoning as terminal growth. Only a genuine computational
+  failure (overflow, or a non-finite result) is rejected outright.
 - **Unlevered FCF from sourced company data:** `EBIT × (1 − effective tax rate) + D&A −
-  CapEx − change in NWC` — the standard enterprise-value-DCF construction, not an
-  operating-cash-flow shortcut. Any missing input (a company that doesn't cleanly report
-  one of these figures) makes the result undefined rather than silently treating it as
-  zero.
-- **DCF terminal value & forecast model remain unchanged by ticker search:** loading a
-  company populates the base year's inputs; the forecast itself is still the flat-growth
-  V1 model described above, not a revenue-driver build-up — that remains deferred (see
-  below), and the internal data model is deliberately structured so adding it later doesn't
-  require redesigning this layer.
-- **Deliberately deferred for now** (see `PROGRESS.md` for the full list): refinancing,
-  multiple debt tranches, waterfalls/promotes, driver-based DCF forecasting (revenue →
-  margin → taxes → D&A → CapEx → ΔNWC), WACC build-up from capital structure,
-  comparable-company inputs, per-value provenance in the UI (filing period, accession
-  number, XBRL tag — retained internally, not yet surfaced — see the Decision Log).
+  CapEx − change in NWC` — the standard enterprise-value-DCF construction. Any missing
+  input makes the result undefined rather than silently treating it as zero.
+- **Implied Upside/Downside:** deterministic arithmetic against a real sourced current
+  price, never a buy/sell/attractive framing.
+- **Discounting:** end-of-year convention throughout — flagged as a genuine, material
+  convention choice and decided deliberately.
+- **Deliberately deferred:** refinancing, waterfalls/promotes, driver-based DCF
+  forecasting, WACC build-up, comparable-company inputs, and per-value provenance in the UI
+  (computed internally, not yet surfaced). Full list: [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 Every calculation — cap rate, amortization, IRR, equity multiple, DSCR, debt yield, terminal
 value, enterprise value, unlevered FCF construction — is backed by automated tests checked
 against values computed independently by hand, not just "does the code agree with itself."
-123 backend tests total, plus a GitHub Actions CI pipeline that runs the backend suite and the
-frontend lint/build checks on every push and pull request.
+123 backend tests total, plus a GitHub Actions CI pipeline that runs the backend suite and
+the frontend lint/build checks on every push and pull request.
 
 ## Architecture
 
@@ -189,41 +155,32 @@ FastAPI backend (Render)
     │             remains the sole source for current price (server-side-only API key)
     ▼
 app/services/company_data.py — merges both, field by field, into one provider-agnostic
-    shape (FinancialPeriod.source discloses "sec_edgar" / "alpha_vantage" / "mixed" per
-    period), computes unlevered FCF via app/calculations/company_financials.py (pure, tested)
+    shape, computes unlevered FCF via app/calculations/company_financials.py (pure, tested)
     ▼
 JSON response → populates the DCF form; the analyst still reviews and runs it manually
 ```
 
-- **Frontend:** React + Vite, plain JavaScript. The frontend stays lightweight and avoids
-  unnecessary framework lock-in; components are organized by feature
-  (`src/features/real-estate/`, `src/features/dcf/`),
-  with genuinely shared pieces (scenario saving, CSV export, formatting) factored out once —
-  and only once — a second module needed them.
-- **Backend:** Python (FastAPI) — deliberately chosen over doing the math in the browser,
-  since Python is the language most associated with analyst/data work and keeps the door
-  open for heavier data analysis later without a rewrite. The backend's job stays narrow:
-  validate input, run the calculation, return the result. No database, no auth, no
-  persistent storage — saved scenarios live in the browser's own storage. The one exception
-  to "no external calls" is the DCF ticker-search feature, which calls Alpha Vantage and SEC
-  EDGAR server-side — the first third-party API dependency in this project, added
-  deliberately and explained in the Decision Log rather than introduced silently.
-- **Deployment:** Vercel (static frontend) + Render (Python API), connected via GitHub for
-  continuous deployment on every push.
+Full technical detail (module-by-module, testing, CI): [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+- **Frontend:** React + Vite, plain JavaScript — components organized by feature, shared
+  pieces factored out once a second module needs them.
+- **Backend:** Python (FastAPI) — chosen over doing the math in the browser, since Python is
+  the language most associated with analyst/data work. No database, auth, or persistent
+  storage — saved scenarios live in the browser's own storage. The one exception to "no
+  external calls" is DCF ticker search (SEC EDGAR + Alpha Vantage, server-side) — this
+  project's only third-party dependency, added deliberately; see
+  [`docs/decisions.md`](docs/decisions.md).
+- **Deployment:** Vercel (frontend) + Render (backend), via GitHub, continuous deployment on
+  every push.
 
 ## Roadmap
 
-**Done:** Foundation → Real Estate MVP → DCF MVP → scenario saving/export/print → input
-validation hardening → visual design pass → deployment → multi-year modeling, sensitivity
-analysis, and scenario comparison for both modules → real estate deterministic risk flags
-and Professional Deal Summary → DCF ticker search (public company fundamentals populate the
-workspace; the analyst still reviews and runs the valuation manually) → DCF workstation
-redesign (dense 3-column analyst layout, compact financial-number formatting, current-price
-comparison) → DCF terminal growth validation redesign (hard validation limited to genuine
-Gordon Growth invalidity, explanatory warnings for structurally unusual assumptions in
-place of hard-coded economic thresholds) → DCF hardening pass (route-level API tests, CI) →
-DCF FCF-growth-rate validation (no fixed ceiling or floor, specific warnings at and below
-−100%, and numeric-overflow protection at the actual computation).
+**Shipped:** foundation → real estate + DCF MVPs → scenario saving/export/print →
+validation hardening → visual design → deployment → multi-year modeling, sensitivity, and
+scenario comparison → real estate risk flags and Deal Summary → DCF ticker search and
+workstation redesign → hardened DCF validation → SEC EDGAR as the primary DCF fundamentals
+source. Detail: [`PROGRESS.md`](PROGRESS.md), [`docs/decisions.md`](docs/decisions.md).
+What's next: [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 **Long-term direction — not yet built:** the modeling engine above is the foundation, not
 the end state. Analyst Toolkit is meant to grow into an AI-powered analyst *workflow* tool,
@@ -236,9 +193,9 @@ The idea is for AI and automation to progressively reduce the manual effort betw
 stages — document extraction from OMs, rent rolls, and T12s; auto-structuring raw inputs;
 flagging missing or inconsistent data; generating and comparing scenarios; flagging
 underwriting or valuation risk; interpreting sensitivity results in plain language;
-generating IC-style investment commentary. None of this is scoped or scheduled yet — it's
+generating IC-style investment commentary. None of this is scoped or scheduled — it's
 explicitly gated on the modeling engine being solid first, which is the work reflected in
-this repository today.
+this repository today. Full detail: [`docs/ROADMAP.md`](docs/ROADMAP.md)'s Parked column.
 
 ## Running locally
 
