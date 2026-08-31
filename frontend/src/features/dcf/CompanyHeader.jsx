@@ -10,7 +10,14 @@ const dollarsPerShare = (v) => v.toLocaleString('en-US', { style: 'currency', cu
 // a company is loaded, so the company becomes the focal point and switching stays easy but
 // secondary. Every field here comes straight from CompanyProfile - no logo (no data source
 // provides one) and no invented timestamp (the API doesn't return a fetch time).
-function CompanyHeader({ profile, ticker, setTicker, onLoadCompany, companyLoading, onLoadExample, companyError }) {
+function CompanyHeader({ profile, source, ticker, setTicker, onLoadCompany, companyLoading, onLoadExample, companyError }) {
+  // Reflects the actual response - was hardcoded to "Alpha Vantage" regardless of what
+  // actually supplied the data, which became materially misleading once a request could
+  // succeed on SEC data alone with Alpha Vantage contributing nothing at all. Per-period
+  // provenance (a period can individually be "mixed") is a deferred, richer UI - this stays
+  // at the same single-summary-label granularity the header already used, just accurate.
+  const fundamentalsLabel = source?.fundamentals_provider === 'sec_edgar' ? 'SEC EDGAR' : 'Alpha Vantage'
+
   return (
     <div className="company-bar">
       <div className="company-bar-row">
@@ -37,7 +44,7 @@ function CompanyHeader({ profile, ticker, setTicker, onLoadCompany, companyLoadi
               </div>
             </div>
 
-            <div className="company-bar-provenance">Alpha Vantage · as reported</div>
+            <div className="company-bar-provenance">{fundamentalsLabel} · as reported</div>
           </>
         ) : (
           <span className="company-bar-empty">

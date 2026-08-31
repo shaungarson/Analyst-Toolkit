@@ -295,6 +295,7 @@ function DcfValuation() {
     <div className="feature-page workspace">
       <CompanyHeader
         profile={companyData?.profile ?? null}
+        source={companyData?.source ?? null}
         ticker={ticker}
         setTicker={setTicker}
         onLoadCompany={loadCompany}
