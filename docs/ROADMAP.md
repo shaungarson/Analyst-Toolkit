@@ -13,7 +13,8 @@ conventions with a CRE professional. See "Real estate freeze" in
 The agreed DCF sequence (see "Revised DCF sequence: data resilience, combined
 provenance/price milestone, and a validated real-company demo" in `decisions.md`) — hardening,
 SEC EDGAR as primary fundamentals, DCF data resilience, per-value provenance/reference price,
-and Costco candidate validation are done; remaining items, in dependency order:
+Costco candidate validation, and the embedded Costco demo itself are done; remaining items, in
+dependency order:
 
 1. ~~**DCF data resilience.**~~ **Done (2026-08-31).** Alpha Vantage fundamentals and current
    price are now genuinely optional — a ticker-search request succeeds on SEC-sourced data
@@ -55,18 +56,26 @@ and Costco candidate validation are done; remaining items, in dependency order:
    D&A/CapEx/ΔNWC components. Doesn't affect the most recent year (FY2025, the likely demo
    base year), and is itself fully explained by this milestone's own provenance UI if a viewer
    expands it. See `docs/decisions.md` for the full validation record.
-4. **Embedded, provider-independent real-company DCF demonstration**, once (3) confirms a
-   suitable candidate — a frozen, embedded five-year financial snapshot and dated reference
-   price (no live SEC/Alpha Vantage requests when the demo loads; valuations still run through
-   the deployed backend), with three
-   ephemeral Downside/Base/Upside cases. Results calculated live through the real DCF engine,
-   never hardcoded. WACC and terminal growth stay constant across the three cases; only
-   explicit-period FCF growth varies. The cases never touch `localStorage` — a compact panel
-   that only appears while the snapshot is active, not a permanent addition to the
-   saved-scenario system. Frozen financial period, reference-price date, sources, and demo
-   status are disclosed prominently, visually distinct from live ticker-search data. Any
-   valuation gap against the reference price gets neutral, direction-agnostic framing, not
-   candidate-specific commentary.
+4. ~~**Embedded, provider-independent real-company DCF demonstration.**~~ **Done
+   (2026-08-31).** Costco (COST), the confirmed candidate from (3) — a frozen five-year
+   financial snapshot (transcribed by hand from a live call to the deployed production API,
+   real SEC EDGAR data down to the accession number) and a dated reference price ($943.88 as
+   of 2026-08-31, from stockanalysis.com's historical close table, since Alpha Vantage's
+   quote was unavailable when the snapshot was built - never fabricated, never presented as
+   SEC- or Alpha-Vantage-sourced), with three ephemeral Downside/Base/Upside cases. Loading a
+   case makes no SEC/Alpha Vantage request at all (verified: zero `/api/company` calls in the
+   network log); "Run Valuation" still POSTs to the real `/api/dcf/valuation` engine, so
+   results are computed live, never hardcoded (verified: $335.59 / $395.69 / $464.96 per
+   share across the three cases, a clean monotonic spread). WACC (7.5%) and terminal growth
+   (2.5%) are identical across all three; only explicit-period FCF growth varies (4% / 8% /
+   12%), with a plain-language line explaining exactly that. A compact "Costco Demo" toggle
+   sits beside "Load Example" in the header - collapsed by default, the same visual weight as
+   the existing example link, not a permanent section. The header shows a visually distinct
+   "Embedded demo snapshot · not live data" label whenever the frozen data is loaded, and
+   switching to a real ticker search clears it immediately. Cases never touch `localStorage`
+   or the saved-scenario list. See `docs/decisions.md` for the full design record, including
+   why the ~50-58% gap against Costco's real reference price is a genuine, expected result of
+   the model's flat-growth simplicity against a premium-multiple stock, not a tuning error.
 5. **Reverse DCF** — analyst case vs. historical performance vs. market-implied FCF growth.
    Needs (2) done first (a real price to solve against). Followed later by deterministic
    "Explain This Valuation" diagnostics, before any AI commentary — a full version benefits

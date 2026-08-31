@@ -78,10 +78,18 @@ see [`docs/decisions.md`](docs/decisions.md).*
   assumption and explicitly runs the valuation — nothing is auto-calculated or auto-saved.
 - **Per-value provenance:** every sourced historical field discloses how it was obtained —
   reported directly from one SEC filing, combined from several SEC facts, calculated by
-  formula from other sourced fields, or a fallback from Alpha Vantage where SEC didn't map
-  it — with filing period, form, accession number, and a source link one click away.
-  Compact status indicators by default; full detail behind a "Sources" toggle, never a wall
-  of permanent badges.
+  formula from other sourced fields, or a fallback from Alpha Vantage where SEC couldn't
+  confidently map it — with filing period, form, accession number, and a source link one
+  click away. Compact status indicators by default; full detail behind a "Sources" toggle
+  (latest period and, per-cell, the full multi-year history), never a wall of permanent
+  badges.
+- **Embedded Costco (COST) demo:** a compact toggle loads a frozen, real, fully-sourced
+  five-year snapshot and a dated reference price — no SEC or Alpha Vantage request, so it
+  works even when both providers are unavailable. Three ephemeral Downside/Base/Upside
+  cases hold WACC and terminal growth fixed and vary only the explicit-period FCF growth
+  assumption, with results still computed live by the real valuation engine. Clearly
+  labeled as a demo snapshot throughout, never presented as live data, and never saved to
+  the scenario list.
 - Unlevered FCF projected from a base year at a flat growth rate
 - Gordon Growth terminal value, with WACC and terminal growth as direct inputs
 - Enterprise value → equity value → value per share bridge, shown as a proportional value
@@ -187,7 +195,8 @@ validation hardening → visual design → deployment → multi-year modeling, s
 scenario comparison → real estate risk flags and Deal Summary → DCF ticker search and
 workstation redesign → hardened DCF validation → SEC EDGAR as the primary DCF fundamentals
 source → SEC-independent DCF data resilience (Alpha Vantage optional, never a hard
-dependency) → per-value provenance and an editable, dated reference price. Detail:
+dependency) → per-value provenance and an editable, dated reference price → an embedded,
+provider-independent Costco DCF demo. Detail:
 [`PROGRESS.md`](PROGRESS.md), [`docs/decisions.md`](docs/decisions.md).
 What's next: [`docs/ROADMAP.md`](docs/ROADMAP.md).
 

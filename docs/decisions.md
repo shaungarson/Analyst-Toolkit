@@ -179,8 +179,9 @@ partially built as the workstation's `Sourced/Analyst/Adjusted` field badges.
 across several interest-bearing tags), `calculated` (derived by formula from other
 already-resolved fields — effective tax rate, ΔNWC, net debt, UFCF, revenue growth, operating
 margin — with no single underlying fact at all, so it carries a formula string instead of
-components), and `fallback` (Alpha Vantage supplied it because SEC didn't map it — never
-labeled `reported`, regardless of how confident Alpha Vantage's own data is). `combined` is
+components), and `fallback` (SEC data could not be confidently mapped for the field, so
+Alpha Vantage supplied it instead — never labeled `reported`, regardless of how confident
+Alpha Vantage's own data is). `combined` is
 deliberately a different word from `sec_fundamentals.py`'s internal "calculated" confidence
 tier, which meant the same thing at that layer — kept as `combined` at the API/UI boundary
 specifically to not collide with this module's own, differently-scoped "calculated" status.
@@ -434,19 +435,41 @@ CapEx/ΔNWC components. It doesn't touch the most recent year (FY2025, the likel
 year) and is itself explainable via this milestone's own provenance UI, so it did not trigger
 reconsidering the candidate.
 
-**Demo mechanics, decided in advance:** the three cases never touch `localStorage` — they
-render in a compact, contextual panel that only appears while the frozen snapshot is active,
-never as persistent saved scenarios. Every case's results are calculated live through the
-real `/api/dcf/valuation` engine from frozen inputs, never hardcoded, so the demo can't
-silently drift out of sync with the actual calculation logic. WACC and terminal growth stay
-constant across all three cases; only explicit-period FCF growth varies — the clearest
-possible story for what's being demonstrated, with a more elaborate multi-variable version
-left as a future option rather than the default.
+**Demo mechanics, decided in advance and shipped as decided (2026-08-31):** the three cases
+never touch `localStorage` — they render in a compact "Costco Demo" toggle beside "Load
+Example" (collapsed by default, the same visual weight as that link, not a permanent
+section), never as persistent saved scenarios. Every case's results are calculated live
+through the real `/api/dcf/valuation` engine from frozen inputs, never hardcoded — verified
+via the network log (loading a case makes zero `/api/company` requests; "Run Valuation" still
+POSTs to the real endpoint) and via the resulting numbers, a clean monotonic spread across
+the three cases ($335.59 / $395.69 / $464.96 per share) rather than anything that could have
+been hand-typed to look plausible. WACC (7.5%) and terminal growth (2.5%) stay constant
+across all three cases; only explicit-period FCF growth varies (4% / 8% / 12%) — the clearest
+possible story for what's being demonstrated, stated in a plain-language line in the panel
+itself so a nontechnical viewer knows what changed and what didn't, with a more elaborate
+multi-variable version left as a future option rather than the default.
+
+**Reference price sourcing hit its own contingency: Alpha Vantage was unavailable when the
+snapshot was built,** which the original "Revised DCF sequence" entry above didn't have to
+resolve at planning time. Per the standing rule that an invented number is worse than an
+honest gap, the price instead comes from a named, dated, single-sourced third-party close
+(stockanalysis.com's historical price table, $943.88 as of 2026-08-31) — read directly from
+the rendered page, not summarized through a fetch tool (an earlier attempt via a
+markdown-conversion fetch tool produced two different numbers for the same page across two
+calls, which is exactly the kind of unverifiable source this rule exists to reject). The
+frozen `CompanyProfile.reference_price`/`reference_price_as_of` fields are left `null` in the
+snapshot itself (accurately reflecting what SEC EDGAR and Alpha Vantage actually returned);
+the demo applies the stockanalysis.com price as a separate, explicitly-labeled constant,
+never presented as if either provider had supplied it.
 
 **Disclosure is not optional.** The frozen financial period, the reference price's "as of"
 date, the data sources, and the fact that this is a demo (not live data) must all be
 prominent and visually distinct from how the live ticker-search experience presents current
 data — a viewer must never be able to mistake a frozen snapshot for something current.
+Implemented as an amber "⬤ Embedded demo snapshot · not live data" label in the company bar
+(reusing the palette's existing "fallback" amber — already the color for "worth a second
+look, not a plain live fact") plus the full source/date breakdown in the demo panel itself;
+loading a real ticker afterward clears both immediately.
 
 **Valuation gaps get neutral, not candidate-specific, framing.** Any gap between the model's
 implied value and the reference price is presented with fixed, direction-agnostic language —
@@ -456,3 +479,12 @@ not a bespoke explanation for why the candidate specifically looks over- or unde
 company-specific defense would read as the tool excusing its own result and would edge toward
 commentary on a real company, which this app's "arithmetic only, never a recommendation"
 principle (see "Implied upside/downside" above) is meant to avoid.
+
+This framing turned out to matter in practice, not just in principle: all three Costco cases
+imply a value 50-58% below the $943.88 reference price ($335.59-$464.96 vs. Costco's real
+market price). This is a genuine, expected consequence of a 5-year flat-growth DCF at
+ordinary assumptions (7.5% WACC, 8% base-case growth) applied to a stock the market prices at
+a large quality/compounding premium (roughly 50x earnings) - not a sign the assumptions,
+the data, or the reference price are wrong. Nothing was adjusted to narrow this gap; doing so
+to make the numbers "look right" against the market price would have defeated the entire
+point of a deterministic, non-recommendation tool.

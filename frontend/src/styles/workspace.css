@@ -177,6 +177,15 @@
   opacity: 0.8;
 }
 
+/* Reuses the "fallback" provenance amber - already the palette's color for "worth a second
+   look, not a plain live fact" - so a demo snapshot reads as visually distinct from a real
+   ticker load at a glance, not just via its text. */
+.company-bar-provenance--demo {
+  color: var(--prov-fallback);
+  font-weight: 600;
+  opacity: 1;
+}
+
 .company-bar-empty {
   font-size: 0.85rem;
   color: var(--text);
@@ -527,6 +536,83 @@
 .history-panel .prov-detail-panel-close:hover,
 .history-panel .prov-detail-panel-close:focus-visible {
   background: var(--panel-bg);
+}
+
+/* --- Embedded Costco demo: a compact contextual toggle, not a permanent section -------
+   Collapsed state is a single small text link (same visual weight as "Load Example"
+   beside it), so it costs nothing when unused. Only the expanded body gets a bordered
+   panel treatment, and only for as long as it's open. */
+.costco-demo-panel {
+  margin-bottom: 0.9rem;
+}
+
+.costco-demo-panel .costco-demo-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.76rem;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.costco-demo-panel .costco-demo-toggle:hover {
+  text-decoration: underline;
+}
+
+.costco-demo-body {
+  margin-top: 0.5rem;
+  padding: 0.7rem 0.9rem;
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.costco-demo-disclosure {
+  font-size: 0.76rem;
+  color: var(--text);
+  line-height: 1.45;
+  margin: 0 0 0.6rem;
+}
+
+.costco-demo-disclosure a {
+  color: var(--accent);
+}
+
+.costco-demo-cases {
+  display: flex;
+  gap: 0.6rem;
+  margin-bottom: 0.55rem;
+}
+
+.costco-demo-panel .costco-case-btn {
+  padding: 0.35rem 0.9rem;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.costco-demo-panel .costco-case-btn--active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.costco-demo-case-description {
+  font-size: 0.76rem;
+  color: var(--text-h);
+  line-height: 1.4;
+  margin: 0 0 0.5rem;
+}
+
+.costco-demo-note {
+  font-size: 0.7rem;
+  color: var(--text);
+  opacity: 0.8;
+  line-height: 1.4;
+  margin: 0;
 }
 
 /* --- Full-width 5-year history panel (beneath the 3-column row, not inside Step 1) --- */

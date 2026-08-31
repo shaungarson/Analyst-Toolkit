@@ -90,8 +90,9 @@ Key backend modules:
   `FinancialPeriod.provenance` is a `dict[str, FieldProvenance]` keyed by field name;
   `FieldProvenance.status` is one of `reported` (single direct SEC fact) / `combined` (summed
   from multiple SEC facts, e.g. cash + short-term investments) / `calculated` (derived by
-  formula from other already-resolved fields, no single underlying fact) / `fallback` (Alpha
-  Vantage supplied it because SEC didn't map it - never labeled `reported`), each with a
+  formula from other already-resolved fields, no single underlying fact) / `fallback` (SEC
+  data could not be confidently mapped, so Alpha Vantage supplied it - never labeled
+  `reported`), each with a
   `components` list (`ProvenanceComponent`: source, tag/Alpha-Vantage-field, fiscal
   year/period, filing form/date, accession number, source URL) or, for `calculated`, a plain
   formula string instead. `CompanyProfile.reference_price`/`reference_price_as_of` replaced
@@ -102,6 +103,18 @@ Key backend modules:
 `ALPHA_VANTAGE_API_KEY` is a server-side-only environment variable, never accepted from or
 returned to the browser. Ticker search for an SEC-supported company works with no key
 configured at all; only the reference price and Alpha-Vantage-only profile fields are absent.
+
+## Embedded Costco demo
+
+`frontend/src/features/dcf/costcoDemo.js` is a frozen, static data module - real SEC EDGAR
+data (5 years, full per-field provenance, transcribed by hand from a live production API
+call) plus a separately-sourced, dated reference price - shaped exactly like a live
+`CompanyData` API response so `CompanySourcedData`/`SourcedHistoryPanel`/the provenance UI
+render it with zero special-casing. `CostcoDemoPanel.jsx` is the compact toggle + three-case
+selector (`DcfValuation.jsx`'s `loadCostcoCase()` populates the same form fields a live
+ticker load would). Loading a case makes no network request at all; running the valuation
+still POSTs to the real `/api/dcf/valuation` endpoint like every other path in the app. See
+`docs/decisions.md`'s "Revised DCF sequence" record for the full design rationale.
 
 ## Calculation and validation layers
 

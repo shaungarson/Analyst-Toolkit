@@ -11,7 +11,15 @@ import FormattedNumberInput from '../../components/FormattedNumberInput'
 import CompanySourcedData from './CompanySourcedData'
 import SourcedHistoryPanel from './SourcedHistoryPanel'
 import CompanyHeader from './CompanyHeader'
+import CostcoDemoPanel from './CostcoDemoPanel'
 import ValueBridge from './ValueBridge'
+import {
+  COSTCO_CASES,
+  COSTCO_COMPANY_DATA,
+  COSTCO_REFERENCE_PRICE,
+  COSTCO_REFERENCE_PRICE_DATE,
+  COSTCO_SHARED_ASSUMPTIONS,
+} from './costcoDemo'
 import '../../styles/feature-form.css'
 import '../../styles/workspace.css'
 
@@ -102,6 +110,14 @@ function DcfValuation() {
   // field's badge can tell "still sourced" apart from "started sourced, analyst changed it."
   const [sourcedSnapshot, setSourcedSnapshot] = useState(null)
 
+  // Embedded Costco demo (roadmap step 4). isDemoSnapshot distinguishes "this companyData
+  // came from the frozen local snapshot" from a real ticker-search load, purely for the
+  // header's disclosure label - the sourced-data panels themselves need no special-casing,
+  // since COSTCO_COMPANY_DATA is shaped exactly like a live CompanyData response.
+  const [isDemoSnapshot, setIsDemoSnapshot] = useState(false)
+  const [showCostcoDemo, setShowCostcoDemo] = useState(false)
+  const [activeDemoCaseId, setActiveDemoCaseId] = useState(null)
+
   const handleChange = (field) => (e) => {
     setForm({ ...form, [field]: e.target.value })
   }
@@ -126,6 +142,8 @@ function DcfValuation() {
       }
       const data = await res.json()
       setCompanyData(data)
+      setIsDemoSnapshot(false)
+      setActiveDemoCaseId(null)
       setResults(null)
       setSensitivity(null)
       setComparison(null)
@@ -175,6 +193,8 @@ function DcfValuation() {
     setCompanyData(null)
     setCompanyError(null)
     setSourcedSnapshot(null)
+    setIsDemoSnapshot(false)
+    setActiveDemoCaseId(null)
     setShowHistory(false)
   }
 
@@ -191,7 +211,54 @@ function DcfValuation() {
     setCompanyData(null)
     setCompanyError(null)
     setSourcedSnapshot(null)
+    setIsDemoSnapshot(false)
+    setActiveDemoCaseId(null)
     setShowHistory(false)
+  }
+
+  // Embedded Costco demo: populates the exact same form fields a live ticker load would
+  // (base year UFCF, net debt, diluted shares, reference price/date, and its sourced-
+  // baseline record), but from the frozen local snapshot - no fetch, so this works with SEC
+  // EDGAR and Alpha Vantage both unavailable. Never auto-runs the valuation and never saves
+  // a scenario, same as every other data-loading path here; the analyst still reviews the
+  // populated fields and explicitly clicks Run Valuation, which still calls the real
+  // backend engine. Only fcfGrowthRate differs between cases - WACC, terminal growth,
+  // forecast period, and the entire sourced snapshot are identical across all three, so
+  // switching cases isolates that one assumption.
+  const loadCostcoCase = (caseId) => {
+    const selectedCase = COSTCO_CASES.find((c) => c.id === caseId)
+    if (!selectedCase) return
+
+    setCompanyData(COSTCO_COMPANY_DATA)
+    setIsDemoSnapshot(true)
+    setActiveDemoCaseId(caseId)
+    setResults(null)
+    setSensitivity(null)
+    setComparison(null)
+    setError(null)
+    setCompanyError(null)
+    setTicker('COST')
+    setShowHistory(false)
+    setShowCostcoDemo(true)
+
+    const latest = COSTCO_COMPANY_DATA.periods[0]
+    const sourced = {
+      baseYearFcf: String(Math.round(latest.unlevered_fcf)),
+      netDebt: String(Math.round(latest.net_debt)),
+      dilutedSharesOutstanding: String(Math.round(COSTCO_COMPANY_DATA.profile.shares_outstanding)),
+      referencePrice: COSTCO_REFERENCE_PRICE,
+      referencePriceDate: COSTCO_REFERENCE_PRICE_DATE,
+      referencePriceSourcedValue: COSTCO_REFERENCE_PRICE,
+      referencePriceSourcedDate: COSTCO_REFERENCE_PRICE_DATE,
+      referencePriceSourceTicker: 'COST',
+    }
+    setSourcedSnapshot(sourced)
+    setForm((prev) => ({
+      ...prev,
+      ...sourced,
+      ...COSTCO_SHARED_ASSUMPTIONS,
+      fcfGrowthRate: selectedCase.fcfGrowthRate,
+    }))
   }
 
   // Only fields ticker search can populate are ever eligible for a badge, and only once a
@@ -370,6 +437,14 @@ function DcfValuation() {
         companyLoading={companyLoading}
         onLoadExample={loadExample}
         companyError={companyError}
+        isDemoSnapshot={isDemoSnapshot}
+      />
+
+      <CostcoDemoPanel
+        activeCaseId={activeDemoCaseId}
+        onLoadCase={loadCostcoCase}
+        open={showCostcoDemo}
+        onToggle={setShowCostcoDemo}
       />
 
       <div className="analytical-row">

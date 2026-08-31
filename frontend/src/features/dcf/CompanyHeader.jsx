@@ -15,7 +15,17 @@ const fmt = (value, formatter) => (value === null || value === undefined ? 'n/a'
 // live quote) and where it's adjacent to the Implied Upside/Downside comparison it feeds.
 // Market cap stays here since it's a passive, non-editable Alpha Vantage figure unrelated
 // to the DCF calculation.
-function CompanyHeader({ profile, source, ticker, setTicker, onLoadCompany, companyLoading, onLoadExample, companyError }) {
+function CompanyHeader({
+  profile,
+  source,
+  ticker,
+  setTicker,
+  onLoadCompany,
+  companyLoading,
+  onLoadExample,
+  companyError,
+  isDemoSnapshot,
+}) {
   // Reflects the actual response - was hardcoded to "Alpha Vantage" regardless of what
   // actually supplied the data, which became materially misleading once a request could
   // succeed on SEC data alone with Alpha Vantage contributing nothing at all. Per-period
@@ -45,7 +55,13 @@ function CompanyHeader({ profile, source, ticker, setTicker, onLoadCompany, comp
               </div>
             </div>
 
-            <div className="company-bar-provenance">{fundamentalsLabel} · as reported</div>
+            {isDemoSnapshot ? (
+              <div className="company-bar-provenance company-bar-provenance--demo">
+                ⬤ Embedded demo snapshot · not live data
+              </div>
+            ) : (
+              <div className="company-bar-provenance">{fundamentalsLabel} · as reported</div>
+            )}
           </>
         ) : (
           <span className="company-bar-empty">
