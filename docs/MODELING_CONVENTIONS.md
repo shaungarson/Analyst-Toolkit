@@ -66,9 +66,27 @@ Every calculation named here is a pure, independently tested function — see
   is preserved.
 - **Debt (sourced data):** sum of recognized, non-overlapping, interest-bearing components
   (including finance leases; never operating leases).
-- **Implied Upside/Downside:** `(implied value per share ÷ current price) − 1`, shown only
-  when a real, sourced current price is available — deterministic arithmetic, never a
-  buy/sell/attractive framing.
+- **Per-value provenance (sourced data):** every historical field carries a status —
+  `reported` (one direct SEC fact), `combined` (summed from more than one SEC fact),
+  `calculated` (derived by formula from other resolved fields, e.g. effective tax rate, ΔNWC,
+  net debt, UFCF, revenue growth, operating margin — no single underlying fact), or
+  `fallback` (SEC data could not be confidently mapped for the field, so Alpha Vantage
+  supplied it instead — never labeled `reported`) — plus filing metadata (tag, period, form,
+  filed date, accession number, source link) where applicable, inspectable on demand for both
+  the latest period and any older period in the history table. See `decisions.md`'s
+  per-value provenance record for the full vocabulary and why `combined`/`calculated` are
+  kept distinct.
+- **Reference price:** an explicit, dated, editable input — not a live quote. Sourced from
+  Alpha Vantage's quote endpoint when available (`Sourced`); an edited sourced value becomes
+  `Adjusted`; with no quote available, manual entry gets `Analyst Input`. A saved scenario
+  persists enough of the original sourced value/date/ticker to restore the correct status on
+  reload — a scenario saved before this existed reads `Analyst Input`, since there's nothing
+  to restore. Every company load clears a previous company's price/date rather than letting
+  it survive into a load whose own quote came back empty.
+- **Implied Upside/Downside:** `(implied value per share ÷ reference price) − 1`, shown only
+  when a valid, positive reference price *and* a nonblank "as of" date both exist (sourced or
+  manually entered) — deterministic arithmetic, never a buy/sell/attractive framing. A fixed
+  disclaimer sentence accompanies the comparison wherever it's shown.
 - **Sensitivity grid:** value per share across WACC × terminal growth, fixed deltas around
   the base case; cells outside Gordon Growth's convergence domain are `null`, not computed.
 

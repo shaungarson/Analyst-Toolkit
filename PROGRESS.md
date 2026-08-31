@@ -1,13 +1,17 @@
 # Analyst Toolkit — Progress
 
-**Last verified:** 2026-08-31 (DCF data resilience implemented and verified; pending commit)
+**Last verified:** 2026-08-31 (per-value provenance + editable reference price implemented
+and verified; pending commit)
 
 ## Current Milestone
 
-None — awaiting direction. **DCF data resilience** (step 1 of the agreed DCF sequence) is
-implemented and verified as of 2026-08-31: SEC EDGAR is now a genuinely independent primary
-path — an Alpha Vantage outage, rate limit, or missing key no longer blocks a SEC-supported
-ticker. See `docs/ROADMAP.md` and `docs/ARCHITECTURE.md`. Not yet committed.
+None — awaiting direction. **Per-value provenance and an editable, dated reference share
+price** (step 2 of the agreed DCF sequence) is implemented and verified as of 2026-08-31:
+every sourced historical field now discloses how it was obtained (reported / combined /
+calculated / fallback, with filing metadata and a source link where applicable), and the
+former "current price" is now an explicit, dated, editable Reference Price that clearly
+distinguishes Sourced from Adjusted from Analyst Input. See `docs/ROADMAP.md` and
+`docs/decisions.md`. Not yet committed.
 
 ## Blockers / Frozen Areas
 
@@ -16,6 +20,10 @@ ticker. See `docs/ROADMAP.md` and `docs/ARCHITECTURE.md`. Not yet committed.
 
 ## Recently Shipped
 
+- 2026-08-31 — Per-value provenance + editable, dated reference share price: historical
+  fundamentals disclose source/status/filing metadata field-by-field; `current_price`
+  replaced by an editable `reference_price`/`reference_price_as_of` pair with honest
+  Sourced/Adjusted/Analyst Input status — [decisions.md](docs/decisions.md#per-value-provenance-and-reference-price-disclosure)
 - 2026-08-31 — DCF data resilience: Alpha Vantage fundamentals and current price are now
   optional field-level enrichment, not a hard dependency; company periods build directly
   from SEC's own fiscal dates — [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
@@ -27,10 +35,9 @@ ticker. See `docs/ROADMAP.md` and `docs/ARCHITECTURE.md`. Not yet committed.
 
 ## Next Three Actions
 
-1. Commit and push DCF data resilience once reviewed and approved.
-2. **Per-value provenance and an editable, dated reference share price** (one combined
-   milestone) is next in the agreed DCF sequence — see `docs/ROADMAP.md`. Not started, not
-   authorized to begin yet.
+1. Commit and push per-value provenance + reference price once reviewed and approved.
+2. **Bounded validation of a real-company demo candidate** (Costco, tentatively) is next in
+   the agreed DCF sequence — see `docs/ROADMAP.md`. Not started, not authorized to begin yet.
 3. Real estate: no action planned until the user has the CRE-professional conversation.
 
 ## See Also

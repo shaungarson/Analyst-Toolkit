@@ -12,8 +12,8 @@ conventions with a CRE professional. See "Real estate freeze" in
 
 The agreed DCF sequence (see "Revised DCF sequence: data resilience, combined
 provenance/price milestone, and a validated real-company demo" in `decisions.md`) — hardening,
-SEC EDGAR as primary fundamentals, and DCF data resilience are done; remaining items, in
-dependency order:
+SEC EDGAR as primary fundamentals, DCF data resilience, and per-value provenance/reference
+price are done; remaining items, in dependency order:
 
 1. ~~**DCF data resilience.**~~ **Done (2026-08-31).** Alpha Vantage fundamentals and current
    price are now genuinely optional — a ticker-search request succeeds on SEC-sourced data
@@ -27,15 +27,18 @@ dependency order:
    found); live-verified against AAPL and WMT with the Alpha Vantage key removed entirely
    (full 5-period SEC-sourced responses) and with it configured normally (unchanged
    behavior). See `docs/ARCHITECTURE.md` for the resulting pipeline shape.
-2. **Per-value provenance and an editable, dated reference share price — one combined
-   milestone.** Filing period, filing date, accession number, source link, XBRL tag, and a
-   reported/combined/calculated confidence marker for historical fundamentals, plus an
-   editable reference price with an "as of" date and a clear sourced-vs-manual status — both
-   extend the same underlying pattern (value, source, date, status) as the DCF workstation's
-   existing `Sourced/Analyst/Adjusted` field badges, so building them together avoids a
-   schema/UI rework had they shipped separately. Progressive disclosure so the workstation
-   doesn't get more cluttered. The provenance data already exists internally
-   (`backend/app/services/sec_fundamentals.py`).
+2. ~~**Per-value provenance and an editable, dated reference share price — one combined
+   milestone.**~~ **Done (2026-08-31).** Every historical field now discloses status
+   (reported/combined/calculated/fallback), filing period, filing date, accession number,
+   XBRL tag(s), and a source link where applicable — compact dots by default (latest-period
+   panel and the 5-year history table alike), full detail one click away via a "Sources"
+   toggle, never a wall of permanent badges. `current_price` is retired: the DCF workstation
+   now has an editable, dated Reference Price that extends the existing
+   `Sourced/Analyst/Adjusted` badge pattern, with its own rule for the reload case (see
+   `decisions.md`). Provenance assertions added across the existing company-data test suite,
+   plus 3 new tests (reference-price sourcing, and a new route-level test file covering
+   full-schema serialization) — 136 backend tests total, up from 133; live-verified against
+   AAPL. See `docs/decisions.md` for the full design record.
 3. **Bounded validation of a real-company demo candidate.** Costco (COST) is the preferred
    candidate, not a final commitment — see `decisions.md` for why, and what would trigger
    reconsidering it. Run its real SEC XBRL facts through the existing extraction pipeline,

@@ -163,8 +163,80 @@ Vantage entirely — never zero, never silent — if a filer's composition can't
 and completely mapped. Diluted shares use `WeightedAverageNumberOfDilutedSharesOutstanding`,
 not SEC's point-in-time basic share count, to match this app's existing diluted-share field.
 Full per-fact provenance (XBRL tag, accession number, filed date, form, confidence) is
-computed and retained internally, not yet exposed via the API — the next planned DCF
-milestone.
+computed and, as of 2026-08-31, exposed via the API — see "Per-value provenance and reference
+price disclosure" below.
+
+## Per-value provenance and reference price disclosure
+**Status:** Accepted
+
+Every historical DCF field now discloses how its value was actually obtained, and the former
+"current price" is now an explicit, dated, editable Reference Price — one combined milestone
+(2026-08-31) because both extend the same underlying value/source/date/status shape already
+partially built as the workstation's `Sourced/Analyst/Adjusted` field badges.
+
+**Four-word status vocabulary, not three.** `reported` (a single direct SEC XBRL fact),
+`combined` (summed from more than one SEC fact — e.g. cash + short-term investments, or debt
+across several interest-bearing tags), `calculated` (derived by formula from other
+already-resolved fields — effective tax rate, ΔNWC, net debt, UFCF, revenue growth, operating
+margin — with no single underlying fact at all, so it carries a formula string instead of
+components), and `fallback` (Alpha Vantage supplied it because SEC didn't map it — never
+labeled `reported`, regardless of how confident Alpha Vantage's own data is). `combined` is
+deliberately a different word from `sec_fundamentals.py`'s internal "calculated" confidence
+tier, which meant the same thing at that layer — kept as `combined` at the API/UI boundary
+specifically to not collide with this module's own, differently-scoped "calculated" status.
+
+**Progressive disclosure, not a badge per field.** A single small color-coded dot sits inline
+after each value (latest-period panel and the 5-year history table alike) with a native
+tooltip; a "Sources" toggle reveals the full breakdown (tag, fiscal period, filing form/date,
+accession number, a live link to the actual SEC filing index page) on demand, plus a shared
+legend. Chosen over always-expanded metadata specifically because CLAUDE.md's provenance
+requirement pairs "surface everything" with "do not cover the workstation in badges" — the
+two are only reconcilable through disclosure depth, not by leaving anything out.
+
+**Reference price replaces "current price" as a clean rename, not a compat shim** —
+internal API, one frontend consumer, consistent with this project's standing preference for
+direct renames over backwards-compatibility shims. `CompanyProfile.reference_price` /
+`reference_price_as_of` populate from Alpha Vantage's quote (`"05. price"` /
+`"07. latest trading day"`, both live-verified field names) when available; the analyst can
+edit either the price or the date, and editing a sourced value flips its badge from `Sourced`
+to `Adjusted` rather than silently continuing to present it as untouched sourced data. With no
+quote available (Alpha Vantage down, unconfigured, or the ticker has no quote), the field
+starts blank and manual entry gets `Analyst Input` status — the same label the app already
+used for assumption fields with no data-provider counterpart at all, deliberately not a new
+fourth reference-price-specific label.
+
+**Reloaded scenarios restore the correct `Sourced`/`Adjusted`/`Analyst Input` status, not a
+blanket downgrade.** An earlier version of this milestone always relabeled a reloaded price
+`Analyst Input`, reasoning that a reload has no live `sourcedSnapshot` left to compare
+against — corrected before commit, because that quietly discarded real information the app
+already had at save time (whether the price was ever sourced at all, and from where) for no
+benefit. The fix: `referencePriceSourcedValue`/`referencePriceSourcedDate`/
+`referencePriceSourceTicker` are persisted in the saved scenario's own data alongside the
+live `referencePrice`/`referencePriceDate` (the same localStorage mechanism that already
+persists every other assumption; never sent to the valuation API, which only ever reads the
+named calculation fields it whitelists). The status badge is computed by comparing the live
+fields against these persisted "as sourced" fields — the exact same comparison whether the
+company was just loaded or the form was just restored from a saved scenario, one function,
+no reload-specific branch. A scenario saved before this field existed simply has empty
+sourced-baseline fields, which correctly reads as `Analyst Input` — an honest "unknown,"
+not a wrong "still sourced" claim, so backward compatibility falls out of the same logic
+rather than needing a special case.
+
+**A reference price is cleared, not carried over, when a new company's load has none.**
+Every company load now explicitly sets all five reference-price fields — to the new
+company's real values, or to `''` — rather than only setting a field when the API response
+had one. Before this fix, loading a company with a sourced price and then loading a second
+company whose quote came back empty left the first company's price and its "Sourced" badge
+on screen, silently implying it as if it were the second company's own market price.
+
+**Requires a valid positive number *and* a nonblank date before showing the upside/downside
+comparison** — see
+"Implied upside/downside" above, superseded by this milestone to gate on a usable price
+generally rather than specifically an Alpha-Vantage-sourced one. A fixed, direction-agnostic
+disclaimer sentence ("The difference reflects the model's selected assumptions and simplified
+flat-growth methodology. It is not an investment recommendation.") accompanies the comparison
+every time it's shown, reusing the same neutral-framing language already decided for the
+future embedded demo (see "Revised DCF sequence" below).
 
 ## DCF terminal-growth validation
 **Status:** Accepted
@@ -251,13 +323,16 @@ it looks good.
 ## Implied upside/downside: arithmetic, not a recommendation
 **Status:** Accepted
 
-`Implied Upside/Downside = (implied value per share ÷ current price) − 1`, shown only when a
-real, sourced current price is available (Alpha Vantage's quote endpoint via ticker search) —
-never shown for the manual-entry or example paths, which have no market price to compare
-against, and never framed as "undervalued," "attractive," or "buy." This is deliberate
-positioning against giving personalized investment advice: the app performs deterministic
-arithmetic on numbers the analyst can see and can invalidate; it does not make or imply a
-recommendation.
+`Implied Upside/Downside = (implied value per share ÷ reference price) − 1`, shown only when
+a valid, positive reference price exists — sourced from Alpha Vantage's quote endpoint,
+manually entered, or a sourced value the analyst has edited — never framed as "undervalued,"
+"attractive," or "buy." **Superseded (2026-08-31):** the original version required a
+real *sourced* current price specifically (never shown for manual entry); the reference-price
+milestone below made manual entry a first-class path with its own honest status, so the gate
+is now "a usable positive number exists," not "it came from Alpha Vantage." The
+never-a-recommendation positioning is unchanged: the app performs deterministic arithmetic on
+numbers the analyst can see and can invalidate; it does not make or imply a recommendation. A
+fixed disclaimer sentence accompanies the comparison wherever it's shown.
 
 ## Real estate freeze pending professional validation
 **Status:** Deferred — trigger: user validates real-estate underwriting conventions with a

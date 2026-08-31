@@ -82,7 +82,7 @@ CASH_FLOW_REPORTS = [
     },
 ]
 
-QUOTE = {"05. price": "231.06"}
+QUOTE = {"05. price": "231.06", "07. latest trading day": "2025-12-30"}
 
 
 @pytest.fixture(autouse=True)
@@ -129,7 +129,8 @@ def test_get_company_data_profile_fields():
     assert profile["company_name"] == "Test Corp"
     assert profile["sector"] == "TECHNOLOGY"
     assert profile["market_capitalization"] == pytest.approx(222_042_227_000)
-    assert profile["current_price"] == pytest.approx(231.06)
+    assert profile["reference_price"] == pytest.approx(231.06)
+    assert profile["reference_price_as_of"] == "2025-12-30"
     assert profile["sec_cik"] == "0000123456"
     assert profile["sec_filings_url"] == "https://example.com"
 
@@ -350,6 +351,43 @@ def test_get_company_data_merges_sec_primary_with_alpha_vantage_fallback(monkeyp
     assert result["profile"]["shares_outstanding"] == pytest.approx(950_000_000)
     assert result["source"]["fundamentals_provider"] == "sec_edgar"
 
+    # Field-level provenance must match field-level truth, not the period's coarse "mixed"
+    # label - SEC-sourced fields are reported/combined, Alpha-Vantage-fallback fields are
+    # "fallback" and never claim to be SEC-reported.
+    provenance = latest["provenance"]
+    assert provenance["revenue"]["status"] == "reported"
+    assert provenance["revenue"]["components"][0]["source"] == "sec_edgar"
+    assert provenance["revenue"]["components"][0]["tag"] == "Revenues"
+
+    assert provenance["cash"]["status"] == "combined"
+    cash_tags = {c["tag"] for c in provenance["cash"]["components"]}
+    assert cash_tags == {"CashAndCashEquivalentsAtCarryingValue", "MarketableSecuritiesCurrent"}
+
+    assert provenance["income_tax_expense"]["status"] == "fallback"
+    assert provenance["income_tax_expense"]["components"][0]["source"] == "alpha_vantage"
+    assert provenance["income_tax_expense"]["components"][0]["alpha_vantage_field"] == "incomeTaxExpense"
+    # A fallback component never carries SEC-only metadata it doesn't have.
+    assert provenance["income_tax_expense"]["components"][0].get("tag") is None
+    assert provenance["income_tax_expense"]["components"][0].get("accession_number") is None
+
+    # Calculated fields are always "calculated", with a formula and no components, whether
+    # or not their inputs happened to be SEC- or Alpha-Vantage-sourced.
+    assert provenance["change_in_nwc"] == {
+        "status": "calculated",
+        "components": [],
+        "formula": (
+            "[(current assets − cash) − (current liabilities − current debt)] "
+            "for this period, minus the same calculation for the prior period"
+        ),
+    }
+    assert provenance["unlevered_fcf"]["status"] == "calculated"
+    assert provenance["unlevered_fcf"]["components"] == []
+    assert provenance["net_debt"] == {
+        "status": "calculated",
+        "components": [],
+        "formula": "Total debt − cash",
+    }
+
 
 def test_get_company_data_reports_sec_edgar_source_when_every_field_maps(monkeypatch):
     # Build a fixture identical to the mixed one but with the four gap fields filled too,
@@ -371,9 +409,43 @@ def test_get_company_data_reports_sec_edgar_source_when_every_field_maps(monkeyp
         }
     )
     monkeypatch.setattr("app.services.company_data.sec_edgar.fetch_company_facts", lambda cik: facts)
+    monkeypatch.setattr(
+        "app.services.company_data.sec_edgar.lookup_cik",
+        lambda ticker: {"cik": "0000320193", "title": "Test Corp", "filings_url": "https://example.com"},
+    )
 
     result = company_data.get_company_data("TEST")
-    assert result["periods"][0]["source"] == "sec_edgar"
+    latest = result["periods"][0]
+    assert latest["source"] == "sec_edgar"
+
+    # A directly reported SEC fact carries its full, real filing metadata - including a
+    # working per-filing source link built from the real CIK and accession number.
+    revenue_prov = latest["provenance"]["revenue"]
+    assert revenue_prov["status"] == "reported"
+    component = revenue_prov["components"][0]
+    assert component["accession_number"] == "0001-25-000001"
+    assert component["filed"] == "2026-02-01"
+    assert component["form"] == "10-K"
+    assert component["fiscal_year"] == 2025
+    assert component["fiscal_period"] == "FY"
+    assert component["source_url"] == (
+        "https://www.sec.gov/Archives/edgar/data/320193/000125000001/0001-25-000001-index.htm"
+    )
+
+    # revenue_growth and operating_margin are also "calculated" - two periods exist here
+    # (2025-12-31 fully SEC-sourced, 2024-12-31 falls back to Alpha Vantage entirely, since
+    # SEC has nothing for that date in this fixture), so both compute successfully.
+    assert latest["provenance"]["revenue_growth"]["status"] == "calculated"
+    assert latest["provenance"]["operating_margin"] == {
+        "status": "calculated",
+        "components": [],
+        "formula": "EBIT ÷ revenue",
+    }
+    assert latest["provenance"]["effective_tax_rate"] == {
+        "status": "calculated",
+        "components": [],
+        "formula": "Income tax expense ÷ pretax income",
+    }
 
 
 def test_get_company_data_matches_sec_period_despite_provider_date_mismatch(monkeypatch):
@@ -527,7 +599,8 @@ def test_get_company_data_succeeds_on_sec_data_alone_when_alpha_vantage_unconfig
     assert profile["industry"] is None
     assert profile["exchange"] is None
     assert profile["market_capitalization"] is None
-    assert profile["current_price"] is None
+    assert profile["reference_price"] is None
+    assert profile["reference_price_as_of"] is None
     # SEC's own filer title stands in for the company name Alpha Vantage would have supplied.
     assert profile["company_name"] == "Test Corp"
     # SEC's diluted shares still populate this even with Alpha Vantage entirely absent.
@@ -535,6 +608,12 @@ def test_get_company_data_succeeds_on_sec_data_alone_when_alpha_vantage_unconfig
 
     assert result["source"]["fundamentals_provider"] == "sec_edgar"
     assert result["source"]["market_data_provider"] is None
+
+    # Every provenance component in an SEC-only response is genuinely SEC-sourced - none
+    # silently backed by Alpha Vantage despite it being unavailable this request.
+    for field_provenance in latest["provenance"].values():
+        for component in field_provenance["components"]:
+            assert component["source"] == "sec_edgar"
 
 
 def test_get_company_data_succeeds_on_sec_data_alone_when_alpha_vantage_rate_limited(monkeypatch):
@@ -551,7 +630,8 @@ def test_get_company_data_succeeds_on_sec_data_alone_when_alpha_vantage_rate_lim
     result = company_data.get_company_data("TEST")
 
     assert result["periods"][0]["source"] == "sec_edgar"
-    assert result["profile"]["current_price"] is None
+    assert result["profile"]["reference_price"] is None
+    assert result["profile"]["reference_price_as_of"] is None
     assert result["source"]["market_data_provider"] is None
 
 
@@ -563,15 +643,32 @@ def test_get_company_data_falls_back_to_alpha_vantage_only_when_sec_has_no_extra
     )
 
     result = company_data.get_company_data("TEST")
+    latest = result["periods"][0]
 
-    assert result["periods"][0]["source"] == "alpha_vantage"
-    assert result["periods"][0]["fiscal_year_end"] == "2025-12-31"  # Alpha Vantage's own date
+    assert latest["source"] == "alpha_vantage"
+    assert latest["fiscal_year_end"] == "2025-12-31"  # Alpha Vantage's own date
     assert result["source"]["fundamentals_provider"] == "alpha_vantage"
     # The CIK/filings link is independent of whether SEC had extractable financial data.
     assert result["profile"]["sec_cik"] == "0000123456"
 
+    # Every reported/combined-shaped component in an Alpha-Vantage-only response must
+    # honestly say so - none silently claimed as SEC-sourced. Alpha Vantage components
+    # carry no SEC-only metadata at all (not even as an explicit None) - those keys are
+    # simply absent from the raw service-layer dict; the API schema layer is what fills in
+    # the declared None defaults for a client that always expects the full shape.
+    revenue_prov = latest["provenance"]["revenue"]
+    assert revenue_prov["status"] == "fallback"
+    assert revenue_prov["components"] == [
+        {"source": "alpha_vantage", "value": pytest.approx(67_536_000_000), "alpha_vantage_field": "totalRevenue"}
+    ]
+    for field_provenance in latest["provenance"].values():
+        for component in field_provenance["components"]:
+            assert component["source"] == "alpha_vantage"
+            assert "tag" not in component
+            assert "accession_number" not in component
 
-def test_get_company_data_quote_failure_returns_no_current_price_not_an_error(monkeypatch):
+
+def test_get_company_data_quote_failure_returns_no_reference_price_not_an_error(monkeypatch):
     # Fundamentals succeed normally (default fixture); only the quote fails.
     def raise_rate_limited(ticker):
         raise RateLimitedError("simulated quote rate limit")
@@ -580,8 +677,18 @@ def test_get_company_data_quote_failure_returns_no_current_price_not_an_error(mo
 
     result = company_data.get_company_data("TEST")
 
-    assert result["profile"]["current_price"] is None
+    assert result["profile"]["reference_price"] is None
+    assert result["profile"]["reference_price_as_of"] is None
     assert result["source"]["market_data_provider"] is None
+    # Fundamentals are entirely unaffected by the independent quote failure.
+    assert result["periods"][0]["revenue"] == pytest.approx(67_536_000_000)
+
+
+def test_get_company_data_reference_price_uses_alpha_vantage_trading_day():
+    result = company_data.get_company_data("TEST")
+    assert result["profile"]["reference_price"] == pytest.approx(231.06)
+    assert result["profile"]["reference_price_as_of"] == "2025-12-30"
+    assert result["source"]["market_data_provider"] == "alpha_vantage"
     # Everything else is unaffected - the quote is an independent failure, not a partial one.
     assert result["periods"][0]["revenue"] == pytest.approx(67_536_000_000)
     assert result["periods"][0]["unlevered_fcf"] is not None

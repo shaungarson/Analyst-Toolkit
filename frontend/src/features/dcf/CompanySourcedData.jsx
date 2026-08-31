@@ -1,4 +1,8 @@
+import { useState } from 'react'
 import { compactCurrency, percent } from '../../lib/format'
+import ProvenanceDot from './ProvenanceDot'
+import ProvenanceDetailRow from './ProvenanceDetailRow'
+import { STATUS_LABEL } from './provenanceLabels'
 
 const fmt = (value, formatter) => (value === null || value === undefined ? 'n/a' : formatter(value))
 
@@ -17,6 +21,12 @@ const KEY_FIELDS = [
   { key: 'net_debt', label: 'Net Debt', format: compactCurrency },
 ]
 
+// The fields the "Sources" detail panel walks through, in the same order as the compact
+// list above, plus Unlevered FCF (shown separately in the compact view as an emphasized
+// subtotal, but it has its own provenance - a formula over already-sourced fields - worth
+// disclosing too).
+const PROVENANCE_FIELDS = [...KEY_FIELDS, { key: 'unlevered_fcf', label: 'Unlevered FCF' }]
+
 // Displays what was actually retrieved, kept visually and structurally separate from the
 // editable assumption column - historical/company data is a sourced input, not a finished
 // valuation, and this panel is never itself fed back into the calculation engine. Company
@@ -27,6 +37,7 @@ const KEY_FIELDS = [
 function CompanySourcedData({ companyData, showHistory, onToggleHistory }) {
   const { profile, periods } = companyData
   const latest = periods[0]
+  const [showSources, setShowSources] = useState(false)
 
   return (
     <div className="sourced-data-compact">
@@ -34,12 +45,18 @@ function CompanySourcedData({ companyData, showHistory, onToggleHistory }) {
         {KEY_FIELDS.map(({ key, label, format }) => (
           <div className="kv-row" key={key}>
             <dt>{label}</dt>
-            <dd>{fmt(latest[key], format)}</dd>
+            <dd>
+              {fmt(latest[key], format)}
+              <ProvenanceDot status={latest.provenance?.[key]?.status} />
+            </dd>
           </div>
         ))}
         <div className="kv-row kv-row--emphasis">
           <dt>Unlevered FCF</dt>
-          <dd>{fmt(latest.unlevered_fcf, compactCurrency)}</dd>
+          <dd>
+            {fmt(latest.unlevered_fcf, compactCurrency)}
+            <ProvenanceDot status={latest.provenance?.unlevered_fcf?.status} />
+          </dd>
         </div>
       </dl>
 
@@ -49,6 +66,14 @@ function CompanySourcedData({ companyData, showHistory, onToggleHistory }) {
       </p>
 
       <div className="sourced-data-links">
+        <button
+          type="button"
+          className="link-toggle no-print"
+          onClick={() => setShowSources((v) => !v)}
+          aria-expanded={showSources}
+        >
+          Sources {showSources ? '▲' : '▼'}
+        </button>
         {periods.length > 1 && (
           <button type="button" className="link-toggle no-print" onClick={onToggleHistory}>
             {showHistory ? 'Hide' : `${periods.length}-yr history`} {showHistory ? '▲' : '▼'}
@@ -65,6 +90,22 @@ function CompanySourcedData({ companyData, showHistory, onToggleHistory }) {
           </a>
         )}
       </div>
+
+      {showSources && (
+        <div className="prov-detail-panel no-print">
+          <p className="prov-detail-legend">
+            {Object.entries(STATUS_LABEL).map(([status, label]) => (
+              <span className="prov-detail-legend-item" key={status}>
+                <ProvenanceDot status={status} />
+                {label}
+              </span>
+            ))}
+          </p>
+          {PROVENANCE_FIELDS.map(({ key, label }) => (
+            <ProvenanceDetailRow key={key} label={label} provenance={latest.provenance?.[key]} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }

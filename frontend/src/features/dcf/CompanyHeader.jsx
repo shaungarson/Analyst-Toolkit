@@ -1,7 +1,6 @@
 import { compactCurrency } from '../../lib/format'
 
 const fmt = (value, formatter) => (value === null || value === undefined ? 'n/a' : formatter(value))
-const dollarsPerShare = (v) => v.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 
 // One compact row split into three visually distinct groups - identity, key market data,
 // provenance - rather than one run-on line. Ticker search stays in a fixed position on the
@@ -10,6 +9,12 @@ const dollarsPerShare = (v) => v.toLocaleString('en-US', { style: 'currency', cu
 // a company is loaded, so the company becomes the focal point and switching stays easy but
 // secondary. Every field here comes straight from CompanyProfile - no logo (no data source
 // provides one) and no invented timestamp (the API doesn't return a fetch time).
+//
+// Deliberately does not show price here: an editable, dated Reference Price now lives in
+// the Assumptions column instead, where it's clear it's an editable analyst input (not a
+// live quote) and where it's adjacent to the Implied Upside/Downside comparison it feeds.
+// Market cap stays here since it's a passive, non-editable Alpha Vantage figure unrelated
+// to the DCF calculation.
 function CompanyHeader({ profile, source, ticker, setTicker, onLoadCompany, companyLoading, onLoadExample, companyError }) {
   // Reflects the actual response - was hardcoded to "Alpha Vantage" regardless of what
   // actually supplied the data, which became materially misleading once a request could
@@ -34,10 +39,6 @@ function CompanyHeader({ profile, source, ticker, setTicker, onLoadCompany, comp
             </div>
 
             <div className="company-bar-market-data">
-              <div className="company-bar-metric">
-                <span className="metric-label">Price</span>
-                <span className="metric-value">{fmt(profile.current_price, dollarsPerShare)}</span>
-              </div>
               <div className="company-bar-metric">
                 <span className="metric-label">Mkt Cap</span>
                 <span className="metric-value">{fmt(profile.market_capitalization, compactCurrency)}</span>

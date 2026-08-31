@@ -73,16 +73,24 @@ see [`docs/decisions.md`](docs/decisions.md).*
 
 - **Ticker search:** enter a public company ticker and load it — purchase-relevant
   historical fundamentals (revenue, EBIT, D&A, CapEx, tax rate, working-capital change,
-  cash, debt, shares, price) populate the workspace, clearly separated from the editable
+  cash, debt, shares) populate the workspace, clearly separated from the editable
   forecast assumptions below them. Populates the form only; the analyst still reviews every
   assumption and explicitly runs the valuation — nothing is auto-calculated or auto-saved.
+- **Per-value provenance:** every sourced historical field discloses how it was obtained —
+  reported directly from one SEC filing, combined from several SEC facts, calculated by
+  formula from other sourced fields, or a fallback from Alpha Vantage where SEC didn't map
+  it — with filing period, form, accession number, and a source link one click away.
+  Compact status indicators by default; full detail behind a "Sources" toggle, never a wall
+  of permanent badges.
 - Unlevered FCF projected from a base year at a flat growth rate
 - Gordon Growth terminal value, with WACC and terminal growth as direct inputs
 - Enterprise value → equity value → value per share bridge, shown as a proportional value
   bridge visualization
-- **Current price vs. implied value:** the sourced market price shown alongside the model's
-  implied value per share, with a deterministic Implied Upside/Downside — arithmetic only,
-  never a recommendation
+- **Editable, dated reference price vs. implied value:** an explicit Reference Price (sourced
+  from Alpha Vantage when available, or entered manually) shown alongside the model's implied
+  value per share, with a deterministic Implied Upside/Downside — arithmetic only, never a
+  recommendation. Editing a sourced price marks it Adjusted rather than silently presenting
+  it as untouched sourced data.
 - **Sensitivity analysis:** value per share across a grid of WACC × terminal growth rate
 - Save, load, **duplicate**, and **compare named scenarios** side by side
 - CSV export and print-friendly output
@@ -113,18 +121,17 @@ Every calculation is a pure, tested function, separate from the API and UI layer
 - **Unlevered FCF from sourced company data:** `EBIT × (1 − effective tax rate) + D&A −
   CapEx − change in NWC` — the standard enterprise-value-DCF construction. Any missing
   input makes the result undefined rather than silently treating it as zero.
-- **Implied Upside/Downside:** deterministic arithmetic against a real sourced current
-  price, never a buy/sell/attractive framing.
+- **Implied Upside/Downside:** deterministic arithmetic against a valid, positive reference
+  price (sourced or manually entered), never a buy/sell/attractive framing.
 - **Discounting:** end-of-year convention throughout — flagged as a genuine, material
   convention choice and decided deliberately.
 - **Deliberately deferred:** refinancing, waterfalls/promotes, driver-based DCF
-  forecasting, WACC build-up, comparable-company inputs, and per-value provenance in the UI
-  (computed internally, not yet surfaced). Full list: [`docs/ROADMAP.md`](docs/ROADMAP.md).
+  forecasting, WACC build-up, comparable-company inputs. Full list: [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 Every calculation — cap rate, amortization, IRR, equity multiple, DSCR, debt yield, terminal
 value, enterprise value, unlevered FCF construction — is backed by automated tests checked
 against values computed independently by hand, not just "does the code agree with itself."
-133 backend tests total, plus a GitHub Actions CI pipeline that runs the backend suite and
+136 backend tests total, plus a GitHub Actions CI pipeline that runs the backend suite and
 the frontend lint/build checks on every push and pull request.
 
 ## Architecture
@@ -152,7 +159,7 @@ FastAPI backend (Render)
     │  SEC EDGAR: primary source for historical fundamentals (XBRL company facts, no key
     │             required) plus ticker → CIK lookup and a filings-index link
     │  Alpha Vantage: fills any field SEC EDGAR can't confidently map for a period, and
-    │             remains the sole source for current price (server-side-only API key)
+    │             remains the sole source for the reference price (server-side-only key)
     ▼
 app/services/company_data.py — merges both, field by field, into one provider-agnostic
     shape, computes unlevered FCF via app/calculations/company_financials.py (pure, tested)
@@ -180,7 +187,8 @@ validation hardening → visual design → deployment → multi-year modeling, s
 scenario comparison → real estate risk flags and Deal Summary → DCF ticker search and
 workstation redesign → hardened DCF validation → SEC EDGAR as the primary DCF fundamentals
 source → SEC-independent DCF data resilience (Alpha Vantage optional, never a hard
-dependency). Detail: [`PROGRESS.md`](PROGRESS.md), [`docs/decisions.md`](docs/decisions.md).
+dependency) → per-value provenance and an editable, dated reference price. Detail:
+[`PROGRESS.md`](PROGRESS.md), [`docs/decisions.md`](docs/decisions.md).
 What's next: [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 **Long-term direction — not yet built:** the modeling engine above is the foundation, not
@@ -221,12 +229,12 @@ Run the backend test suite with `./venv/Scripts/python -m pytest` from `backend/
 
 A free Alpha Vantage API key (<https://www.alphavantage.co/support/#api-key>, no credit
 card) set as `ALPHA_VANTAGE_API_KEY` — locally in `backend/.env`, and as an environment
-variable in Render — enriches ticker search with a current price and a few extra fields.
+variable in Render — enriches ticker search with a reference price and a few extra fields.
 It's optional: SEC EDGAR is ticker search's independent primary path, so a SEC-supported
-ticker loads with no key at all, current price simply absent.
+ticker loads with no key at all, reference price simply absent (still enterable manually).
 
 ## Tech stack
 
 React 19 · Vite 8 · FastAPI · Pydantic · pytest · numpy-financial · httpx · SEC EDGAR
-(primary historical fundamentals via XBRL) · Alpha Vantage (fallback fundamentals & current
+(primary historical fundamentals via XBRL) · Alpha Vantage (fallback fundamentals & reference
 price/quotes) · Vercel · Render · GitHub Actions (CI)

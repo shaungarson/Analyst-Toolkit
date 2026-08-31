@@ -19,6 +19,14 @@
   --sens-tier-4: #d3e6d6;
   --gain: #256a42;
   --loss: #b3261e;
+  /* Per-value provenance status dots (CompanySourcedData) - distinct from --gain/--loss
+     (direction of a number) and from the Sourced/Adjusted/Analyst Input badges (whether
+     an assumption field still matches what was loaded). This is a separate vocabulary:
+     how a historical financial value was obtained. */
+  --prov-reported: #2c5fb8;
+  --prov-combined: #0e7d72;
+  --prov-calculated: #6b6478;
+  --prov-fallback: #a15c00;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -30,6 +38,10 @@
     --sens-tier-4: #1d3324;
     --gain: #5fb787;
     --loss: #e5776d;
+    --prov-reported: #7fa8e8;
+    --prov-combined: #5fc4b5;
+    --prov-calculated: #b0a8c2;
+    --prov-fallback: #e0a03f;
   }
 }
 
@@ -373,6 +385,150 @@
   color: var(--accent);
 }
 
+/* --- Per-value provenance: compact dots inline, full detail behind "Sources" ------- */
+.prov-dot {
+  display: inline-block;
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  margin-left: 0.4rem;
+  vertical-align: middle;
+  cursor: default;
+}
+
+.prov-dot--reported { background: var(--prov-reported); }
+.prov-dot--combined { background: var(--prov-combined); }
+.prov-dot--calculated { background: var(--prov-calculated); }
+.prov-dot--fallback { background: var(--prov-fallback); }
+
+.prov-detail-panel {
+  margin-top: 0.65rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
+}
+
+.prov-detail-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.9rem;
+  margin: 0 0 0.6rem;
+  font-size: 0.7rem;
+  color: var(--text);
+  opacity: 0.85;
+}
+
+.prov-detail-legend-item .prov-dot {
+  margin-left: 0;
+  margin-right: 0.32rem;
+}
+
+.prov-detail-row {
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.prov-detail-row:last-child {
+  border-bottom: none;
+}
+
+.prov-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.prov-detail-head .prov-dot {
+  margin-left: 0;
+}
+
+.prov-detail-field {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.prov-detail-status {
+  font-size: 0.7rem;
+  color: var(--text);
+  opacity: 0.75;
+  margin-left: auto;
+}
+
+.prov-detail-formula,
+.prov-detail-components {
+  margin: 0.2rem 0 0;
+  padding: 0;
+  font-size: 0.72rem;
+  color: var(--text);
+  opacity: 0.85;
+  list-style: none;
+}
+
+.prov-detail-component {
+  padding: 0.05rem 0;
+}
+
+.prov-detail-component a {
+  color: var(--accent);
+}
+
+/* History table's per-cell dot is a real <button> (keyboard/touch-activatable, not just a
+   hover target) - `.history-panel` scoping is required here, not optional, to beat
+   `.feature-page button`'s higher-specificity padding/border/background/color (see the
+   `.sourced-data-links button.link-toggle` comment above for why: every property that rule
+   sets has to be re-declared, not just the ones that look conflicting). */
+.history-panel .prov-dot-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem;
+  margin: -0.2rem -0.2rem -0.2rem 0.2rem;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.history-panel .prov-dot-btn:hover,
+.history-panel .prov-dot-btn:focus-visible {
+  background: var(--panel-bg);
+}
+
+.history-panel .prov-dot-btn .prov-dot {
+  margin-left: 0;
+}
+
+.prov-detail-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+}
+
+.prov-detail-panel-period {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.history-panel .prov-detail-panel-close {
+  padding: 0.1rem 0.45rem;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.history-panel .prov-detail-panel-close:hover,
+.history-panel .prov-detail-panel-close:focus-visible {
+  background: var(--panel-bg);
+}
+
 /* --- Full-width 5-year history panel (beneath the 3-column row, not inside Step 1) --- */
 .history-panel {
   margin-bottom: 1.5rem;
@@ -394,6 +550,10 @@
 .history-panel th,
 .history-panel td {
   padding: 0.35rem 0.6rem;
+}
+
+.history-panel .prov-detail-legend {
+  margin-top: 0.6rem;
 }
 
 /* --- Assumptions: compact grouped field rows ----------------------------------------- */
@@ -489,11 +649,17 @@
    with") right under the conclusion it relates to. */
 .valuation-comparison {
   display: flex;
-  gap: 1.5rem;
+  flex-direction: column;
+  gap: 0.5rem;
   padding: 0.6rem 0.8rem;
   margin-bottom: 0.9rem;
   background: var(--panel-bg);
   border-radius: 4px;
+}
+
+.comparison-rows {
+  display: flex;
+  gap: 1.5rem;
 }
 
 .comparison-row {
@@ -511,6 +677,15 @@
   font-size: 0.95rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+.comparison-disclaimer {
+  font-size: 0.68rem;
+  color: var(--text);
+  opacity: 0.7;
+  font-style: italic;
+  line-height: 1.35;
+  margin: 0;
 }
 
 .valuation-support-grid {

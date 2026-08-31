@@ -94,6 +94,21 @@ def lookup_cik(ticker):
     }
 
 
+def filing_index_url(cik, accession_number):
+    """The public index page for one specific filing (not just the general filings list
+    FILINGS_URL_TEMPLATE builds) - lets a per-fact source link point at the exact 10-K a
+    figure came from. Verified live against a real filing before relying on this pattern:
+    https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/0000320193-25-000079-index.htm
+    resolves for Apple's FY2025 10-K. cik and accession_number are used exactly as SEC's
+    XBRL facts API returns them (accession_number keeps its dashes; cik is stripped of
+    leading zeros and the dashes are removed for the path segment, per SEC's own URL
+    convention)."""
+    if not accession_number:
+        return None
+    accession_no_dashes = accession_number.replace("-", "")
+    return f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession_no_dashes}/{accession_number}-index.htm"
+
+
 def fetch_company_facts(cik):
     """Returns the filer's full SEC XBRL company-facts payload (every reported concept and
     period) for the given zero-padded CIK string. Raises SECDataUnavailableError on any

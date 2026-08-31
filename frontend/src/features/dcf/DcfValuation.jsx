@@ -23,6 +23,11 @@ const EXAMPLE = {
   terminalGrowthRate: '2.5',
   netDebt: '300000000',
   dilutedSharesOutstanding: '50000000',
+  referencePrice: '',
+  referencePriceDate: '',
+  referencePriceSourcedValue: '',
+  referencePriceSourcedDate: '',
+  referencePriceSourceTicker: '',
 }
 
 const EMPTY = {
@@ -33,14 +38,31 @@ const EMPTY = {
   terminalGrowthRate: '',
   netDebt: '',
   dilutedSharesOutstanding: '',
+  referencePrice: '',
+  referencePriceDate: '',
+  // The reference price's own persisted "what it was sourced from" record - separate from
+  // sourcedSnapshot (which is ephemeral, reset on every load/reload and never saved) because
+  // this needs to survive a scenario save/reload so the Sourced/Adjusted/Analyst Input badge
+  // can be reconstructed correctly later, without ever being sent to the valuation engine
+  // (buildPayload never reads these three keys). Empty for a never-sourced or reloaded-old
+  // scenario, which is exactly what makes referencePriceBadgeType fall back to "analyst".
+  referencePriceSourcedValue: '',
+  referencePriceSourcedDate: '',
+  referencePriceSourceTicker: '',
 }
 
 // Fields that ticker search can populate. Used both to build the sourced-value snapshot
 // and to decide which form fields are ever eligible for a "Sourced"/"Adjusted" badge -
 // fcfGrowthRate, forecastYears, wacc, and terminalGrowthRate are never sourced from data,
-// so they always read as plain analyst judgment.
+// so they always read as plain analyst judgment. referencePrice is handled by its own
+// referencePriceBadgeType below, not this generic list - unlike the other three, it's
+// genuinely optional and has its own "Analyst Input because Alpha Vantage was unavailable"
+// case the generic logic doesn't need to represent for anything else.
 const SOURCEABLE_FIELDS = ['baseYearFcf', 'netDebt', 'dilutedSharesOutstanding']
 
+// Only the fields the calculation engine actually needs - referencePrice/referencePriceDate
+// live in the same form object (so they save/reload with a scenario, see loadScenario) but
+// are deliberately never picked here, so they never reach the valuation engine.
 const buildPayload = (form) => ({
   base_year_fcf: Number(form.baseYearFcf),
   fcf_growth_rate: Number(form.fcfGrowthRate) / 100,
@@ -116,6 +138,21 @@ function DcfValuation() {
       if (data.profile.shares_outstanding != null) {
         sourced.dilutedSharesOutstanding = String(Math.round(data.profile.shares_outstanding))
       }
+      // Alpha Vantage's quote is independent of fundamentals (see the data-resilience
+      // milestone). Every one of these five keys is set explicitly on every load - to the
+      // new company's real value, or to '' - rather than only when present, so a price (or
+      // its sourced-baseline record) from a previously loaded company can never survive
+      // into a load whose own quote came back empty. referencePriceSourced* is what
+      // referencePriceBadgeType compares the live fields against; persisting it as part of
+      // `form` (not just the ephemeral sourcedSnapshot below) is what lets a saved scenario
+      // restore the correct Sourced/Adjusted status after a reload - see loadScenario.
+      const referencePrice = data.profile.reference_price != null ? String(data.profile.reference_price) : ''
+      const referencePriceDate = data.profile.reference_price_as_of ?? ''
+      sourced.referencePrice = referencePrice
+      sourced.referencePriceDate = referencePriceDate
+      sourced.referencePriceSourcedValue = referencePrice
+      sourced.referencePriceSourcedDate = referencePriceDate
+      sourced.referencePriceSourceTicker = referencePrice ? data.profile.ticker : ''
       setSourcedSnapshot(sourced)
       setForm((prev) => ({ ...prev, ...sourced }))
     } catch (err) {
@@ -142,7 +179,10 @@ function DcfValuation() {
   }
 
   const loadScenario = (data) => {
-    setForm(data)
+    // Backfill so scenarios saved before referencePrice/referencePriceDate existed don't
+    // leave those inputs undefined (React would warn about an uncontrolled->controlled
+    // input switch the moment the analyst typed into one).
+    setForm({ ...EMPTY, ...data })
     setResults(null)
     setSensitivity(null)
     setComparison(null)
@@ -164,6 +204,27 @@ function DcfValuation() {
       return form[field] === sourcedSnapshot[field] ? 'sourced' : 'adjusted'
     }
     return 'analyst'
+  }
+
+  // Reference price has its own status logic rather than joining SOURCEABLE_FIELDS, and
+  // deliberately reads persisted form fields (referencePriceSourced*) rather than the
+  // ephemeral sourcedSnapshot the other three sourceable fields use: sourcedSnapshot is
+  // reset to null on every reload and never saved, which would make a scenario's price
+  // always read as unsourced after a reload. Reading from `form` instead means the exact
+  // same comparison naturally works right after a live company load (loadCompany sets the
+  // Sourced* fields there) and after a scenario reload (loadScenario restores them from
+  // what was saved) - one status function, no separate reload-specific path. An empty
+  // field is never badged (nothing to describe); a non-empty field with no recorded sourced
+  // value is "Analyst Input" (covers never-loaded-a-company, loaded-but-no-quote, and an
+  // old scenario saved before this field existed, identically); a non-empty field is
+  // "Sourced" only while both the price and its as-of date still match the recorded source.
+  const referencePriceBadgeType = () => {
+    if (!form.referencePrice) return null
+    if (!form.referencePriceSourcedValue) return 'analyst'
+    const unchanged =
+      form.referencePrice === form.referencePriceSourcedValue &&
+      form.referencePriceDate === form.referencePriceSourcedDate
+    return unchanged ? 'sourced' : 'adjusted'
   }
 
   const handleCompare = async (selectedScenarios) => {
@@ -283,13 +344,20 @@ function DcfValuation() {
 
   const netDebtNum = Number(form.netDebt)
 
-  // Deterministic arithmetic only - never a recommendation. Only shown when a real,
-  // sourced current price exists (Alpha Vantage GLOBAL_QUOTE, via ticker search); the
-  // manual-entry and Load Example paths have no market price to compare against, and
-  // showing nothing is correct there, not a bug.
-  const currentPrice = companyData?.profile?.current_price ?? null
+  // Deterministic arithmetic only - never a recommendation. Requires both a valid positive
+  // reference price AND a nonblank "as of" date - a price with no date is exactly the
+  // ambiguous, undated situation this milestone replaced ("current price"), so it must not
+  // produce a comparison either. An unusable value (blank, zero, negative, non-numeric
+  // mid-edit, or a price with no date) hides the comparison entirely rather than showing a
+  // misleading figure. Both fields stay editable regardless.
+  const referencePriceNum = Number(form.referencePrice)
+  const hasUsableReferencePrice =
+    form.referencePrice !== '' &&
+    Number.isFinite(referencePriceNum) &&
+    referencePriceNum > 0 &&
+    form.referencePriceDate !== ''
   const impliedUpside =
-    results && currentPrice != null ? results.value_per_share / currentPrice - 1 : null
+    results && hasUsableReferencePrice ? results.value_per_share / referencePriceNum - 1 : null
 
   return (
     <div className="feature-page workspace">
@@ -444,6 +512,43 @@ function DcfValuation() {
               </label>
             </div>
 
+            <div className="field-group">
+              <div className="field-group-label">Reference Price (optional)</div>
+              <label className="field-row">
+                <span className="field-row-head">
+                  <span className="field-row-label">Reference Share Price</span>
+                  {referencePriceBadgeType() && (
+                    <span
+                      title={
+                        form.referencePriceSourceTicker
+                          ? `Originally sourced from ${form.referencePriceSourceTicker}`
+                          : undefined
+                      }
+                    >
+                      <SourceBadge type={referencePriceBadgeType()} />
+                    </span>
+                  )}
+                </span>
+                <FormattedNumberInput
+                  min="0"
+                  step="any"
+                  value={form.referencePrice}
+                  onChange={setFieldValue('referencePrice')}
+                  formatter={dollarsPerShare}
+                />
+              </label>
+              <label className="field-row">
+                <span className="field-row-head">
+                  <span className="field-row-label">As of</span>
+                </span>
+                <input
+                  type="date"
+                  value={form.referencePriceDate}
+                  onChange={handleChange('referencePriceDate')}
+                />
+              </label>
+            </div>
+
             <button type="submit" className="run-valuation-btn" disabled={loading}>
               {loading ? 'Calculating…' : 'Run Valuation'}
             </button>
@@ -473,19 +578,25 @@ function DcfValuation() {
                 <span className="hero-value">{dollarsPerShare(results.value_per_share)}</span>
               </div>
 
-              {currentPrice != null && (
+              {hasUsableReferencePrice && (
                 <div className="valuation-comparison">
-                  <div className="comparison-row">
-                    <span className="label">Current Price</span>
-                    <span className="value">{dollarsPerShare(currentPrice)}</span>
+                  <div className="comparison-rows">
+                    <div className="comparison-row">
+                      <span className="label">Reference Price (as of {form.referencePriceDate})</span>
+                      <span className="value">{dollarsPerShare(referencePriceNum)}</span>
+                    </div>
+                    <div className="comparison-row">
+                      <span className="label">{impliedUpside >= 0 ? 'Implied Upside' : 'Implied Downside'}</span>
+                      <span className={`value ${impliedUpside >= 0 ? 'value-positive' : 'value-negative'}`}>
+                        {impliedUpside >= 0 ? '+' : ''}
+                        {(impliedUpside * 100).toFixed(1)}%
+                      </span>
+                    </div>
                   </div>
-                  <div className="comparison-row">
-                    <span className="label">{impliedUpside >= 0 ? 'Implied Upside' : 'Implied Downside'}</span>
-                    <span className={`value ${impliedUpside >= 0 ? 'value-positive' : 'value-negative'}`}>
-                      {impliedUpside >= 0 ? '+' : ''}
-                      {(impliedUpside * 100).toFixed(1)}%
-                    </span>
-                  </div>
+                  <p className="comparison-disclaimer">
+                    The difference reflects the model&rsquo;s selected assumptions and simplified
+                    flat-growth methodology. It is not an investment recommendation.
+                  </p>
                 </div>
               )}
 

@@ -189,7 +189,8 @@
   .valuation-support-grid .label,
   .comparison-row .label,
   .kv-row dt,
-  .sourced-data-note {
+  .sourced-data-note,
+  .comparison-disclaimer {
     color: #444;
   }
 

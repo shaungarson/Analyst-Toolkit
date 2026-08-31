@@ -93,8 +93,10 @@ proprietary server-side logic, a new third-party API call).
 
 **Current data providers (DCF ticker search, this project's only third-party dependency):**
 SEC EDGAR is the primary source for historical fundamentals (XBRL company facts); Alpha
-Vantage fills any field SEC can't confidently map, and is the sole source for current price.
-Full technical detail: `docs/ARCHITECTURE.md`.
+Vantage fills any field SEC can't confidently map, and is the sole source for the reference
+price (an editable, dated input — not a live quote). Every sourced field discloses its own
+provenance (reported/combined/calculated/fallback). Full technical detail:
+`docs/ARCHITECTURE.md`.
 
 **Bar for any new third-party integration:** a clear, explained need, stated before
 building, not added by default. Server-side-only credentials. Typed errors mapped to clean
