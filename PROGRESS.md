@@ -1,15 +1,17 @@
 # Analyst Toolkit — Progress
 
-**Last verified:** 2026-09-01 (historical trend mini-charts, chart-color/print refinements,
-the Source Details inspector redesign, and the AGENTS.md Codex-consultant boundary all
-pushed and deployed to production)
+**Last verified:** 2026-09-01 (Costco header profile fix and the one-run/three-tab demo
+consolidation both pushed and verified live in production, on top of the historical trend
+mini-charts, chart-color/print refinements, the Source Details inspector redesign, and the
+AGENTS.md Codex-consultant boundary already deployed)
 
 ## Current Milestone
 
 None — awaiting direction. DCF data resilience, per-value provenance + an editable dated
 reference price, Costco (COST) confirmed as the demo candidate, the embedded Costco DCF
-demo, historical trend mini-charts, and the Source Details inspector redesign are all
-shipped and deployed to production. See `docs/ROADMAP.md` and `docs/decisions.md`.
+demo (now consolidated into one-run Low/Base/High Growth result tabs, with a corrected
+header profile), historical trend mini-charts, and the Source Details inspector redesign
+are all shipped and deployed to production. See `docs/ROADMAP.md` and `docs/decisions.md`.
 
 ## Blockers / Frozen Areas
 
@@ -18,6 +20,17 @@ shipped and deployed to production. See `docs/ROADMAP.md` and `docs/decisions.md
 
 ## Recently Shipped
 
+- 2026-09-01 — Costco demo-entry consolidation and one-run case tabs: removed the DCF
+  module's synthetic "Load Example"; a full-sized "Costco Demo" header button activates the
+  demo and opens/closes its disclosure, replacing the old subtle toggle + button pair; case
+  selection (renamed Low/Base/High Growth) moved to three accessible result tabs under
+  Valuation Summary; one click of Run Valuation calculates all three via parallel calls to
+  the existing endpoints, switching tabs afterward is request-free, an assumption edit
+  invalidates all three until rerun (verified stale results/exports stay hidden through the
+  rerun, not just after it), and CSV exports are case-labeled — [decisions.md](docs/decisions.md#dcf-demo-entry-consolidation-and-the-one-run-three-tab-case-model)
+- 2026-09-01 — Costco header profile fix: clean "Costco Wholesale Corporation" name (was the
+  raw SEC "/NEW" registrant string), a real classification and dated market cap in place of
+  blank fields, both disclosed with source/date.
 - 2026-09-01 — AGENTS.md: keeps Codex, used as an external product/finance/UX consultant via
   `CHATGPT_CONSULTANT.md`, strictly read-only and advisory — no file edits, builds, or
   state-changing Git operations, and ambiguous approval language ("let's do it," "commit it")
