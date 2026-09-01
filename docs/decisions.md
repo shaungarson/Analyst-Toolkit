@@ -554,3 +554,26 @@ colors that use dark-mode-aware tokens (`--text-h`, `--text`, `--border`) also n
 same explicit `#000`/`#444`/`#ccc` print overrides already applied elsewhere in `print.css`
 (company bar, kv-list, sensitivity legend) - the same near-invisible-when-printing-from-
 dark-mode issue this project has hit and fixed multiple times before.
+
+## Source Details inspector: bounded, friendly-first provenance detail
+**Status:** Accepted
+
+Replaced the "Sources" panel's unbounded field-by-field dump with a bounded (~340px),
+internally-scrolling inspector: a sticky header, a dynamic status summary ("4 reported · 3
+calculated") in place of a static legend that named every possible status regardless of
+whether this company actually had one, and compact per-field rows that expand individually
+rather than showing every field's full metadata at once.
+
+**Friendly-first, technical-second is a new content-ordering principle**, applied here and
+to the existing 5-year history cell popover via a shared `ProvenanceDetailRow`: source,
+fiscal period, form, and a "View filing" link render prominently; the raw XBRL
+tag/accession/filed-date renders smaller and muted below it, never instead of it. A
+"combined" field's components collapse into one friendly line (every tag folded into one
+technical line) when they share a single filing - verified as the common real-world case
+(Costco's cash/total-debt components) - and fall back to one line per component only when a
+field's pieces genuinely come from different filings.
+
+**Focus management follows the app's existing disclosure-toggle convention, not a modal
+pattern:** opening the panel does not steal focus into it, consistent with the History and
+Costco Demo toggles; closing it explicitly returns focus to the "Sources" button, so a
+keyboard user never loses their place.

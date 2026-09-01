@@ -1,16 +1,15 @@
 # Analyst Toolkit — Progress
 
-**Last verified:** 2026-08-31 (historical trend mini-charts implemented and verified;
-committed locally, awaiting push and deployment)
+**Last verified:** 2026-09-01 (historical trend mini-charts, chart-color/print refinements,
+the Source Details inspector redesign, and the AGENTS.md Codex-consultant boundary all
+pushed and deployed to production)
 
 ## Current Milestone
 
 None — awaiting direction. DCF data resilience, per-value provenance + an editable dated
-reference price, Costco (COST) confirmed as the demo candidate, and the embedded Costco DCF
-demo itself are shipped and deployed to production. A small addition ahead of reverse DCF —
-compact Revenue/Unlevered FCF trend mini-charts in the sourced-data panel — is implemented,
-verified, and committed locally, awaiting push and deployment. See `docs/ROADMAP.md` and
-`docs/decisions.md`.
+reference price, Costco (COST) confirmed as the demo candidate, the embedded Costco DCF
+demo, historical trend mini-charts, and the Source Details inspector redesign are all
+shipped and deployed to production. See `docs/ROADMAP.md` and `docs/decisions.md`.
 
 ## Blockers / Frozen Areas
 
@@ -19,6 +18,17 @@ verified, and committed locally, awaiting push and deployment. See `docs/ROADMAP
 
 ## Recently Shipped
 
+- 2026-09-01 — AGENTS.md: keeps Codex, used as an external product/finance/UX consultant via
+  `CHATGPT_CONSULTANT.md`, strictly read-only and advisory — no file edits, builds, or
+  state-changing Git operations, and ambiguous approval language ("let's do it," "commit it")
+  must be treated as a request to draft a Claude Code prompt, not authorization to act.
+- 2026-09-01 — Source Details inspector: the "Sources" panel is now a bounded (~340px),
+  internally-scrolling panel with a sticky header and a dynamic status summary, replacing an
+  unbounded field-by-field dump. Friendly-first provenance detail (source/period/filing link
+  prominent, raw tag/accession muted) is now shared with the 5-year history cell popover —
+  [decisions.md](docs/decisions.md#source-details-inspector-bounded-friendly-first-provenance-detail)
+- 2026-09-01 — Chart color and print refinements: Revenue/UFCF mini-chart bars and provenance
+  dots use more distinguishable colors; print output keeps chart bars solid black regardless.
 - 2026-08-31 — Historical trend mini-charts: two compact CSS bar charts (Revenue, Unlevered
   FCF) in the sourced-data panel, shared fiscal-year strip, independent scales, correct
   handling of negative/zero/missing values, no chart library — [decisions.md](docs/decisions.md#historical-trend-mini-charts)
@@ -38,12 +48,11 @@ verified, and committed locally, awaiting push and deployment. See `docs/ROADMAP
   optional field-level enrichment, not a hard dependency; company periods build directly
   from SEC's own fiscal dates — [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
-## Next Three Actions
+## Next Actions
 
-1. Push the historical trend mini-charts (committed locally) to `origin/main` once approved.
-2. **Reverse DCF** (next in the agreed DCF sequence) — see `docs/ROADMAP.md`. Not started,
+1. **Reverse DCF** (next in the agreed DCF sequence) — see `docs/ROADMAP.md`. Not started,
    not authorized to begin yet.
-3. Real estate: no action planned until the user has the CRE-professional conversation.
+2. Real estate: no action planned until the user has the CRE-professional conversation.
 
 ## See Also
 
