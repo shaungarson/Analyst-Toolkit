@@ -165,5 +165,8 @@ mature.
 - **`docs/ROADMAP.md`** — Now / Next / Later / Parked.
 - **`docs/decisions.md`** — durable decision history (Accepted / Superseded / Deferred).
 - **`docs/archive/PROGRESS_HISTORY.md`** — full historical implementation log, frozen.
-- **`CHATGPT_CONSULTANT.md`** — the user's own external-consultant prompt (a separate tool),
-  not maintained by Claude Code except when explicitly asked.
+- **`AGENTS.md`** — automatically loaded by Codex; defines its consultant-only operating
+  boundary (no file edits, builds, or state-changing Git operations).
+- **`CHATGPT_CONSULTANT.md`** — the complete consultant-role specification Codex reads via
+  `AGENTS.md`; the user's own prompt for that separate tool, not maintained by Claude Code
+  except when explicitly asked.
