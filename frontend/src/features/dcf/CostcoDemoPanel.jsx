@@ -1,7 +1,12 @@
+import { compactCurrency } from '../../lib/format'
 import {
   COSTCO_CASES,
+  COSTCO_COMPANY_DATA,
   COSTCO_FINANCIALS_FISCAL_YEAR_END,
   COSTCO_FINANCIALS_FILED,
+  COSTCO_MARKET_CAP_DATE,
+  COSTCO_MARKET_CAP_SOURCE_LABEL,
+  COSTCO_MARKET_CAP_SOURCE_URL,
   COSTCO_REFERENCE_PRICE,
   COSTCO_REFERENCE_PRICE_DATE,
   COSTCO_REFERENCE_PRICE_SOURCE_LABEL,
@@ -40,7 +45,13 @@ function CostcoDemoPanel({ activeCaseId, onLoadCase, open, onToggle }) {
               {COSTCO_REFERENCE_PRICE_SOURCE_LABEL}
             </a>
             , since Alpha Vantage's quote was unavailable when this snapshot was built - not
-            SEC-sourced, not live).
+            SEC-sourced, not live). Market cap:{' '}
+            {compactCurrency(COSTCO_COMPANY_DATA.profile.market_capitalization)} as of{' '}
+            {COSTCO_MARKET_CAP_DATE} (
+            <a href={COSTCO_MARKET_CAP_SOURCE_URL} target="_blank" rel="noreferrer">
+              {COSTCO_MARKET_CAP_SOURCE_LABEL}
+            </a>{' '}
+            - not SEC-sourced, not live).
           </p>
 
           <div className="costco-demo-cases">

@@ -290,14 +290,23 @@ const PERIODS = [
 // actually returned (Alpha Vantage's quote was unavailable) - the demo's reference price is
 // applied separately below, from a different, explicitly-cited source, never presented as
 // if SEC EDGAR or Alpha Vantage had supplied it.
+//
+// company_name/industry/exchange/market_capitalization, unlike reference_price, are static
+// profile facts rather than a per-case editable input, so they're set directly here instead
+// of applied separately - company_name and exchange are SEC/Costco-IR-sourced (the SEC
+// registrant name is "COSTCO WHOLESALE CORP /NEW"; "/NEW" is a legacy EDGAR conformed-name
+// suffix tied to Costco's 1997 name change, not part of its current user-facing name);
+// industry uses the same "membership warehouses" description SEC filings and Costco's own
+// IR materials both use. market_capitalization is dated market data, not an SEC fact - see
+// COSTCO_MARKET_CAP_DATE/SOURCE below, disclosed the same way the reference price is.
 export const COSTCO_COMPANY_DATA = {
   profile: {
     ticker: 'COST',
-    company_name: 'COSTCO WHOLESALE CORP /NEW',
+    company_name: 'Costco Wholesale Corporation',
     sector: null,
-    industry: null,
-    exchange: null,
-    market_capitalization: null,
+    industry: 'Membership Warehouses',
+    exchange: 'Nasdaq Global Select Market',
+    market_capitalization: 418600000000,
     shares_outstanding: 444803000,
     reference_price: null,
     reference_price_as_of: null,
@@ -318,6 +327,15 @@ export const COSTCO_REFERENCE_PRICE = '943.88'
 export const COSTCO_REFERENCE_PRICE_DATE = '2026-08-31'
 export const COSTCO_REFERENCE_PRICE_SOURCE_LABEL = 'stockanalysis.com'
 export const COSTCO_REFERENCE_PRICE_SOURCE_URL = 'https://stockanalysis.com/stocks/cost/history/'
+
+// Same rule as the reference price above: a real, dated, single-sourced figure, cited by
+// name and never implied to be live or SEC-sourced. Independent of COSTCO_REFERENCE_PRICE
+// (a different stockanalysis.com page - the dedicated market-cap page, not the historical
+// close table) - deliberately not derived from shares_outstanding * reference price, since
+// that would be this app's own arithmetic presented as if it were the sourced figure.
+export const COSTCO_MARKET_CAP_DATE = '2026-08-31'
+export const COSTCO_MARKET_CAP_SOURCE_LABEL = 'stockanalysis.com'
+export const COSTCO_MARKET_CAP_SOURCE_URL = 'https://stockanalysis.com/stocks/cost/market-cap/'
 
 export const COSTCO_FINANCIALS_FISCAL_YEAR_END = '2025-08-31'
 export const COSTCO_FINANCIALS_FILED = '2025-10-08'
