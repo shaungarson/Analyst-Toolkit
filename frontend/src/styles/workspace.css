@@ -24,9 +24,11 @@
      an assumption field still matches what was loaded). This is a separate vocabulary:
      how a historical financial value was obtained. */
   --prov-reported: #2c5fb8;
-  --prov-combined: #0e7d72;
-  --prov-calculated: #6b6478;
-  --prov-fallback: #a15c00;
+  --prov-combined: #008575;
+  --prov-calculated: #7b4bb7;
+  --prov-fallback: #bd6500;
+  --chart-revenue: #3b6ea8;
+  --chart-fcf: #2f7d64;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -38,10 +40,12 @@
     --sens-tier-4: #1d3324;
     --gain: #5fb787;
     --loss: #e5776d;
-    --prov-reported: #7fa8e8;
-    --prov-combined: #5fc4b5;
-    --prov-calculated: #b0a8c2;
-    --prov-fallback: #e0a03f;
+    --prov-reported: #76a9f0;
+    --prov-combined: #49c8b0;
+    --prov-calculated: #c793ef;
+    --prov-fallback: #f0a13b;
+    --chart-revenue: #6f92c8;
+    --chart-fcf: #59a886;
   }
 }
 
@@ -368,9 +372,9 @@
    Pure CSS bars, no chart library: every horizontal position is a percentage (set inline
    per-bar by the component), so this is fluid at any column width without a breakpoint of
    its own - the narrow desktop Step 1 column and the wider mobile single-column layout both
-   just work. Plot height is fixed in px; only the two colors below carry meaning
-   (positive/neutral vs. negative), reusing the app's existing --accent/--loss tokens rather
-   than inventing new ones. */
+   just work. Revenue and UFCF use two restrained colors from the same cool palette so the
+   metrics are distinguishable without looking like unrelated products; negative values
+   still use the app's established --loss semantic color. */
 .trend-charts {
   margin: 0.7rem 0 0;
 }
@@ -388,9 +392,28 @@
 }
 
 .trend-chart-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--text-h);
+}
+
+.trend-chart-title::before {
+  content: '';
+  width: 0.45rem;
+  height: 0.45rem;
+  flex: 0 0 0.45rem;
+  border-radius: 2px;
+}
+
+.trend-chart-block--revenue .trend-chart-title::before {
+  background: var(--chart-revenue);
+}
+
+.trend-chart-block--fcf .trend-chart-title::before {
+  background: var(--chart-fcf);
 }
 
 .trend-chart-range {
@@ -424,13 +447,22 @@
 .trend-chart-bar {
   position: absolute;
   transform: translateX(-50%);
-  background: var(--accent);
-  border: 1px solid var(--accent);
+  border: 1px solid transparent;
   border-radius: 1px;
   /* Borders print regardless of the browser's "background graphics" print setting;
      background-color does not always. The border is the fallback that keeps a bar visibly
      present even if a print driver drops the fill - see print.css for the primary fix
      (print-color-adjust: exact), which is what actually keeps the fill itself printing. */
+}
+
+.trend-chart-bar--revenue {
+  background: var(--chart-revenue);
+  border-color: var(--chart-revenue);
+}
+
+.trend-chart-bar--fcf {
+  background: var(--chart-fcf);
+  border-color: var(--chart-fcf);
 }
 
 .trend-chart-bar--negative {
@@ -487,8 +519,8 @@
 /* --- Per-value provenance: compact dots inline, full detail behind "Sources" ------- */
 .prov-dot {
   display: inline-block;
-  width: 0.42rem;
-  height: 0.42rem;
+  width: 0.5rem;
+  height: 0.5rem;
   border-radius: 50%;
   margin-left: 0.4rem;
   vertical-align: middle;

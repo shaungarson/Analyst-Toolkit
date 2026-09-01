@@ -9,8 +9,8 @@ const MIN_BAR_PX = 2
 const MIN_BAR_PCT = (MIN_BAR_PX / PLOT_HEIGHT_PX) * 100
 
 const METRICS = [
-  { key: 'revenue', label: 'Revenue' },
-  { key: 'unlevered_fcf', label: 'Unlevered FCF' },
+  { key: 'revenue', label: 'Revenue', tone: 'revenue' },
+  { key: 'unlevered_fcf', label: 'Unlevered FCF', tone: 'fcf' },
 ]
 
 // Evenly spaced bar-center positions (0-100%) for n periods - shared by both metric charts
@@ -42,12 +42,12 @@ function barStyle(value, domainMin, domainMax) {
 // One metric's mini chart. Falls back to plain text rather than a chart when fewer than
 // two fiscal years actually have a value for this metric - a single bar (or none) isn't a
 // trend, and a chart implying one would be actively misleading.
-function MiniBarChart({ label, values, fiscalYears, slotPcts, barWidthPct }) {
+function MiniBarChart({ label, tone, values, fiscalYears, slotPcts, barWidthPct }) {
   const usable = values.filter((v) => v !== null)
 
   if (usable.length < 2) {
     return (
-      <div className="trend-chart-block">
+      <div className={`trend-chart-block trend-chart-block--${tone}`}>
         <div className="trend-chart-head">
           <span className="trend-chart-title">{label}</span>
         </div>
@@ -69,7 +69,7 @@ function MiniBarChart({ label, values, fiscalYears, slotPcts, barWidthPct }) {
     .join(', ')
 
   return (
-    <div className="trend-chart-block">
+    <div className={`trend-chart-block trend-chart-block--${tone}`}>
       <div className="trend-chart-head">
         <span className="trend-chart-title">{label}</span>
         <span className="trend-chart-range">
@@ -86,7 +86,11 @@ function MiniBarChart({ label, values, fiscalYears, slotPcts, barWidthPct }) {
           v === null ? null : (
             <div
               key={fiscalYears[i]}
-              className={v < 0 ? 'trend-chart-bar trend-chart-bar--negative' : 'trend-chart-bar'}
+              className={
+                v < 0
+                  ? 'trend-chart-bar trend-chart-bar--negative'
+                  : `trend-chart-bar trend-chart-bar--${tone}`
+              }
               style={{ left: `${slotPcts[i]}%`, width: `${barWidthPct}%`, ...barStyle(v, domainMin, domainMax) }}
               title={`FY ${fiscalYears[i]}: ${compactCurrency(v)}`}
               aria-hidden="true"
@@ -116,10 +120,11 @@ function HistoricalTrendCharts({ periods }) {
 
   return (
     <div className="trend-charts">
-      {METRICS.map(({ key, label }) => (
+      {METRICS.map(({ key, label, tone }) => (
         <MiniBarChart
           key={key}
           label={label}
+          tone={tone}
           values={chronological.map((p) => (p[key] === null || p[key] === undefined ? null : p[key]))}
           fiscalYears={fiscalYears}
           slotPcts={slotPcts}

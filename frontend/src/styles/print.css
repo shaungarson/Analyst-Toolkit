@@ -202,6 +202,10 @@
     border-top-color: #ccc;
   }
 
+  .trend-chart-title::before {
+    background: #000 !important;
+  }
+
   .company-bar-market-data {
     border-left-color: #ccc;
   }
@@ -329,15 +333,20 @@
      gracefully. print-color-adjust: exact overrides the browser's default of skipping
      background-color when "background graphics" is off, so the fill reliably prints; the
      border declared in workspace.css is a second fallback if some print driver ignores it.
-     Both positive and negative bars print solid black rather than --accent/--loss - the
-     same near-invisible-against-white-paper problem noted above for --accent/--panel-bg,
-     and the same fix already used for .value-positive/.value-negative (color:#000, not the
-     semantic color). Position relative to the baseline - not color - is what distinguishes
-     a negative bar on paper, exactly as the on-screen version already requires. */
+     Every bar prints solid black rather than --chart-revenue/--chart-fcf/--loss - the same
+     near-invisible-against-white-paper problem noted above for --accent/--panel-bg, and the
+     same fix already used for .value-positive/.value-negative (color:#000, not the semantic
+     color). Position relative to the baseline - not color - is what distinguishes a
+     negative bar on paper, exactly as the on-screen version already requires.
+     !important is required here, not optional: .trend-chart-bar--revenue/--fcf/--negative
+     carry the exact same specificity (one class) as this selector, so without it the winner
+     would depend on which of workspace.css/print.css the bundler happens to emit later -
+     the same cross-file tie this codebase already hit once and fixed the same way (see
+     `.no-screen`'s comment above). */
   .trend-chart-bar,
   .trend-chart-bar--negative {
-    background: #000;
-    border-color: #000;
+    background: #000 !important;
+    border-color: #000 !important;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
   }
