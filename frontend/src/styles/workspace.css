@@ -820,25 +820,11 @@
   pointer-events: none;
 }
 
-/* --- Embedded Costco demo: a compact contextual toggle, not a permanent section -------
-   Collapsed state is a single small text link (same visual weight as "Load Example"
-   beside it), so it costs nothing when unused. Only the expanded body gets a bordered
-   panel treatment, and only for as long as it's open. */
+/* --- Embedded Costco demo: opened/closed by the full-sized "Costco Demo" button in
+   CompanyHeader (company-bar-search), not a trigger of its own - this file renders nothing
+   at all while closed, so the bordered panel treatment below only ever exists while open. */
 .costco-demo-panel {
   margin-bottom: 0.9rem;
-}
-
-.costco-demo-panel .costco-demo-toggle {
-  background: none;
-  border: none;
-  padding: 0;
-  font-size: 0.76rem;
-  color: var(--accent);
-  cursor: pointer;
-}
-
-.costco-demo-panel .costco-demo-toggle:hover {
-  text-decoration: underline;
 }
 
 .costco-demo-body {
@@ -969,6 +955,17 @@
 .field-row-label {
   font-size: 0.78rem;
   color: var(--text-h);
+}
+
+/* Costco demo only, on FCF Growth Rate specifically - the one field that's case-specific
+   rather than shared, so it needs to visibly say so or an edit reads as "changes every
+   case" the way editing any other field genuinely does. */
+.field-row-note {
+  display: block;
+  font-size: 0.68rem;
+  color: var(--text);
+  opacity: 0.75;
+  margin-top: 0.15rem;
 }
 
 .analytical-col .field-row input {
@@ -1257,15 +1254,27 @@
   letter-spacing: 0.03em;
 }
 
-.analysis-tabs {
+.analysis-tabs,
+.demo-case-tabs {
   display: flex;
   gap: 1.25rem;
+}
+
+.analysis-tabs {
   margin-left: auto;
 }
 
+.demo-case-tabs {
+  margin-bottom: 0.7rem;
+}
+
 /* Underline tabs read closer to institutional data-tool tab strips (Bloomberg/FactSet-
-   style) than filled pill buttons, which lean more generic-SaaS. */
-.analysis-tabs button {
+   style) than filled pill buttons, which lean more generic-SaaS. Shared between the
+   Sensitivity/Forecast view-switcher above and the Costco demo's Low/Base/High Growth
+   result tabs - same visual language, genuinely different specificity needs below since
+   only the demo tabs are real role="tab" elements with aria-selected driving state. */
+.analysis-tabs button,
+.demo-case-tabs button {
   padding: 0.15rem 0 0.4rem;
   border: none;
   border-bottom: 2px solid transparent;
@@ -1278,9 +1287,15 @@
   cursor: pointer;
 }
 
-.analysis-tabs button.active {
+.analysis-tabs button.active,
+.demo-case-tabs button[aria-selected='true'] {
   color: var(--text-h);
   border-bottom-color: var(--accent);
+}
+
+.demo-case-tabs button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .sensitivity-legend {

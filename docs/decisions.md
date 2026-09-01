@@ -407,8 +407,10 @@ incompatible one for the reference price a milestone later.
 **One company with three cases, not two companies,** because this app has no
 comparable-company framework — comparable-company inputs are listed among this project's
 deferred items in `README.md` — and building one just to make a two-ticker comparison
-meaningful would be out-of-scope expansion beyond the current roadmap, not a small addition. A Downside/Base/Upside spread
-on one company also reuses the naming convention and scenario-comparison pattern already
+meaningful would be out-of-scope expansion beyond the current roadmap, not a small addition. A
+Low/Base/High Growth spread (originally named Downside/Base/Upside; renamed with the later
+one-run/three-tab redesign - see "DCF demo-entry consolidation" below) on one company also
+reuses the naming convention and scenario-comparison pattern already
 established for real estate (see "Deterministic risk analysis" above), and demonstrates what
 this app actually does — how assumptions move an output for a fixed business — better than an
 apples-to-oranges cross-company comparison would.
@@ -436,9 +438,13 @@ year) and is itself explainable via this milestone's own provenance UI, so it di
 reconsidering the candidate.
 
 **Demo mechanics, decided in advance and shipped as decided (2026-08-31):** the three cases
-never touch `localStorage` — they render in a compact "Costco Demo" toggle beside "Load
-Example" (collapsed by default, the same visual weight as that link, not a permanent
-section), never as persistent saved scenarios. Every case's results are calculated live
+never touch `localStorage`, never as persistent saved scenarios. The entry point was later
+consolidated (2026-09-01): a full-sized "Costco Demo" disclosure button in the header,
+replacing the DCF module's old synthetic "Load Example" outright rather than sitting beside
+it, activates the demo on first use and thereafter only opens/closes the disclosure - case
+selection itself moved to result tabs under Valuation Summary, not the button or the
+disclosure panel. See "DCF demo-entry consolidation" below for the full design. Every
+case's results are calculated live
 through the real `/api/dcf/valuation` engine from frozen inputs, never hardcoded — verified
 via the network log (loading a case makes zero `/api/company` requests; "Run Valuation" still
 POSTs to the real endpoint) and via the resulting numbers, a clean monotonic spread across
@@ -481,8 +487,9 @@ commentary on a real company, which this app's "arithmetic only, never a recomme
 principle (see "Implied upside/downside" above) is meant to avoid.
 
 This framing turned out to matter in practice, not just in principle: all three Costco cases
-imply a value 50-58% below the $943.88 reference price ($335.59-$464.96 vs. Costco's real
-market price). This is a genuine, expected consequence of a 5-year flat-growth DCF at
+imply a value approximately 51-64% below the $943.88 reference price ($335.59-$464.96 vs.
+Costco's real market price - 64.4% for Low Growth, 58.1% for Base Growth, 50.7% for High
+Growth). This is a genuine, expected consequence of a 5-year flat-growth DCF at
 ordinary assumptions (7.5% WACC, 8% base-case growth) applied to a stock the market prices at
 a large quality/compounding premium (roughly 50x earnings) - not a sign the assumptions,
 the data, or the reference price are wrong. Nothing was adjusted to narrow this gap; doing so
@@ -577,3 +584,77 @@ field's pieces genuinely come from different filings.
 pattern:** opening the panel does not steal focus into it, consistent with the History and
 Costco Demo toggles; closing it explicitly returns focus to the "Sources" button, so a
 keyboard user never loses their place.
+
+## DCF demo-entry consolidation and the one-run, three-tab case model
+**Status:** Accepted
+
+The DCF module's synthetic "Load Example" (a hardcoded, anonymous set of assumption values
+with no company behind it) is removed outright, not left alongside the Costco demo - once a
+real, fully-sourced, multi-case demo existed, a fabricated placeholder added no value and
+was arguably worse: an analyst could mistake plausible-looking round numbers for a real
+company. Real estate's own "Load Example" is a different, unrelated feature (a believable
+CRE deal, not a placeholder) and is unaffected.
+
+The two-tier entry point - a subtle "Costco Demo" text toggle plus, separately, a full-sized
+"Load Example" button - is consolidated into one full-sized "Costco Demo" disclosure button
+in `CompanyHeader.jsx`, occupying "Load Example"'s old position. The first click activates
+the demo (loads the frozen snapshot and Base Growth's assumptions, opens the disclosure);
+once Costco is already the active company, the same button only opens/closes the
+disclosure - it never re-triggers activation and never resets whatever's already loaded or
+calculated, whether that click opens or closes it.
+
+**Cases are Low Growth / Base Growth / High Growth (4% / 8% / 12%, unchanged from the
+original Downside/Base/Upside), and case *selection* moved from three buttons inside the
+disclosure panel to three genuine WAI-ARIA result tabs under Valuation Summary.** The
+disclosure panel itself is now purely informational - no case buttons, no per-case
+description text. Case ids were renamed to match (`low`/`base`/`high`, not
+`downside`/`upside`) so a maintainer never sees a display name and an internal id that
+disagree.
+
+**One click of Run Valuation calculates all three cases**, via three parallel calls to the
+same `/api/dcf/valuation` (plus best-effort `/api/dcf/sensitivity`) endpoints a single run
+already uses - no backend change. `Promise.allSettled`, not `Promise.all`, specifically so
+one case's failure is recorded independently and is never silently represented by a sibling
+case's result (`reconcileDemoResults` in `demoCaseLogic.js`, unit-tested for exactly this -
+a rejected case gets `{results: null, sensitivity: null, error}`, never a neighbor's data).
+Switching tabs afterward is a pure view change - zero requests, confirmed via the network
+log - and swaps the complete case-specific result set (headline value, implied difference,
+warnings, sensitivity, value bridge, forecast schedule) by construction: every result-
+rendering, CSV, and print consumer in `DcfValuation.jsx` reads one derived
+`activeResults`/`activeSensitivity`/`activeError` (the active tab's own outcome in demo
+mode, the ordinary single-run state otherwise), so none of that existing rendering code had
+to be duplicated or made demo-aware itself.
+
+**FCF growth rate is the one case-specific assumption; every other field is shared across
+all three cases**, exactly as the original three-button design already established - only
+now that distinction needs to be stated explicitly, since a tabbed UI invites the assumption
+that everything shown is per-tab. A note under the field says so. Editing a shared field
+(WACC, terminal growth, forecast period, net debt, shares, base year UFCF) while any tab is
+active affects the calculation for all three cases; editing FCF growth rate writes only into
+that tab's own stored value (`demoCaseGrowth`), never the others'.
+
+**Any edit to a field the engine actually reads invalidates the retained three-case results
+- they stay in state (never wiped) but render a "please rerun" notice, and CSV/Print/
+Analysis Outputs are hidden until a fresh run clears it,** so a stale calculation can never
+be exported, printed, or mistaken for current. Editing the reference price/date is
+deliberately excluded from this - it never reaches the valuation engine, and the implied-
+upside comparison it feeds is already recomputed live on every render regardless of
+staleness. The stale flag is cleared only after the fresh results are actually installed,
+not when the rerun starts - clearing it early would let the previous run's numbers (still
+sitting in state) read as current for the whole duration of the new fetch. A "Calculating
+all three cases…" notice, and the same CSV/Print/Analysis Outputs hiding, cover that window
+too - including a rerun of results that were never stale in the first place, since nothing
+stops an analyst from clicking Run Valuation again just to confirm.
+
+**Saving a scenario captures only the active tab's visible assumptions** (verified live:
+saving while Low Growth was selected produced a saved `fcfGrowthRate: "4"` alongside the
+shared sourced fields) - a natural consequence of `form.fcfGrowthRate` already following the
+active tab, not special-cased scenario logic. Loading a saved scenario or a live ticker
+exits three-case demo mode entirely and returns to the ordinary single-valuation workflow,
+same as it already did before this redesign.
+
+**CSV exports name their case.** The numbers alone don't say whether they're Low, Base, or
+High Growth, so a demo export adds `Case`/`FCF Growth Rate (%/yr)` rows and uses a case-aware
+filename (`costco-low-growth-dcf.csv`, etc.) - both derived from the same active-tab state
+everything else already reads, not a separate lookup. Live-ticker/manual exports are
+unaffected; the extra rows and filename only appear in demo mode.

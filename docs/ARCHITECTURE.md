@@ -110,11 +110,17 @@ configured at all; only the reference price and Alpha-Vantage-only profile field
 data (5 years, full per-field provenance, transcribed by hand from a live production API
 call) plus a separately-sourced, dated reference price - shaped exactly like a live
 `CompanyData` API response so `CompanySourcedData`/`SourcedHistoryPanel`/the provenance UI
-render it with zero special-casing. `CostcoDemoPanel.jsx` is the compact toggle + three-case
-selector (`DcfValuation.jsx`'s `loadCostcoCase()` populates the same form fields a live
-ticker load would). Loading a case makes no network request at all; running the valuation
-still POSTs to the real `/api/dcf/valuation` endpoint like every other path in the app. See
-`docs/decisions.md`'s "Revised DCF sequence" record for the full design rationale.
+render it with zero special-casing. A full-sized "Costco Demo" button in `CompanyHeader.jsx`
+(replacing the DCF module's old synthetic "Load Example") activates the demo on first click
+(`DcfValuation.jsx`'s `activateCostcoDemo()` populates the same form fields a live ticker
+load would, plus Base Growth's assumptions) and thereafter only opens/closes the purely
+informational `CostcoDemoPanel.jsx` disclosure. Case selection (Low/Base/High Growth) is
+three WAI-ARIA result tabs under Valuation Summary, not buttons in the disclosure. Activating
+the demo makes no network request; one click of Run Valuation fires three parallel calls to
+the same `/api/dcf/valuation` + `/api/dcf/sensitivity` endpoints every other path in the app
+uses (`runDemoValuation()`, `reconcileDemoResults()` in `demoCaseLogic.js`), and switching
+tabs afterward is request-free. See `docs/decisions.md`'s "DCF demo-entry consolidation and
+the one-run, three-tab case model" record for the full design rationale.
 
 ## Historical trend mini-charts
 

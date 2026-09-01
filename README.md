@@ -88,13 +88,14 @@ see [`docs/decisions.md`](docs/decisions.md).*
   working-capital-driven FCF dip visible at a glance instead of requiring a row-by-row read
   of the table. Pure CSS, no chart library; handles negative, zero, and missing values
   correctly (a missing year is a gap, never a fabricated zero).
-- **Embedded Costco (COST) demo:** a compact toggle loads a frozen, real, fully-sourced
+- **Embedded Costco (COST) demo:** a header button loads a frozen, real, fully-sourced
   five-year snapshot and a dated reference price — no SEC or Alpha Vantage request, so it
-  works even when both providers are unavailable. Three ephemeral Downside/Base/Upside
+  works even when both providers are unavailable. Three ephemeral Low/Base/High Growth
   cases hold WACC and terminal growth fixed and vary only the explicit-period FCF growth
-  assumption, with results still computed live by the real valuation engine. Clearly
-  labeled as a demo snapshot throughout, never presented as live data, and never saved to
-  the scenario list.
+  assumption; one click of Run Valuation calculates all three via the real valuation engine,
+  then accessible result tabs switch between them instantly, with no further requests.
+  Clearly labeled as a demo snapshot throughout, never presented as live data, and never
+  saved to the scenario list.
 - Unlevered FCF projected from a base year at a flat growth rate
 - Gordon Growth terminal value, with WACC and terminal growth as direct inputs
 - Enterprise value → equity value → value per share bridge, shown as a proportional value

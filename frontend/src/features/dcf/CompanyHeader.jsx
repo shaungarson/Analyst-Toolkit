@@ -22,9 +22,10 @@ function CompanyHeader({
   setTicker,
   onLoadCompany,
   companyLoading,
-  onLoadExample,
   companyError,
   isDemoSnapshot,
+  isDemoOpen,
+  onToggleDemo,
 }) {
   // Reflects the actual response - was hardcoded to "Alpha Vantage" regardless of what
   // actually supplied the data, which became materially misleading once a request could
@@ -65,7 +66,7 @@ function CompanyHeader({
           </>
         ) : (
           <span className="company-bar-empty">
-            No company loaded — search a ticker or load the example.
+            No company loaded — search a ticker or open the Costco demo.
           </span>
         )}
 
@@ -82,8 +83,8 @@ function CompanyHeader({
           <button type="submit" className={profile ? 'secondary' : undefined} disabled={companyLoading || !ticker.trim()}>
             {companyLoading ? 'Loading…' : 'Load Company'}
           </button>
-          <button type="button" className="secondary" onClick={onLoadExample}>
-            Load Example
+          <button type="button" className="secondary" onClick={onToggleDemo} aria-expanded={isDemoOpen}>
+            Costco Demo {isDemoOpen ? '▲' : '▼'}
           </button>
         </form>
       </div>

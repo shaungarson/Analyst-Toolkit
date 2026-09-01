@@ -350,24 +350,14 @@ export const COSTCO_SHARED_ASSUMPTIONS = {
   terminalGrowthRate: '2.5',
 }
 
+// Ids double as the result-tab identifiers in DcfValuation.jsx's three-case demo mode, so
+// they match the display names below (not "downside"/"upside") - no case is a status
+// judgment on Costco, just a different FCF-growth assumption held against the same
+// historical snapshot. fcfGrowthRate is each case's *initial* growth rate only; once the
+// demo is active it becomes editable per-case state (DcfValuation.jsx's demoCaseGrowth),
+// not re-read from here on every render.
 export const COSTCO_CASES = [
-  {
-    id: 'downside',
-    label: 'Downside',
-    fcfGrowthRate: '4',
-    description: 'A slower growth path - membership and warehouse growth cool off in a tougher macro environment.',
-  },
-  {
-    id: 'base',
-    label: 'Base',
-    fcfGrowthRate: '8',
-    description:
-      "An illustrative FCF-growth assumption, set roughly in line with Costco's most recently reported revenue growth - not a UFCF growth trend, and not company guidance.",
-  },
-  {
-    id: 'upside',
-    label: 'Upside',
-    fcfGrowthRate: '12',
-    description: 'A stronger growth path - accelerated new-warehouse openings and membership growth.',
-  },
+  { id: 'low', label: 'Low Growth', fcfGrowthRate: '4' },
+  { id: 'base', label: 'Base Growth', fcfGrowthRate: '8' },
+  { id: 'high', label: 'High Growth', fcfGrowthRate: '12' },
 ]

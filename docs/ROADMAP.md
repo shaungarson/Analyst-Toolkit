@@ -63,19 +63,23 @@ merits before reverse DCF - is also done. Remaining items, in dependency order:
    real SEC EDGAR data down to the accession number) and a dated reference price ($943.88 as
    of 2026-08-31, from stockanalysis.com's historical close table, since Alpha Vantage's
    quote was unavailable when the snapshot was built - never fabricated, never presented as
-   SEC- or Alpha-Vantage-sourced), with three ephemeral Downside/Base/Upside cases. Loading a
-   case makes no SEC/Alpha Vantage request at all (verified: zero `/api/company` calls in the
-   network log); "Run Valuation" still POSTs to the real `/api/dcf/valuation` engine, so
-   results are computed live, never hardcoded (verified: $335.59 / $395.69 / $464.96 per
-   share across the three cases, a clean monotonic spread). WACC (7.5%) and terminal growth
+   SEC- or Alpha-Vantage-sourced), with three ephemeral Low/Base/High Growth cases. Loading
+   the demo makes no SEC/Alpha Vantage request at all (verified: zero `/api/company` calls in
+   the network log); one click of "Run Valuation" calculates all three cases together via the
+   real `/api/dcf/valuation` engine, so results are computed live, never hardcoded (verified:
+   $335.59 / $395.69 / $464.96 per share across the three cases, a clean monotonic spread) -
+   switching tabs afterward makes zero further requests. WACC (7.5%) and terminal growth
    (2.5%) are identical across all three; only explicit-period FCF growth varies (4% / 8% /
-   12%), with a plain-language line explaining exactly that. A compact "Costco Demo" toggle
-   sits beside "Load Example" in the header - collapsed by default, the same visual weight as
-   the existing example link, not a permanent section. The header shows a visually distinct
+   12%), with a plain-language line explaining exactly that. A full-sized "Costco Demo"
+   disclosure button in the header activates the demo and opens/closes its disclosure -
+   replacing the DCF module's old synthetic "Load Example" entirely (real estate's own Load
+   Example is unaffected); case switching itself happens via three accessible result tabs
+   under Valuation Summary, not buttons in the disclosure. The header shows a visually
+   distinct
    "Embedded demo snapshot · not live data" label whenever the frozen data is loaded, and
    switching to a real ticker search clears it immediately. Cases never touch `localStorage`
    or the saved-scenario list. See `docs/decisions.md` for the full design record, including
-   why the ~50-58% gap against Costco's real reference price is a genuine, expected result of
+   why the ~51-64% gap against Costco's real reference price is a genuine, expected result of
    the model's flat-growth simplicity against a premium-multiple stock, not a tuning error.
 5. ~~**Historical trend mini-charts.**~~ **Done (2026-08-31).** A small insertion proposed
    and evaluated on its own merits before reverse DCF, not part of the original agreed

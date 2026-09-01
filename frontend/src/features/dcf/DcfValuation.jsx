@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { compactCurrency, compactShares, currency, percent } from '../../lib/format'
 import { downloadCsv } from '../../lib/csv'
 import { friendlyErrorMessage, parseErrorResponse } from '../../lib/apiError'
@@ -13,6 +13,7 @@ import SourcedHistoryPanel from './SourcedHistoryPanel'
 import CompanyHeader from './CompanyHeader'
 import CostcoDemoPanel from './CostcoDemoPanel'
 import ValueBridge from './ValueBridge'
+import { nextDemoTabIndex, reconcileDemoResults } from './demoCaseLogic'
 import {
   COSTCO_CASES,
   COSTCO_COMPANY_DATA,
@@ -23,20 +24,9 @@ import {
 import '../../styles/feature-form.css'
 import '../../styles/workspace.css'
 
-const EXAMPLE = {
-  baseYearFcf: '120000000',
-  fcfGrowthRate: '8',
-  forecastYears: '5',
-  wacc: '9',
-  terminalGrowthRate: '2.5',
-  netDebt: '300000000',
-  dilutedSharesOutstanding: '50000000',
-  referencePrice: '',
-  referencePriceDate: '',
-  referencePriceSourcedValue: '',
-  referencePriceSourcedDate: '',
-  referencePriceSourceTicker: '',
-}
+// The one Costco-demo result tabpanel every tab's aria-controls points at - see the comment
+// above the tab strip for why this is one shared panel rather than three.
+const DEMO_TABPANEL_ID = 'demo-tabpanel'
 
 const EMPTY = {
   baseYearFcf: '',
@@ -67,6 +57,20 @@ const EMPTY = {
 // genuinely optional and has its own "Analyst Input because Alpha Vantage was unavailable"
 // case the generic logic doesn't need to represent for anything else.
 const SOURCEABLE_FIELDS = ['baseYearFcf', 'netDebt', 'dilutedSharesOutstanding']
+
+// Exactly buildPayload's inputs, by form field name - the fields that actually change what
+// the engine computes. referencePrice/referencePriceDate are deliberately excluded: they
+// never reach buildPayload, so editing them can't make a retained demo result stale - the
+// implied-upside comparison they feed is recomputed live on every render regardless.
+const DEMO_STALE_FIELDS = [
+  'baseYearFcf',
+  'fcfGrowthRate',
+  'forecastYears',
+  'wacc',
+  'terminalGrowthRate',
+  'netDebt',
+  'dilutedSharesOutstanding',
+]
 
 // Only the fields the calculation engine actually needs - referencePrice/referencePriceDate
 // live in the same form object (so they save/reload with a scenario, see loadScenario) but
@@ -116,14 +120,48 @@ function DcfValuation() {
   // since COSTCO_COMPANY_DATA is shaped exactly like a live CompanyData response.
   const [isDemoSnapshot, setIsDemoSnapshot] = useState(false)
   const [showCostcoDemo, setShowCostcoDemo] = useState(false)
+  // Which of the three result tabs is active - doubles as "which case's FCF growth rate is
+  // currently shown/editable in the Assumptions column" both before and after calculation.
   const [activeDemoCaseId, setActiveDemoCaseId] = useState(null)
+  // Each case's own FCF growth rate, independent of which tab is active - the one assumption
+  // this demo treats as case-specific rather than shared. { low, base, high } once active.
+  const [demoCaseGrowth, setDemoCaseGrowth] = useState(null)
+  // { low: {results, sensitivity, error}, base: {...}, high: {...} } once Run Valuation has
+  // been clicked in demo mode; null beforehand. Every key is always present after a run, even
+  // for a case whose call failed - a failed case is `{results: null, sensitivity: null, error}`,
+  // never silently backfilled from a sibling case's result.
+  const [demoResults, setDemoResults] = useState(null)
+  // True once any buildPayload-relevant field changes after demoResults was last set - the
+  // three retained results stay in state (never wiped by an edit, so they're ready to
+  // reappear the instant a rerun completes) but are intentionally hidden, not rendered,
+  // until the next Run Valuation click refreshes all three and clears this flag.
+  const [demoResultsStale, setDemoResultsStale] = useState(false)
+  const demoTabRefs = useRef({})
+
+  // Any edit to a field the engine actually reads invalidates retained demo results - never
+  // silently keep showing a stale calculation. referencePrice/referencePriceDate aren't in
+  // DEMO_STALE_FIELDS (see its own comment), so tweaking the comparison price alone doesn't
+  // trigger this.
+  const markDemoStaleIfNeeded = (field) => {
+    if (isDemoSnapshot && demoResults && DEMO_STALE_FIELDS.includes(field)) {
+      setDemoResultsStale(true)
+    }
+  }
 
   const handleChange = (field) => (e) => {
-    setForm({ ...form, [field]: e.target.value })
+    const value = e.target.value
+    setForm({ ...form, [field]: value })
+    // FCF growth rate is the one case-specific assumption - capture the edit against
+    // whichever case's tab is currently active, not as a shared value.
+    if (isDemoSnapshot && field === 'fcfGrowthRate' && activeDemoCaseId) {
+      setDemoCaseGrowth((prev) => ({ ...prev, [activeDemoCaseId]: value }))
+    }
+    markDemoStaleIfNeeded(field)
   }
 
   const setFieldValue = (field) => (value) => {
     setForm((prev) => ({ ...prev, [field]: value }))
+    markDemoStaleIfNeeded(field)
   }
 
   // Populates the existing assumption fields from sourced company data - it does not run
@@ -144,6 +182,10 @@ function DcfValuation() {
       setCompanyData(data)
       setIsDemoSnapshot(false)
       setActiveDemoCaseId(null)
+      setShowCostcoDemo(false)
+      setDemoCaseGrowth(null)
+      setDemoResults(null)
+      setDemoResultsStale(false)
       setResults(null)
       setSensitivity(null)
       setComparison(null)
@@ -181,23 +223,6 @@ function DcfValuation() {
     }
   }
 
-  const loadExample = () => {
-    setForm(EXAMPLE)
-    setResults(null)
-    setSensitivity(null)
-    setComparison(null)
-    setError(null)
-    // The example is illustrative, not sourced from any ticker - clear company state so the
-    // header and Sourced/Analyst badges don't keep describing a different company.
-    setTicker('')
-    setCompanyData(null)
-    setCompanyError(null)
-    setSourcedSnapshot(null)
-    setIsDemoSnapshot(false)
-    setActiveDemoCaseId(null)
-    setShowHistory(false)
-  }
-
   const loadScenario = (data) => {
     // Backfill so scenarios saved before referencePrice/referencePriceDate existed don't
     // leave those inputs undefined (React would warn about an uncontrolled->controlled
@@ -213,25 +238,28 @@ function DcfValuation() {
     setSourcedSnapshot(null)
     setIsDemoSnapshot(false)
     setActiveDemoCaseId(null)
+    setShowCostcoDemo(false)
+    setDemoCaseGrowth(null)
+    setDemoResults(null)
+    setDemoResultsStale(false)
     setShowHistory(false)
   }
 
-  // Embedded Costco demo: populates the exact same form fields a live ticker load would
+  // First activation only: populates the exact same form fields a live ticker load would
   // (base year UFCF, net debt, diluted shares, reference price/date, and its sourced-
   // baseline record), but from the frozen local snapshot - no fetch, so this works with SEC
-  // EDGAR and Alpha Vantage both unavailable. Never auto-runs the valuation and never saves
-  // a scenario, same as every other data-loading path here; the analyst still reviews the
-  // populated fields and explicitly clicks Run Valuation, which still calls the real
-  // backend engine. Only fcfGrowthRate differs between cases - WACC, terminal growth,
-  // forecast period, and the entire sourced snapshot are identical across all three, so
-  // switching cases isolates that one assumption.
-  const loadCostcoCase = (caseId) => {
-    const selectedCase = COSTCO_CASES.find((c) => c.id === caseId)
-    if (!selectedCase) return
-
+  // EDGAR and Alpha Vantage both unavailable. Loads Base Growth's assumptions and opens the
+  // disclosure; never auto-runs the valuation and never saves a scenario, same as every
+  // other data-loading path here. WACC, terminal growth, forecast period, and the entire
+  // sourced snapshot are shared across all three cases - only each case's own FCF growth
+  // rate (demoCaseGrowth) differs, seeded here from COSTCO_CASES' initial values.
+  const activateCostcoDemo = () => {
     setCompanyData(COSTCO_COMPANY_DATA)
     setIsDemoSnapshot(true)
-    setActiveDemoCaseId(caseId)
+    setActiveDemoCaseId('base')
+    setDemoCaseGrowth(Object.fromEntries(COSTCO_CASES.map((c) => [c.id, c.fcfGrowthRate])))
+    setDemoResults(null)
+    setDemoResultsStale(false)
     setResults(null)
     setSensitivity(null)
     setComparison(null)
@@ -242,6 +270,7 @@ function DcfValuation() {
     setShowCostcoDemo(true)
 
     const latest = COSTCO_COMPANY_DATA.periods[0]
+    const baseCase = COSTCO_CASES.find((c) => c.id === 'base')
     const sourced = {
       baseYearFcf: String(Math.round(latest.unlevered_fcf)),
       netDebt: String(Math.round(latest.net_debt)),
@@ -257,8 +286,42 @@ function DcfValuation() {
       ...prev,
       ...sourced,
       ...COSTCO_SHARED_ASSUMPTIONS,
-      fcfGrowthRate: selectedCase.fcfGrowthRate,
+      fcfGrowthRate: baseCase.fcfGrowthRate,
     }))
+  }
+
+  // The header's "Costco Demo" button: activates fresh (loading Base Growth) the first time,
+  // or while switched away to a live ticker/scenario. Once Costco is already the active
+  // company, it only opens/closes the disclosure - never re-triggered by, or resetting,
+  // whatever's already loaded or calculated.
+  const handleToggleCostcoDemo = () => {
+    if (!isDemoSnapshot) {
+      activateCostcoDemo()
+    } else {
+      setShowCostcoDemo((v) => !v)
+    }
+  }
+
+  // Switching tabs is a pure view change - zero requests, and never touches demoResults or
+  // demoResultsStale. Only the visible FCF growth rate follows the newly active case; every
+  // shared field stays exactly as it was.
+  const selectDemoTab = (caseId) => {
+    setActiveDemoCaseId(caseId)
+    setForm((prev) => ({ ...prev, fcfGrowthRate: demoCaseGrowth[caseId] }))
+  }
+
+  // Standard WAI-ARIA tabs roving-tabindex pattern: arrow keys move both focus and selection
+  // between tabs, Home/End jump to the ends. Enter/Space activation is native <button>
+  // behavior and needs no handling here.
+  const DEMO_TAB_ORDER = COSTCO_CASES.map((c) => c.id)
+  const handleDemoTabKeyDown = (e) => {
+    const currentIndex = DEMO_TAB_ORDER.indexOf(activeDemoCaseId)
+    const nextIndex = nextDemoTabIndex(e.key, currentIndex, DEMO_TAB_ORDER.length)
+    if (nextIndex === null) return
+    e.preventDefault()
+    const nextId = DEMO_TAB_ORDER[nextIndex]
+    selectDemoTab(nextId)
+    demoTabRefs.current[nextId]?.focus()
   }
 
   // Only fields ticker search can populate are ever eligible for a badge, and only once a
@@ -319,20 +382,28 @@ function DcfValuation() {
     )
   }
 
+  // Reads activeResults/activeSensitivity (the active demo tab's results in demo mode, the
+  // single-run results otherwise) - never the raw results/sensitivity state directly, so a
+  // demo export always matches whichever case's tab is currently on screen. In demo mode,
+  // also names which case this is (both in the file's own content and its filename) - the
+  // numbers alone don't say whether they're Low, Base, or High Growth, and a CSV or its
+  // filename is exactly the kind of thing that outlives the screen it was exported from.
   const exportCsv = () => {
+    const activeCase = isDemoSnapshot ? COSTCO_CASES.find((c) => c.id === activeDemoCaseId) : null
     const rows = [
       ['DCF Valuation Results'],
+      ...(activeCase ? [['Case', activeCase.label], ['FCF Growth Rate (%/yr)', form.fcfGrowthRate]] : []),
       [],
       ['Metric', 'Value'],
-      ['Enterprise Value', results.enterprise_value],
-      ['Equity Value', results.equity_value],
-      ['Value per Share', results.value_per_share],
-      ['Terminal Value', results.terminal_value],
-      ['PV of Terminal Value', results.pv_terminal_value],
+      ['Enterprise Value', activeResults.enterprise_value],
+      ['Equity Value', activeResults.equity_value],
+      ['Value per Share', activeResults.value_per_share],
+      ['Terminal Value', activeResults.terminal_value],
+      ['PV of Terminal Value', activeResults.pv_terminal_value],
       [],
       ['Forecast & Discounting'],
       ['Year', 'Unlevered FCF', 'Discount Factor', 'Present Value'],
-      ...results.forecast.map((row) => [
+      ...activeResults.forecast.map((row) => [
         row.year,
         row.fcf,
         row.discount_factor,
@@ -340,23 +411,31 @@ function DcfValuation() {
       ]),
     ]
 
-    if (sensitivity) {
+    if (activeSensitivity) {
       rows.push(
         [],
         ['Sensitivity: Value per Share by WACC & Terminal Growth'],
-        ['WACC', ...sensitivity.terminal_growth_rates.map((g) => percent(g))],
-        ...sensitivity.rows.map((row) => [
+        ['WACC', ...activeSensitivity.terminal_growth_rates.map((g) => percent(g))],
+        ...activeSensitivity.rows.map((row) => [
           percent(row.wacc),
           ...row.value_per_share_by_growth.map((v) => (v === null ? 'n/a' : v)),
         ]),
       )
     }
 
-    downloadCsv('dcf-valuation.csv', rows)
+    downloadCsv(activeCase ? `costco-${activeCase.id}-growth-dcf.csv` : 'dcf-valuation.csv', rows)
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (isDemoSnapshot) {
+      await runDemoValuation()
+    } else {
+      await runSingleValuation()
+    }
+  }
+
+  const runSingleValuation = async () => {
     setError(null)
     setLoading(true)
     setSensitivity(null)
@@ -395,11 +474,75 @@ function DcfValuation() {
     }
   }
 
+  // One click calculates all three cases via parallel calls to the same endpoints a single
+  // run already uses - no backend change. Each case gets its own valuation + sensitivity
+  // fetch pair, using demoCaseGrowth's per-case FCF growth rate with every other field
+  // shared from `form`. Each case's outcome is recorded independently - Promise.allSettled,
+  // not Promise.all, specifically so one case's failure can't blank out (or, worse, get
+  // silently paired with) a sibling case's real result.
+  const runDemoValuation = async () => {
+    setLoading(true)
+    // Deliberately NOT setDemoResultsStale(false) here - the previous demoResults are still
+    // sitting in state until the new ones are installed below, and clearing the stale flag
+    // this early would let showActiveResults (and the tabpanel's own check) treat those old
+    // numbers as current for the whole duration of the fetch. Only cleared once the fresh,
+    // reconciled results actually replace them.
+    try {
+      const caseIds = COSTCO_CASES.map((c) => c.id)
+      const settled = await Promise.allSettled(
+        caseIds.map(async (caseId) => {
+          const payload = buildPayload({ ...form, fcfGrowthRate: demoCaseGrowth[caseId] })
+          const res = await fetch(`${API_BASE}/api/dcf/valuation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+          if (!res.ok) {
+            throw new Error(await parseErrorResponse(res))
+          }
+          const caseResults = await res.json()
+
+          // Same best-effort treatment as the single-case path: a missing sensitivity grid
+          // for one case doesn't fail that case's headline result.
+          let caseSensitivity = null
+          try {
+            const sensRes = await fetch(`${API_BASE}/api/dcf/sensitivity`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            })
+            if (sensRes.ok) {
+              caseSensitivity = await sensRes.json()
+            }
+          } catch {
+            // Sensitivity grid is supplementary; leave it blank on failure.
+          }
+
+          return { results: caseResults, sensitivity: caseSensitivity }
+        }),
+      )
+      setDemoResults(reconcileDemoResults(caseIds, settled, friendlyErrorMessage))
+      setDemoResultsStale(false)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // The single source every result-rendering, CSV, and print consumer below reads instead
+  // of the raw results/sensitivity/error state - in demo mode, "the active tab's own
+  // outcome" (which may be a result, an error, or neither pre-run); otherwise, exactly the
+  // single-run state, unchanged. This is what makes every consumer already written against
+  // results/sensitivity/error automatically become tab-correct without being rewritten.
+  const activeDemoCase = isDemoSnapshot ? demoResults?.[activeDemoCaseId] : null
+  const activeResults = isDemoSnapshot ? (activeDemoCase?.results ?? null) : results
+  const activeSensitivity = isDemoSnapshot ? (activeDemoCase?.sensitivity ?? null) : sensitivity
+  const activeError = isDemoSnapshot ? (activeDemoCase?.error ?? null) : error
+
   // Sensitivity cells are tinted in five discrete tiers (low->high implied value) rather
   // than a computed gradient, so light/dark colors can be declared explicitly in CSS. The
   // base-case cell keeps its existing solid highlight regardless of tier.
-  const sensitivityValues = sensitivity
-    ? sensitivity.rows.flatMap((row) => row.value_per_share_by_growth.filter((v) => v !== null))
+  const sensitivityValues = activeSensitivity
+    ? activeSensitivity.rows.flatMap((row) => row.value_per_share_by_growth.filter((v) => v !== null))
     : []
   const sensMin = sensitivityValues.length ? Math.min(...sensitivityValues) : 0
   const sensMax = sensitivityValues.length ? Math.max(...sensitivityValues) : 0
@@ -424,7 +567,17 @@ function DcfValuation() {
     referencePriceNum > 0 &&
     form.referencePriceDate !== ''
   const impliedUpside =
-    results && hasUsableReferencePrice ? results.value_per_share / referencePriceNum - 1 : null
+    activeResults && hasUsableReferencePrice ? activeResults.value_per_share / referencePriceNum - 1 : null
+
+  // Gates CSV/Print and the Analysis Outputs card - not just activeResults, since a stale
+  // demo result must not be exportable or printable either, even though it's still sitting
+  // in state (never wiped, only flagged) so it can reappear the instant a rerun completes.
+  // The `loading` check is a second, independent guard, not a redundant one: it also covers
+  // clicking Run Valuation again on results that were never stale (nothing forces staleness
+  // before a rerun) - without it, the previous run's numbers would stay exportable/printable
+  // for the whole duration of a fetch that might return something different, or fail
+  // outright. Always equals activeResults outside demo mode, where none of this applies.
+  const showActiveResults = activeResults && !demoResultsStale && !(isDemoSnapshot && loading)
 
   return (
     <div className="feature-page workspace">
@@ -435,17 +588,13 @@ function DcfValuation() {
         setTicker={setTicker}
         onLoadCompany={loadCompany}
         companyLoading={companyLoading}
-        onLoadExample={loadExample}
         companyError={companyError}
         isDemoSnapshot={isDemoSnapshot}
+        isDemoOpen={showCostcoDemo}
+        onToggleDemo={handleToggleCostcoDemo}
       />
 
-      <CostcoDemoPanel
-        activeCaseId={activeDemoCaseId}
-        onLoadCase={loadCostcoCase}
-        open={showCostcoDemo}
-        onToggle={setShowCostcoDemo}
-      />
+      <CostcoDemoPanel open={showCostcoDemo} />
 
       <div className="analytical-row">
         <section className="analytical-col">
@@ -500,6 +649,15 @@ function DcfValuation() {
                   value={form.fcfGrowthRate}
                   onChange={handleChange('fcfGrowthRate')}
                 />
+                {/* Every other field on this form is shared across all three demo cases -
+                    this is the one exception, so editing it must not read as "edits every
+                    case" the way editing WACC below genuinely does. */}
+                {isDemoSnapshot && (
+                  <span className="field-row-note no-print">
+                    Specific to the {COSTCO_CASES.find((c) => c.id === activeDemoCaseId)?.label} tab -
+                    every other field here is shared across all three cases.
+                  </span>
+                )}
               </label>
               <label className="field-row">
                 <span className="field-row-head">
@@ -634,7 +792,7 @@ function DcfValuation() {
           <div className="analytical-col-header">
             <span className="step-badge">3</span>
             <h2>Valuation Summary</h2>
-            {results && (
+            {showActiveResults && (
               <div className="col-actions no-print">
                 <button type="button" className="secondary" onClick={exportCsv}>
                   CSV
@@ -646,69 +804,130 @@ function DcfValuation() {
             )}
           </div>
 
-          {results ? (
-            <>
-              <div className="valuation-hero">
-                <span className="hero-label">Implied Value per Share</span>
-                <span className="hero-value">{dollarsPerShare(results.value_per_share)}</span>
-              </div>
-
-              {hasUsableReferencePrice && (
-                <div className="valuation-comparison">
-                  <div className="comparison-rows">
-                    <div className="comparison-row">
-                      <span className="label">Reference Price (as of {form.referencePriceDate})</span>
-                      <span className="value">{dollarsPerShare(referencePriceNum)}</span>
-                    </div>
-                    <div className="comparison-row">
-                      <span className="label">{impliedUpside >= 0 ? 'Implied Upside' : 'Implied Downside'}</span>
-                      <span className={`value ${impliedUpside >= 0 ? 'value-positive' : 'value-negative'}`}>
-                        {impliedUpside >= 0 ? '+' : ''}
-                        {(impliedUpside * 100).toFixed(1)}%
-                      </span>
-                    </div>
-                  </div>
-                  <p className="comparison-disclaimer">
-                    The difference reflects the model&rsquo;s selected assumptions and simplified
-                    flat-growth methodology. It is not an investment recommendation.
-                  </p>
-                </div>
-              )}
-
-              <div className="valuation-support-grid">
-                <div>
-                  <span className="label">Enterprise Value</span>
-                  <span className="value">{compactCurrency(results.enterprise_value)}</span>
-                </div>
-                <div>
-                  <span className="label">{netDebtNum < 0 ? 'Net Cash' : 'Net Debt'}</span>
-                  <span className="value">{compactCurrency(Math.abs(netDebtNum))}</span>
-                </div>
-                <div>
-                  <span className="label">Equity Value</span>
-                  <span className="value">{compactCurrency(results.equity_value)}</span>
-                </div>
-                <div>
-                  <span className="label">Diluted Shares</span>
-                  <span className="value">{compactShares(Number(form.dilutedSharesOutstanding))}</span>
-                </div>
-                <div>
-                  <span className="label">WACC</span>
-                  <span className="value">{form.wacc}%</span>
-                </div>
-                <div>
-                  <span className="label">Terminal Growth</span>
-                  <span className="value">{form.terminalGrowthRate}%</span>
-                </div>
-                <div>
-                  <span className="label">Forecast Period</span>
-                  <span className="value">{form.forecastYears} yrs</span>
-                </div>
-              </div>
-            </>
-          ) : (
-            <p className="col-empty-hint">Run a valuation to see results here.</p>
+          {/* Real WAI-ARIA tabs, not styled buttons: roving tabindex (only the active tab is
+              in the Tab order), aria-selected drives both semantics and the active-state
+              CSS, and handleDemoTabKeyDown implements Left/Right/Home/End per the standard
+              pattern. Switching tabs never fetches anything - see selectDemoTab.
+              One shared tabpanel (DEMO_TABPANEL_ID), not three - all three tabs' aria-
+              controls point at the same, always-present id, which only the active tab's
+              content ever occupies. The alternative (a separate DOM node per case, all three
+              always mounted, inactive ones hidden) is equally valid per the WAI-ARIA
+              Authoring Practices, but would mean either rendering the whole result body
+              three times or extracting it into its own component for no behavioral gain -
+              this app has exactly one visible case at a time, never more. */}
+          {isDemoSnapshot && (
+            <div className="demo-case-tabs no-print" role="tablist" aria-label="Costco demo case">
+              {COSTCO_CASES.map((c) => (
+                <button
+                  key={c.id}
+                  ref={(el) => {
+                    demoTabRefs.current[c.id] = el
+                  }}
+                  id={`demo-tab-${c.id}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeDemoCaseId === c.id}
+                  aria-controls={DEMO_TABPANEL_ID}
+                  tabIndex={activeDemoCaseId === c.id ? 0 : -1}
+                  onClick={() => selectDemoTab(c.id)}
+                  onKeyDown={handleDemoTabKeyDown}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
           )}
+
+          <div
+            id={isDemoSnapshot ? DEMO_TABPANEL_ID : undefined}
+            role={isDemoSnapshot ? 'tabpanel' : undefined}
+            aria-labelledby={isDemoSnapshot ? `demo-tab-${activeDemoCaseId}` : undefined}
+            tabIndex={isDemoSnapshot ? 0 : undefined}
+          >
+            {isDemoSnapshot && loading ? (
+              <p className="col-empty-hint">Calculating all three cases…</p>
+            ) : isDemoSnapshot && !demoResults ? (
+              <p className="col-empty-hint">
+                One click of Run Valuation calculates all three cases - switch tabs afterward
+                to compare them instantly, with no new calculation.
+              </p>
+            ) : isDemoSnapshot && demoResultsStale ? (
+              <p className="terminal-growth-warning">
+                <span className="terminal-growth-warning-explanation">
+                  Assumptions changed since these results were calculated. Click Run Valuation
+                  to refresh all three cases.
+                </span>
+              </p>
+            ) : activeError ? (
+              <p className="error">{activeError}</p>
+            ) : activeResults ? (
+              <>
+                <div className="valuation-hero">
+                  <span className="hero-label">
+                    Implied Value per Share
+                    {isDemoSnapshot &&
+                      ` — ${COSTCO_CASES.find((c) => c.id === activeDemoCaseId)?.label}`}
+                  </span>
+                  <span className="hero-value">{dollarsPerShare(activeResults.value_per_share)}</span>
+                </div>
+
+                {hasUsableReferencePrice && (
+                  <div className="valuation-comparison">
+                    <div className="comparison-rows">
+                      <div className="comparison-row">
+                        <span className="label">Reference Price (as of {form.referencePriceDate})</span>
+                        <span className="value">{dollarsPerShare(referencePriceNum)}</span>
+                      </div>
+                      <div className="comparison-row">
+                        <span className="label">{impliedUpside >= 0 ? 'Implied Upside' : 'Implied Downside'}</span>
+                        <span className={`value ${impliedUpside >= 0 ? 'value-positive' : 'value-negative'}`}>
+                          {impliedUpside >= 0 ? '+' : ''}
+                          {(impliedUpside * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                    <p className="comparison-disclaimer">
+                      The difference reflects the model&rsquo;s selected assumptions and simplified
+                      flat-growth methodology. It is not an investment recommendation.
+                    </p>
+                  </div>
+                )}
+
+                <div className="valuation-support-grid">
+                  <div>
+                    <span className="label">Enterprise Value</span>
+                    <span className="value">{compactCurrency(activeResults.enterprise_value)}</span>
+                  </div>
+                  <div>
+                    <span className="label">{netDebtNum < 0 ? 'Net Cash' : 'Net Debt'}</span>
+                    <span className="value">{compactCurrency(Math.abs(netDebtNum))}</span>
+                  </div>
+                  <div>
+                    <span className="label">Equity Value</span>
+                    <span className="value">{compactCurrency(activeResults.equity_value)}</span>
+                  </div>
+                  <div>
+                    <span className="label">Diluted Shares</span>
+                    <span className="value">{compactShares(Number(form.dilutedSharesOutstanding))}</span>
+                  </div>
+                  <div>
+                    <span className="label">WACC</span>
+                    <span className="value">{form.wacc}%</span>
+                  </div>
+                  <div>
+                    <span className="label">Terminal Growth</span>
+                    <span className="value">{form.terminalGrowthRate}%</span>
+                  </div>
+                  <div>
+                    <span className="label">Forecast Period</span>
+                    <span className="value">{form.forecastYears} yrs</span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="col-empty-hint">Run a valuation to see results here.</p>
+            )}
+          </div>
         </section>
       </div>
 
@@ -716,9 +935,9 @@ function DcfValuation() {
         <SourcedHistoryPanel periods={companyData.periods} visible={showHistory} />
       )}
 
-      {error && <p className="error">{error}</p>}
+      {!isDemoSnapshot && error && <p className="error">{error}</p>}
 
-      {results && (
+      {showActiveResults && (
         <WorkflowCard
           step={4}
           title="Analysis Outputs"
@@ -742,7 +961,7 @@ function DcfValuation() {
             </div>
           }
         >
-          {sensitivity && (
+          {activeSensitivity && (
             <div
               className={
                 analysisTab === 'sensitivity' ? 'sensitivity-legend-wrap' : 'sensitivity-legend-wrap no-screen'
@@ -763,7 +982,7 @@ function DcfValuation() {
                 rate),{' '}
                 {form.terminalGrowthRate}% terminal growth (the assumed long-run growth rate)
                 &mdash; implying{' '}
-                {dollarsPerShare(results.value_per_share)}/share. A lower WACC or higher terminal
+                {dollarsPerShare(activeResults.value_per_share)}/share. A lower WACC or higher terminal
                 growth generally increases value; the reverse generally decreases it.
                 &ldquo;n/a&rdquo; means that combination falls outside the Gordon Growth
                 formula&rsquo;s valid mathematical range &mdash; most commonly because terminal
@@ -777,7 +996,7 @@ function DcfValuation() {
 
           <div className={analysisTab === 'sensitivity' ? 'analysis-outputs-row' : 'analysis-outputs-row no-screen'}>
             <div className="sensitivity-panel">
-              {sensitivity ? (
+              {activeSensitivity ? (
                 <>
                   <h3>Sensitivity: Value per Share by WACC &amp; Terminal Growth</h3>
                   <div className="table-wrap">
@@ -785,20 +1004,20 @@ function DcfValuation() {
                       <thead>
                         <tr>
                           <th>WACC</th>
-                          {sensitivity.terminal_growth_rates.map((g) => (
+                          {activeSensitivity.terminal_growth_rates.map((g) => (
                             <th key={g}>{percent(g)}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
-                        {sensitivity.rows.map((row) => (
+                        {activeSensitivity.rows.map((row) => (
                           <tr key={row.wacc}>
                             <td>{percent(row.wacc)}</td>
                             {row.value_per_share_by_growth.map((cellValue, i) => {
                               const isBaseCase =
                                 Math.abs(row.wacc - Number(form.wacc) / 100) < 1e-6 &&
                                 Math.abs(
-                                  sensitivity.terminal_growth_rates[i] -
+                                  activeSensitivity.terminal_growth_rates[i] -
                                     Number(form.terminalGrowthRate) / 100,
                                 ) < 1e-6
                               const className = isBaseCase
@@ -830,18 +1049,18 @@ function DcfValuation() {
             <div className="bridge-panel">
               <h3>Value Bridge</h3>
               <ValueBridge
-                results={results}
+                results={activeResults}
                 netDebt={netDebtNum}
                 dilutedSharesOutstanding={Number(form.dilutedSharesOutstanding)}
               />
               <p className="assumptions">
-                Incl. PV of Terminal Value {compactCurrency(results.pv_terminal_value)} (Terminal Value{' '}
-                {compactCurrency(results.terminal_value)}).
+                Incl. PV of Terminal Value {compactCurrency(activeResults.pv_terminal_value)} (Terminal Value{' '}
+                {compactCurrency(activeResults.terminal_value)}).
               </p>
-              {(results.terminal_growth_warnings?.length > 0 ||
-                results.fcf_growth_warnings?.length > 0) && (
+              {(activeResults.terminal_growth_warnings?.length > 0 ||
+                activeResults.fcf_growth_warnings?.length > 0) && (
                 <ul className="terminal-growth-warning-list">
-                  {[...results.terminal_growth_warnings, ...results.fcf_growth_warnings].map(
+                  {[...activeResults.terminal_growth_warnings, ...activeResults.fcf_growth_warnings].map(
                     (warning) => (
                       <li
                         key={warning.id}
@@ -872,7 +1091,7 @@ function DcfValuation() {
                   </tr>
                 </thead>
                 <tbody>
-                  {results.forecast.map((row) => (
+                  {activeResults.forecast.map((row) => (
                     <tr key={row.year}>
                       <td>{row.year}</td>
                       <td>{currency(row.fcf)}</td>

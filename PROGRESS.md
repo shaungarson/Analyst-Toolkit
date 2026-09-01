@@ -33,7 +33,7 @@ shipped and deployed to production. See `docs/ROADMAP.md` and `docs/decisions.md
   FCF) in the sourced-data panel, shared fiscal-year strip, independent scales, correct
   handling of negative/zero/missing values, no chart library — [decisions.md](docs/decisions.md#historical-trend-mini-charts)
 - 2026-08-31 — Embedded, provider-independent Costco DCF demo: a frozen real 5-year snapshot
-  and dated reference price, three Downside/Base/Upside cases (only FCF growth varies; WACC
+  and dated reference price, three Low/Base/High Growth cases (only FCF growth varies; WACC
   and terminal growth fixed), zero network requests to load, real `/api/dcf/valuation` engine
   to calculate — [decisions.md](docs/decisions.md#revised-dcf-sequence-data-resilience-combined-provenanceprice-milestone-and-a-validated-real-company-demo)
 - 2026-08-31 — Costco (COST) confirmed as the real-company demo candidate: validated live
