@@ -1,9 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { compactCurrency, percent } from '../../lib/format'
 import ProvenanceDot from './ProvenanceDot'
-import ProvenanceDetailRow from './ProvenanceDetailRow'
 import HistoricalTrendCharts from './HistoricalTrendCharts'
-import { STATUS_LABEL } from './provenanceLabels'
+import SourceDetailsPanel from './SourceDetailsPanel'
 
 const fmt = (value, formatter) => (value === null || value === undefined ? 'n/a' : formatter(value))
 
@@ -39,6 +38,12 @@ function CompanySourcedData({ companyData, showHistory, onToggleHistory }) {
   const { profile, periods } = companyData
   const latest = periods[0]
   const [showSources, setShowSources] = useState(false)
+  const sourcesToggleRef = useRef(null)
+
+  const closeSourceDetails = () => {
+    setShowSources(false)
+    sourcesToggleRef.current?.focus()
+  }
 
   return (
     <div className="sourced-data-compact">
@@ -70,6 +75,7 @@ function CompanySourcedData({ companyData, showHistory, onToggleHistory }) {
 
       <div className="sourced-data-links">
         <button
+          ref={sourcesToggleRef}
           type="button"
           className="link-toggle no-print"
           onClick={() => setShowSources((v) => !v)}
@@ -95,19 +101,12 @@ function CompanySourcedData({ companyData, showHistory, onToggleHistory }) {
       </div>
 
       {showSources && (
-        <div className="prov-detail-panel no-print">
-          <p className="prov-detail-legend">
-            {Object.entries(STATUS_LABEL).map(([status, label]) => (
-              <span className="prov-detail-legend-item" key={status}>
-                <ProvenanceDot status={status} />
-                {label}
-              </span>
-            ))}
-          </p>
-          {PROVENANCE_FIELDS.map(({ key, label }) => (
-            <ProvenanceDetailRow key={key} label={label} provenance={latest.provenance?.[key]} />
-          ))}
-        </div>
+        <SourceDetailsPanel
+          fiscalYearEnd={latest.fiscal_year_end}
+          fields={PROVENANCE_FIELDS}
+          provenanceByField={latest.provenance}
+          onClose={closeSourceDetails}
+        />
       )}
     </div>
   )
