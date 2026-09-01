@@ -488,3 +488,69 @@ a large quality/compounding premium (roughly 50x earnings) - not a sign the assu
 the data, or the reference price are wrong. Nothing was adjusted to narrow this gap; doing so
 to make the numbers "look right" against the market price would have defeated the entire
 point of a deterministic, non-recommendation tool.
+
+## Historical trend mini-charts
+**Status:** Accepted
+
+A small, self-contained insertion ahead of reverse DCF - proposed and evaluated on its own
+merits (analytical usefulness, implementation scope, accessibility, responsive layout, print
+behavior, risk of scope creep) before being built, not assumed onto the roadmap. Two compact
+CSS bar charts (Revenue, Unlevered FCF) in `HistoricalTrendCharts.jsx`, rendered inside
+`CompanySourcedData.jsx` whenever at least two historical periods are loaded - the same
+`periods` array already on `companyData` for a live ticker load or the embedded Costco demo,
+so there is no new network request and no backend change.
+
+**No chart library, matching the existing convention.** `ValueBridge.jsx` and the
+sensitivity heatmap already establish this app's pattern of small, purpose-built CSS
+visualizations rather than a charting dependency. The trend charts follow the same rule:
+every bar position is a CSS percentage set inline by the component, height is fixed in px,
+so the chart is fluid at any width (the narrow desktop Step 1 column and the wider
+single-column mobile layout both just work) without a breakpoint of its own.
+
+**Two independent scales, not a dual-axis chart.** Revenue and Unlevered FCF differ by an
+order of magnitude; a shared scale would flatten UFCF into a nearly straight line. Each
+metric gets its own chart with its own min-max range label, and the two charts share one
+fiscal-year label strip below them (periods are newest-first from the API; the component
+reverses them once so every consumer reads oldest-to-newest, left to right).
+
+**Positive, negative, zero, and missing values are each handled explicitly, not defaulted.**
+The domain always includes zero (`Math.min(0, ...usable)` / `Math.max(0, ...usable)`), so a
+positive bar grows up from a visible baseline and a negative bar grows down from it - this
+is what makes the real Costco FY2022 UFCF dip (and any future negative-UFCF company) legible
+at a glance rather than needing the reader to compare raw numbers. An exactly-zero value
+still renders a small visible tick at the baseline (a real reported zero is real data);
+a missing (`null`) value renders no bar at all, not a zero-height one - the two must not
+look the same, and only the `null` case is silently absent. Verified against the real
+5-year Costco series (the FY2022 dip is now visually obvious) and against a synthetic
+mocked series covering positive, negative, and missing values in the same 5-year run,
+confirmed by hand-checking the resulting bar geometry against the domain math, not just
+eyeballing the screenshot.
+
+**A metric with fewer than two usable values falls back to text, per metric, not
+all-or-nothing.** A single bar (or none) isn't a trend, and a chart implying one would be
+misleading - `MiniBarChart` checks its own metric's non-null count independently, so
+Revenue can still render a real chart even if UFCF doesn't have enough history, and vice
+versa. Verified with a synthetic company carrying only one non-null UFCF value: Revenue
+chart rendered normally, UFCF fell back to "Not enough history to chart."
+
+**Not hover-only.** Each chart's container carries `role="img"` and a real `aria-label`
+summarizing the full year/value sequence (e.g. "Unlevered FCF by fiscal year: 2021 $4.66B,
+2022 $2.81B, ..."), independent of the per-bar `title` tooltip used for the exact figure on
+pointer hover. The bars themselves are `aria-hidden`, so assistive tech reads the one
+summary rather than a set of unlabeled generic elements.
+
+**Print needed a fix the rest of the workspace didn't.** The sensitivity heatmap already
+established that this app's `--accent`/tint-based colors go "near-invisible against
+printed white" and print.css's existing fix is to drop the tint entirely, since the cell's
+own number still carries the value on paper. A bar chart doesn't have that fallback - the
+bar's fill *is* the data, so losing it silently would make the chart look broken, not
+gracefully degraded, in print. Two changes instead: `print-color-adjust: exact` (plus the
+`-webkit-` prefix) so the fill reliably survives a browser's default "background graphics
+off" print setting, and the fill itself is forced to solid black for both positive and
+negative bars in print - the same fix already used for `.value-positive`/`.value-negative`
+(color, not the semantic token) - relying on baseline position, not color, to distinguish a
+negative bar on paper, exactly as the on-screen version already requires. Text and border
+colors that use dark-mode-aware tokens (`--text-h`, `--text`, `--border`) also needed the
+same explicit `#000`/`#444`/`#ccc` print overrides already applied elsewhere in `print.css`
+(company bar, kv-list, sensitivity legend) - the same near-invisible-when-printing-from-
+dark-mode issue this project has hit and fixed multiple times before.

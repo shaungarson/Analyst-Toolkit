@@ -13,8 +13,9 @@ conventions with a CRE professional. See "Real estate freeze" in
 The agreed DCF sequence (see "Revised DCF sequence: data resilience, combined
 provenance/price milestone, and a validated real-company demo" in `decisions.md`) — hardening,
 SEC EDGAR as primary fundamentals, DCF data resilience, per-value provenance/reference price,
-Costco candidate validation, and the embedded Costco demo itself are done; remaining items, in
-dependency order:
+Costco candidate validation, and the embedded Costco demo itself are done. One small item not
+in that original sequence - historical trend mini-charts, proposed and evaluated on its own
+merits before reverse DCF - is also done. Remaining items, in dependency order:
 
 1. ~~**DCF data resilience.**~~ **Done (2026-08-31).** Alpha Vantage fundamentals and current
    price are now genuinely optional — a ticker-search request succeeds on SEC-sourced data
@@ -76,7 +77,22 @@ dependency order:
    or the saved-scenario list. See `docs/decisions.md` for the full design record, including
    why the ~50-58% gap against Costco's real reference price is a genuine, expected result of
    the model's flat-growth simplicity against a premium-multiple stock, not a tuning error.
-5. **Reverse DCF** — analyst case vs. historical performance vs. market-implied FCF growth.
+5. ~~**Historical trend mini-charts.**~~ **Done (2026-08-31).** A small insertion proposed
+   and evaluated on its own merits before reverse DCF, not part of the original agreed
+   sequence - two compact CSS bar charts (Revenue, Unlevered FCF) in the sourced-data panel,
+   visible whenever at least two historical periods are loaded (live ticker or the Costco
+   demo), sharing one fiscal-year label strip with independently labeled scales rather than
+   a dual-axis chart. No chart library; reuses `periods` data already on `companyData`, so
+   no new network request. Correctly handles negative values (extending below a visible
+   zero baseline), exactly-zero values (a small visible tick, not indistinguishable from
+   nothing), and missing values (no bar at all, never a zero-height one) - verified against
+   the real Costco data (the FY2022 UFCF dip is now visually obvious at a glance) and a
+   synthetic mixed positive/negative/missing series. Each chart carries a real
+   `role="img"`/`aria-label` summary of the full year/value sequence, not a hover-only
+   tooltip. See `docs/decisions.md` for the full design record, including the print-specific
+   fix this needed that the rest of the workspace didn't (`print-color-adjust: exact`, since
+   a bar chart's fill is the data itself, unlike the sensitivity heatmap's tint).
+6. **Reverse DCF** — analyst case vs. historical performance vs. market-implied FCF growth.
    Needs (2) done first (a real price to solve against). Followed later by deterministic
    "Explain This Valuation" diagnostics, before any AI commentary — a full version benefits
    from reverse DCF being done first; a narrower version (explaining sensitivity/warnings

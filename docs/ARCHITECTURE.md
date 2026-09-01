@@ -116,6 +116,15 @@ ticker load would). Loading a case makes no network request at all; running the 
 still POSTs to the real `/api/dcf/valuation` endpoint like every other path in the app. See
 `docs/decisions.md`'s "Revised DCF sequence" record for the full design rationale.
 
+## Historical trend mini-charts
+
+`frontend/src/features/dcf/HistoricalTrendCharts.jsx` - two compact CSS bar charts
+(Revenue, Unlevered FCF) rendered inside `CompanySourcedData.jsx` for both a live ticker
+load and the embedded Costco demo. Reads only the `periods` array already present on
+`companyData`; no chart library, no new request. See `docs/decisions.md`'s "Historical
+trend mini-charts" record for the negative/zero/missing-value handling and print-specific
+details.
+
 ## Calculation and validation layers
 
 - `backend/app/calculations/` — pure functions, no framework code, no side effects (real

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { compactCurrency, percent } from '../../lib/format'
 import ProvenanceDot from './ProvenanceDot'
 import ProvenanceDetailRow from './ProvenanceDetailRow'
+import HistoricalTrendCharts from './HistoricalTrendCharts'
 import { STATUS_LABEL } from './provenanceLabels'
 
 const fmt = (value, formatter) => (value === null || value === undefined ? 'n/a' : formatter(value))
@@ -64,6 +65,8 @@ function CompanySourcedData({ companyData, showHistory, onToggleHistory }) {
         FY {latest.fiscal_year_end}, as reported. UFCF = EBIT × (1 − tax rate) + D&amp;A − CapEx
         − ΔNWC.
       </p>
+
+      <HistoricalTrendCharts periods={periods} />
 
       <div className="sourced-data-links">
         <button

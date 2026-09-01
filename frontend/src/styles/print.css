@@ -177,7 +177,8 @@
   .hero-value,
   .valuation-support-grid .value,
   .comparison-row .value,
-  .kv-row dd {
+  .kv-row dd,
+  .trend-chart-title {
     color: #000;
   }
 
@@ -190,8 +191,15 @@
   .comparison-row .label,
   .kv-row dt,
   .sourced-data-note,
-  .comparison-disclaimer {
+  .comparison-disclaimer,
+  .trend-chart-range,
+  .trend-chart-empty,
+  .trend-chart-year-label {
     color: #444;
+  }
+
+  .trend-chart-baseline {
+    border-top-color: #ccc;
   }
 
   .company-bar-market-data {
@@ -313,5 +321,24 @@
   .sensitivity-base-case {
     background: #000 !important;
     color: #fff !important;
+  }
+
+  /* Unlike the sensitivity heatmap above (which drops its tint in print, since the cell's
+     own number already carries the value), the trend-chart bar's fill *is* the data - a
+     bar that fails to print is a bar that silently disappears, not a chart that degrades
+     gracefully. print-color-adjust: exact overrides the browser's default of skipping
+     background-color when "background graphics" is off, so the fill reliably prints; the
+     border declared in workspace.css is a second fallback if some print driver ignores it.
+     Both positive and negative bars print solid black rather than --accent/--loss - the
+     same near-invisible-against-white-paper problem noted above for --accent/--panel-bg,
+     and the same fix already used for .value-positive/.value-negative (color:#000, not the
+     semantic color). Position relative to the baseline - not color - is what distinguishes
+     a negative bar on paper, exactly as the on-screen version already requires. */
+  .trend-chart-bar,
+  .trend-chart-bar--negative {
+    background: #000;
+    border-color: #000;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 }

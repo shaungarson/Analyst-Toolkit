@@ -83,6 +83,11 @@ see [`docs/decisions.md`](docs/decisions.md).*
   click away. Compact status indicators by default; full detail behind a "Sources" toggle
   (latest period and, per-cell, the full multi-year history), never a wall of permanent
   badges.
+- **Historical trend mini-charts:** compact Revenue and Unlevered FCF bar charts, five years,
+  independent scales rather than a misleading dual axis — makes a pattern like a
+  working-capital-driven FCF dip visible at a glance instead of requiring a row-by-row read
+  of the table. Pure CSS, no chart library; handles negative, zero, and missing values
+  correctly (a missing year is a gap, never a fabricated zero).
 - **Embedded Costco (COST) demo:** a compact toggle loads a frozen, real, fully-sourced
   five-year snapshot and a dated reference price — no SEC or Alpha Vantage request, so it
   works even when both providers are unavailable. Three ephemeral Downside/Base/Upside
@@ -196,7 +201,8 @@ scenario comparison → real estate risk flags and Deal Summary → DCF ticker s
 workstation redesign → hardened DCF validation → SEC EDGAR as the primary DCF fundamentals
 source → SEC-independent DCF data resilience (Alpha Vantage optional, never a hard
 dependency) → per-value provenance and an editable, dated reference price → an embedded,
-provider-independent Costco DCF demo. Detail:
+provider-independent Costco DCF demo → compact historical Revenue/Unlevered FCF trend
+mini-charts. Detail:
 [`PROGRESS.md`](PROGRESS.md), [`docs/decisions.md`](docs/decisions.md).
 What's next: [`docs/ROADMAP.md`](docs/ROADMAP.md).
 

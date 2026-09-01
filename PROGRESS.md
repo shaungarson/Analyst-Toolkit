@@ -1,16 +1,16 @@
 # Analyst Toolkit — Progress
 
-**Last verified:** 2026-08-31 (embedded Costco demo implemented and verified; committed
-locally, awaiting push and deployment)
+**Last verified:** 2026-08-31 (historical trend mini-charts implemented and verified;
+committed locally, awaiting push and deployment)
 
 ## Current Milestone
 
 None — awaiting direction. DCF data resilience, per-value provenance + an editable dated
-reference price, and Costco (COST) confirmed as the demo candidate are shipped and deployed
-to production. The embedded, provider-independent Costco DCF demo itself (three ephemeral
-Downside/Base/Upside cases, no network request to load, real backend engine to calculate) is
-implemented, verified, and committed locally — awaiting push and deployment. See
-`docs/ROADMAP.md` and `docs/decisions.md`.
+reference price, Costco (COST) confirmed as the demo candidate, and the embedded Costco DCF
+demo itself are shipped and deployed to production. A small addition ahead of reverse DCF —
+compact Revenue/Unlevered FCF trend mini-charts in the sourced-data panel — is implemented,
+verified, and committed locally, awaiting push and deployment. See `docs/ROADMAP.md` and
+`docs/decisions.md`.
 
 ## Blockers / Frozen Areas
 
@@ -19,6 +19,9 @@ implemented, verified, and committed locally — awaiting push and deployment. S
 
 ## Recently Shipped
 
+- 2026-08-31 — Historical trend mini-charts: two compact CSS bar charts (Revenue, Unlevered
+  FCF) in the sourced-data panel, shared fiscal-year strip, independent scales, correct
+  handling of negative/zero/missing values, no chart library — [decisions.md](docs/decisions.md#historical-trend-mini-charts)
 - 2026-08-31 — Embedded, provider-independent Costco DCF demo: a frozen real 5-year snapshot
   and dated reference price, three Downside/Base/Upside cases (only FCF growth varies; WACC
   and terminal growth fixed), zero network requests to load, real `/api/dcf/valuation` engine
@@ -34,13 +37,11 @@ implemented, verified, and committed locally — awaiting push and deployment. S
 - 2026-08-31 — DCF data resilience: Alpha Vantage fundamentals and current price are now
   optional field-level enrichment, not a hard dependency; company periods build directly
   from SEC's own fiscal dates — [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- 2026-08-30 — SEC EDGAR made primary source for DCF historical fundamentals (Alpha Vantage
-  as fallback + current price) — [decisions.md](docs/decisions.md#sec-financial-field-conventions-and-derivation-rules)
 
 ## Next Three Actions
 
-1. Push the embedded Costco demo (committed locally) to `origin/main` once approved.
-2. **Reverse DCF** (step 5 of the agreed DCF sequence) — see `docs/ROADMAP.md`. Not started,
+1. Push the historical trend mini-charts (committed locally) to `origin/main` once approved.
+2. **Reverse DCF** (next in the agreed DCF sequence) — see `docs/ROADMAP.md`. Not started,
    not authorized to begin yet.
 3. Real estate: no action planned until the user has the CRE-professional conversation.
 
