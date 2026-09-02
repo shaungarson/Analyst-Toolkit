@@ -131,6 +131,20 @@ load and the embedded Costco demo. Reads only the `periods` array already presen
 trend mini-charts" record for the negative/zero/missing-value handling and print-specific
 details.
 
+## Reverse DCF (price-implied FCF growth)
+
+`backend/app/calculations/dcf.py`'s `_compute_dcf` is the one place the forward valuation
+formula is actually implemented — both `run_dcf` (the public, rounded forward API) and
+`implied_fcf_growth_rate` (the reverse solver) call it rather than each computing enterprise
+value / equity value / value per share their own way, so the two can never silently drift
+into disagreement. `run_dcf` wraps it with rounding and the forecast-schedule shape; the
+solver bisects against its raw, unrounded `value_per_share` directly, never against an
+already-cent-quantized target. `POST /api/dcf/implied-growth` (`ReverseDCFInputs` →
+`ReverseDCFResult`) is a thin router wrapper over `implied_fcf_growth_rate`, following the
+same typed-exception-to-422 pattern as the other two DCF routes. See
+`docs/MODELING_CONVENTIONS.md` for the solver's domain, its three outcome statuses, and the
+forward/reverse invalidation matrix, and `docs/decisions.md` for the full design record.
+
 ## Calculation and validation layers
 
 - `backend/app/calculations/` — pure functions, no framework code, no side effects (real
@@ -147,7 +161,7 @@ details.
 
 ## Testing and CI
 
-136 backend tests (`backend/tests/`), fixture-based — no live network calls in the suite.
+153 backend tests (`backend/tests/`), fixture-based — no live network calls in the suite.
 `.github/workflows/ci.yml` runs on every push and pull request: `pytest` for the backend,
 `oxlint` + `vite build` for the frontend, pinned to the same Python/Node versions used in
 local dev.

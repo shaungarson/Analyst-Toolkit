@@ -5,6 +5,19 @@ from pydantic import BaseModel, Field, model_validator
 from app.calculations.dcf import gordon_growth_converges
 
 
+def _check_wacc_terminal_growth(wacc, terminal_growth_rate):
+    """Shared by DCFInputs and ReverseDCFInputs so a non-convergent WACC/terminal-growth
+    pair is rejected identically regardless of which direction the DCF runs - this is a
+    Gordon Growth validity requirement, not something specific to the forward form."""
+    if wacc <= terminal_growth_rate:
+        raise ValueError("WACC must be greater than the terminal growth rate.")
+    if not gordon_growth_converges(wacc, terminal_growth_rate):
+        raise ValueError(
+            "Terminal growth rate is too far below -100% for the Gordon Growth "
+            "perpetuity to converge at this WACC."
+        )
+
+
 class DCFInputs(BaseModel):
     base_year_fcf: float = Field(gt=0, description="Most recent year's unlevered FCF")
     fcf_growth_rate: float = Field(
@@ -32,13 +45,7 @@ class DCFInputs(BaseModel):
 
     @model_validator(mode="after")
     def terminal_growth_rate_must_be_valid_for_gordon_growth(self):
-        if self.wacc <= self.terminal_growth_rate:
-            raise ValueError("WACC must be greater than the terminal growth rate.")
-        if not gordon_growth_converges(self.wacc, self.terminal_growth_rate):
-            raise ValueError(
-                "Terminal growth rate is too far below -100% for the Gordon Growth "
-                "perpetuity to converge at this WACC."
-            )
+        _check_wacc_terminal_growth(self.wacc, self.terminal_growth_rate)
         return self
 
 
@@ -80,3 +87,29 @@ class DcfSensitivityRow(BaseModel):
 class DcfSensitivityResults(BaseModel):
     terminal_growth_rates: list[float]
     rows: list[DcfSensitivityRow]
+
+
+class ReverseDCFInputs(BaseModel):
+    target_price: float = Field(gt=0, description="The price to solve the FCF growth rate against")
+    base_year_fcf: float = Field(gt=0)
+    forecast_years: int = Field(gt=0, le=15)
+    wacc: float = Field(gt=0, le=1)
+    terminal_growth_rate: float
+    net_debt: float
+    diluted_shares_outstanding: float = Field(gt=0)
+
+    @model_validator(mode="after")
+    def terminal_growth_rate_must_be_valid_for_gordon_growth(self):
+        _check_wacc_terminal_growth(self.wacc, self.terminal_growth_rate)
+        return self
+
+
+class ReverseDCFResult(BaseModel):
+    status: Literal["solved", "target_below_floor", "not_bracketed"]
+    # None unless status == "solved" - never a fabricated number for a failure status.
+    implied_fcf_growth_rate: float | None
+    reconciled_value_per_share: float | None
+    # Always present (cheap closed-form value) even when status == "solved" - the API
+    # doesn't hide it, but the frontend only displays it while explaining
+    # target_below_floor, not alongside a successful result (see decisions.md).
+    floor_value_per_share: float

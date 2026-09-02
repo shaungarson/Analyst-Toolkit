@@ -1,7 +1,13 @@
 from fastapi import APIRouter, HTTPException
 
-from app.calculations.dcf import NonFiniteResultError, dcf_sensitivity, run_dcf
-from app.schemas.dcf import DCFInputs, DCFResults, DcfSensitivityResults
+from app.calculations.dcf import NonFiniteResultError, dcf_sensitivity, implied_fcf_growth_rate, run_dcf
+from app.schemas.dcf import (
+    DCFInputs,
+    DCFResults,
+    DcfSensitivityResults,
+    ReverseDCFInputs,
+    ReverseDCFResult,
+)
 
 router = APIRouter(prefix="/api/dcf", tags=["dcf"])
 
@@ -18,5 +24,13 @@ def valuation(inputs: DCFInputs):
 def sensitivity(inputs: DCFInputs):
     try:
         return dcf_sensitivity(**inputs.model_dump())
+    except NonFiniteResultError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/implied-growth", response_model=ReverseDCFResult)
+def implied_growth(inputs: ReverseDCFInputs):
+    try:
+        return implied_fcf_growth_rate(**inputs.model_dump())
     except NonFiniteResultError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

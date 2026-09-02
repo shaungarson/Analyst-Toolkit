@@ -1053,6 +1053,62 @@
   margin: 0;
 }
 
+/* --- Reverse DCF: price-implied FCF growth -------------------------------------------
+   Same panel-bg/radius treatment as .valuation-comparison directly above (visually a
+   sibling of it, not a separate design), but its own block since the two can each be
+   present or absent independently (a reference price with no calculated reverse result
+   yet, or vice versa a forward result with reverse still stale/failed). */
+.reverse-dcf-card {
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 0.9rem;
+  background: var(--panel-bg);
+  border-radius: 4px;
+}
+
+.reverse-dcf-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  margin-bottom: 0.3rem;
+}
+
+.reverse-dcf-value {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  margin-bottom: 0.3rem;
+}
+
+.reverse-dcf-context {
+  font-size: 0.72rem;
+  color: var(--text);
+  line-height: 1.4;
+  margin: 0 0 0.4rem;
+}
+
+.reverse-dcf-compare {
+  font-size: 0.8rem;
+  color: var(--text-h);
+  font-weight: 600;
+  margin: 0 0 0.3rem;
+}
+
+.reverse-dcf-historical {
+  font-size: 0.72rem;
+  color: var(--text);
+  opacity: 0.85;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.reverse-dcf-historical-secondary {
+  opacity: 0.8;
+}
+
 .valuation-support-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

@@ -1,17 +1,21 @@
 import pytest
 from pydantic import ValidationError
 
+from app.calculations import dcf
 from app.calculations.dcf import (
     NonFiniteResultError,
+    _bracket,
+    _compute_dcf,
     dcf_sensitivity,
     discount_factor,
     gordon_growth_converges,
+    implied_fcf_growth_rate,
     present_value,
     project_fcf,
     run_dcf,
     terminal_value,
 )
-from app.schemas.dcf import DCFInputs
+from app.schemas.dcf import DCFInputs, ReverseDCFInputs
 
 VALID_INPUTS = dict(
     base_year_fcf=100,
@@ -360,3 +364,191 @@ def test_dcf_sensitivity_off_base_cell_overflow_becomes_null_not_a_crash():
     base_row = next(row for row in sensitivity["rows"] if row["wacc"] == pytest.approx(wacc))
     base_col = sensitivity["terminal_growth_rates"].index(tgr)
     assert base_row["value_per_share_by_growth"][base_col] is not None
+
+
+# --- Shared unrounded core -----------------------------------------------------------
+
+
+def test_compute_dcf_agrees_with_run_dcf_before_rounding():
+    # run_dcf's rounded value_per_share and _compute_dcf's raw one must agree to 2dp -
+    # they're the same computation now, just one wraps the other with rounding.
+    forward = run_dcf(**VALID_INPUTS)
+    core = _compute_dcf(**VALID_INPUTS)
+    assert core["value_per_share"] == pytest.approx(forward["value_per_share"], abs=0.005)
+
+
+# --- Reverse DCF: implied_fcf_growth_rate ---------------------------------------------
+
+
+def test_implied_growth_recovers_known_positive_rate_from_unrounded_target():
+    # The target is generated from _compute_dcf directly (not run_dcf's rounded public
+    # value) so this isolates the solver's own numerical correctness from any rounding.
+    known_rate = 0.08
+    target = _compute_dcf(**{**VALID_INPUTS, "fcf_growth_rate": known_rate})["value_per_share"]
+    result = implied_fcf_growth_rate(
+        target_price=target,
+        base_year_fcf=VALID_INPUTS["base_year_fcf"],
+        forecast_years=VALID_INPUTS["forecast_years"],
+        wacc=VALID_INPUTS["wacc"],
+        terminal_growth_rate=VALID_INPUTS["terminal_growth_rate"],
+        net_debt=VALID_INPUTS["net_debt"],
+        diluted_shares_outstanding=VALID_INPUTS["diluted_shares_outstanding"],
+    )
+    assert result["status"] == "solved"
+    assert result["implied_fcf_growth_rate"] == pytest.approx(known_rate, abs=1e-4)
+
+
+def test_implied_growth_recovers_known_negative_rate():
+    # Covers requirement that a target below the zero-growth valuation is still solvable
+    # through negative explicit-period growth, not just positive rates.
+    known_rate = -0.05
+    target = _compute_dcf(**{**VALID_INPUTS, "fcf_growth_rate": known_rate})["value_per_share"]
+    result = implied_fcf_growth_rate(
+        target_price=target,
+        base_year_fcf=VALID_INPUTS["base_year_fcf"],
+        forecast_years=VALID_INPUTS["forecast_years"],
+        wacc=VALID_INPUTS["wacc"],
+        terminal_growth_rate=VALID_INPUTS["terminal_growth_rate"],
+        net_debt=VALID_INPUTS["net_debt"],
+        diluted_shares_outstanding=VALID_INPUTS["diluted_shares_outstanding"],
+    )
+    assert result["status"] == "solved"
+    assert result["implied_fcf_growth_rate"] == pytest.approx(known_rate, abs=1e-4)
+
+
+def test_implied_growth_reconciles_a_realistic_rounded_reference_price():
+    # Integration-style: a human types in a plain, already-rounded reference price (what
+    # actually happens in the app), not the solver's own exact unrounded output. Confirms
+    # the solve still lands within PRICE_TOLERANCE of a target that was never meant to be
+    # exactly reachable to arbitrary precision.
+    forward = run_dcf(**{**VALID_INPUTS, "fcf_growth_rate": 0.08})
+    target = forward["value_per_share"]  # e.g. 395.69 - already rounded to the cent
+    result = implied_fcf_growth_rate(
+        target_price=target,
+        base_year_fcf=VALID_INPUTS["base_year_fcf"],
+        forecast_years=VALID_INPUTS["forecast_years"],
+        wacc=VALID_INPUTS["wacc"],
+        terminal_growth_rate=VALID_INPUTS["terminal_growth_rate"],
+        net_debt=VALID_INPUTS["net_debt"],
+        diluted_shares_outstanding=VALID_INPUTS["diluted_shares_outstanding"],
+    )
+    assert result["status"] == "solved"
+    assert result["reconciled_value_per_share"] == pytest.approx(target, abs=0.005)
+
+
+def test_implied_growth_target_below_floor_is_not_a_search_failure():
+    # A large net cash position (negative net_debt) makes the floor -net_debt/shares a
+    # positive number a modest target price can genuinely fall below - a closed-form fact
+    # about these inputs, detected before any bisection is attempted.
+    result = implied_fcf_growth_rate(
+        target_price=500,
+        base_year_fcf=100,
+        forecast_years=5,
+        wacc=0.10,
+        terminal_growth_rate=0.02,
+        net_debt=-100_000,
+        diluted_shares_outstanding=100,
+    )
+    assert result["status"] == "target_below_floor"
+    assert result["implied_fcf_growth_rate"] is None
+    assert result["floor_value_per_share"] == pytest.approx(1000)
+
+
+def test_implied_growth_target_at_floor_exactly_is_below_floor_not_solved():
+    # The floor is a limit as g -> -1+, never attained - a target exactly at it must be
+    # treated the same as one below it, not as a solvable edge case.
+    floor = 100_000 / 100
+    result = implied_fcf_growth_rate(
+        target_price=floor,
+        base_year_fcf=100,
+        forecast_years=5,
+        wacc=0.10,
+        terminal_growth_rate=0.02,
+        net_debt=-100_000,
+        diluted_shares_outstanding=100,
+    )
+    assert result["status"] == "target_below_floor"
+
+
+def test_implied_growth_not_bracketed_on_genuine_overflow():
+    # A target so far beyond what's reachable that bracket expansion overflows float64
+    # before finding an upper bound - a real computational limit, verified empirically
+    # (1e290/1e300 both solve; 1e305 genuinely overflows at forecast_years=15).
+    result = implied_fcf_growth_rate(
+        target_price=1e305,
+        base_year_fcf=100,
+        forecast_years=15,
+        wacc=0.10,
+        terminal_growth_rate=0.02,
+        net_debt=0,
+        diluted_shares_outstanding=100,
+    )
+    assert result["status"] == "not_bracketed"
+    assert result["implied_fcf_growth_rate"] is None
+    # Still an honest, distinct status from target_below_floor - the floor is finite here.
+    assert result["floor_value_per_share"] == pytest.approx(0)
+
+
+def test_bracket_returns_none_when_step_cap_reached_without_overflow():
+    # Directly exercises _bracket's own termination guarantee with a synthetic function
+    # that never overflows, isolating the step-cap mechanism from float64's overflow
+    # threshold (which the test above already covers separately). A target this far out
+    # needs ~336 doublings from 0.05 to reach - past the 200-step cap - so this must
+    # terminate via the cap, not by actually bracketing.
+    result = _bracket(lambda g: g, f0=0.0, target_price=10**100)
+    assert result is None
+
+
+def test_implied_growth_rejects_non_convergent_wacc_terminal_growth_via_schema():
+    with pytest.raises(ValidationError, match="WACC must be greater than"):
+        ReverseDCFInputs(
+            target_price=100,
+            base_year_fcf=100,
+            forecast_years=5,
+            wacc=0.05,
+            terminal_growth_rate=0.05,
+            net_debt=200,
+            diluted_shares_outstanding=100,
+        )
+
+
+def test_implied_growth_bisection_exhaustion_returns_not_bracketed_not_fabricated(monkeypatch):
+    # MAX_BISECTION_STEPS forced down to 1 so the loop runs out without ever getting within
+    # PRICE_TOLERANCE of the target - the bracket itself still forms fine (target=500 is
+    # comfortably reachable), isolating bisection exhaustion from a bracketing failure. A
+    # single midpoint (g=0.025, reconciling to ~$11.02) is nowhere near the $500 target -
+    # confirmed directly against the unpatched loop before this fix existed, which fell
+    # through to "solved" with exactly that unconverged midpoint. The fix must return
+    # not_bracketed instead of fabricating a "solved" result out of a midpoint that was
+    # never actually within tolerance.
+    monkeypatch.setattr(dcf, "MAX_BISECTION_STEPS", 1)
+    result = implied_fcf_growth_rate(
+        target_price=500,
+        base_year_fcf=100_000_000,
+        forecast_years=5,
+        wacc=0.10,
+        terminal_growth_rate=0.02,
+        net_debt=200_000_000,
+        diluted_shares_outstanding=100_000_000,
+    )
+    assert result["status"] == "not_bracketed"
+    assert result["implied_fcf_growth_rate"] is None
+    assert result["reconciled_value_per_share"] is None
+
+
+def test_implied_growth_solved_result_never_has_fcf_growth_warnings_field():
+    # The domain g > -1 makes a solved rate at or below -100% mathematically impossible -
+    # this isn't a restriction newly imposed on the solver, it's a fact about where a
+    # unique root can exist at all (see implied_fcf_growth_rate's own docstring). The
+    # response has no fcf_growth_warnings field at all, unlike DCFResults - there is
+    # nothing in that domain for such a warning to ever describe.
+    result = implied_fcf_growth_rate(
+        target_price=1,
+        base_year_fcf=100,
+        forecast_years=5,
+        wacc=0.10,
+        terminal_growth_rate=0.02,
+        net_debt=0,
+        diluted_shares_outstanding=100,
+    )
+    assert "fcf_growth_warnings" not in result

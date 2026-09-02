@@ -14,6 +14,7 @@ import CompanyHeader from './CompanyHeader'
 import CostcoDemoPanel from './CostcoDemoPanel'
 import ValueBridge from './ValueBridge'
 import { nextDemoTabIndex, reconcileDemoResults } from './demoCaseLogic'
+import { historicalCagr } from './historicalGrowth'
 import {
   COSTCO_CASES,
   COSTCO_COMPANY_DATA,
@@ -58,11 +59,15 @@ const EMPTY = {
 // case the generic logic doesn't need to represent for anything else.
 const SOURCEABLE_FIELDS = ['baseYearFcf', 'netDebt', 'dilutedSharesOutstanding']
 
-// Exactly buildPayload's inputs, by form field name - the fields that actually change what
-// the engine computes. referencePrice/referencePriceDate are deliberately excluded: they
-// never reach buildPayload, so editing them can't make a retained demo result stale - the
-// implied-upside comparison they feed is recomputed live on every render regardless.
-const DEMO_STALE_FIELDS = [
+// The forward/reverse invalidation matrix, by form field name. The two lists deliberately
+// overlap rather than share one list with per-calculation exceptions carved out of it - the
+// six shared-assumption fields invalidate both because both calculations actually read them;
+// fcfGrowthRate invalidates forward only (the reverse solver never reads it - it *produces*
+// a growth rate, it doesn't take one); referencePrice invalidates reverse only (forward never
+// reads it). referencePriceDate is in neither: it controls whether a usable reference price
+// exists and what "as of" date displays next to it, but changing it alone doesn't change any
+// number either calculation produces.
+const FORWARD_STALE_FIELDS = [
   'baseYearFcf',
   'fcfGrowthRate',
   'forecastYears',
@@ -70,6 +75,15 @@ const DEMO_STALE_FIELDS = [
   'terminalGrowthRate',
   'netDebt',
   'dilutedSharesOutstanding',
+]
+const REVERSE_STALE_FIELDS = [
+  'baseYearFcf',
+  'forecastYears',
+  'wacc',
+  'terminalGrowthRate',
+  'netDebt',
+  'dilutedSharesOutstanding',
+  'referencePrice',
 ]
 
 // Only the fields the calculation engine actually needs - referencePrice/referencePriceDate
@@ -98,6 +112,11 @@ function DcfValuation() {
   const [form, setForm] = useState(EMPTY)
   const [results, setResults] = useState(null)
   const [sensitivity, setSensitivity] = useState(null)
+  // True once a forward-relevant field changes after `results` was last set, in plain
+  // single-ticker/manual mode - the demo-mode equivalent is demoResultsStale below. Showing
+  // an old valuation beside assumptions that no longer match it is a correctness problem,
+  // not cosmetic, so this applies here exactly the same way it already does in demo mode.
+  const [resultsStale, setResultsStale] = useState(false)
   const [comparison, setComparison] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -138,13 +157,32 @@ function DcfValuation() {
   const [demoResultsStale, setDemoResultsStale] = useState(false)
   const demoTabRefs = useRef({})
 
-  // Any edit to a field the engine actually reads invalidates retained demo results - never
-  // silently keep showing a stale calculation. referencePrice/referencePriceDate aren't in
-  // DEMO_STALE_FIELDS (see its own comment), so tweaking the comparison price alone doesn't
-  // trigger this.
-  const markDemoStaleIfNeeded = (field) => {
-    if (isDemoSnapshot && demoResults && DEMO_STALE_FIELDS.includes(field)) {
-      setDemoResultsStale(true)
+  // Reverse DCF (price-implied FCF growth) - one shared result regardless of mode, since it
+  // never depends on which case/tab is active. null until a run with a usable reference
+  // price completes; {status, ...} afterward, where status is one of the backend's three
+  // ("solved" | "target_below_floor" | "not_bracketed") or the frontend-only
+  // "request_failed" for a network/API failure - all handled the same way by the display
+  // logic below (see the reverse-DCF block), so a failure never leaves a stale success
+  // sitting on screen.
+  const [reverseResult, setReverseResult] = useState(null)
+  const [reverseResultStale, setReverseResultStale] = useState(false)
+
+  // Any edit to a field a calculation actually reads invalidates that calculation's
+  // retained result - never silently keep showing a stale number beside assumptions that no
+  // longer produced it. Forward and reverse are invalidated independently per
+  // FORWARD_STALE_FIELDS/REVERSE_STALE_FIELDS (see their own comment for the full matrix);
+  // this only sets a flag when there's actually a result to flag, in whichever mode is
+  // currently active.
+  const markStaleIfNeeded = (field) => {
+    if (FORWARD_STALE_FIELDS.includes(field)) {
+      if (isDemoSnapshot) {
+        if (demoResults) setDemoResultsStale(true)
+      } else if (results) {
+        setResultsStale(true)
+      }
+    }
+    if (REVERSE_STALE_FIELDS.includes(field) && reverseResult) {
+      setReverseResultStale(true)
     }
   }
 
@@ -156,12 +194,12 @@ function DcfValuation() {
     if (isDemoSnapshot && field === 'fcfGrowthRate' && activeDemoCaseId) {
       setDemoCaseGrowth((prev) => ({ ...prev, [activeDemoCaseId]: value }))
     }
-    markDemoStaleIfNeeded(field)
+    markStaleIfNeeded(field)
   }
 
   const setFieldValue = (field) => (value) => {
     setForm((prev) => ({ ...prev, [field]: value }))
-    markDemoStaleIfNeeded(field)
+    markStaleIfNeeded(field)
   }
 
   // Populates the existing assumption fields from sourced company data - it does not run
@@ -187,8 +225,11 @@ function DcfValuation() {
       setDemoResults(null)
       setDemoResultsStale(false)
       setResults(null)
+      setResultsStale(false)
       setSensitivity(null)
       setComparison(null)
+      setReverseResult(null)
+      setReverseResultStale(false)
       setShowHistory(false)
 
       const latest = data.periods[0]
@@ -229,9 +270,12 @@ function DcfValuation() {
     // input switch the moment the analyst typed into one).
     setForm({ ...EMPTY, ...data })
     setResults(null)
+    setResultsStale(false)
     setSensitivity(null)
     setComparison(null)
     setError(null)
+    setReverseResult(null)
+    setReverseResultStale(false)
     setTicker('')
     setCompanyData(null)
     setCompanyError(null)
@@ -261,9 +305,12 @@ function DcfValuation() {
     setDemoResults(null)
     setDemoResultsStale(false)
     setResults(null)
+    setResultsStale(false)
     setSensitivity(null)
     setComparison(null)
     setError(null)
+    setReverseResult(null)
+    setReverseResultStale(false)
     setCompanyError(null)
     setTicker('COST')
     setShowHistory(false)
@@ -423,6 +470,26 @@ function DcfValuation() {
       )
     }
 
+    // Only ever exported while showReverseResult is true (solved, not stale, not loading) -
+    // a stale, in-flight, unavailable, or failed reverse result is never written to CSV, and
+    // its held-constant assumptions are exported alongside it so the figure isn't presented
+    // without the conditions it depends on.
+    if (showReverseResult && reverseResult.status === 'solved') {
+      rows.push(
+        [],
+        ['Price-Implied FCF Growth'],
+        ['Reference Price', form.referencePrice],
+        ['Reference Price As Of', form.referencePriceDate],
+        ['Implied FCF Growth Rate (%/yr)', (reverseResult.implied_fcf_growth_rate * 100).toFixed(4)],
+        ['Held Constant - WACC (%)', form.wacc],
+        ['Held Constant - Terminal Growth Rate (%)', form.terminalGrowthRate],
+        ['Held Constant - Forecast Period (yrs)', form.forecastYears],
+        ['Held Constant - Base Year UFCF', form.baseYearFcf],
+        ['Held Constant - Net Debt', form.netDebt],
+        ['Held Constant - Diluted Shares Outstanding', form.dilutedSharesOutstanding],
+      )
+    }
+
     downloadCsv(activeCase ? `costco-${activeCase.id}-growth-dcf.csv` : 'dcf-valuation.csv', rows)
   }
 
@@ -435,22 +502,89 @@ function DcfValuation() {
     }
   }
 
+  // Fires the shared price-implied-growth solve alongside Run Valuation, in both modes -
+  // one request regardless of which mode or how many cases are being calculated. Skipped
+  // (resolves null) when there's no usable reference price to solve against, matching
+  // hasUsableReferencePrice's own definition below exactly, so "skipped" and "no usable
+  // price" can never disagree. Never throws: a network/API failure resolves to
+  // {status: "request_failed"} instead - the frontend's own fourth outcome alongside the
+  // backend's solved/target_below_floor/not_bracketed, all handled identically by the
+  // reverse-DCF display below. This is what makes it safe to await alongside the forward
+  // valuation without one's failure silently discarding the other's real outcome.
+  const fetchReverseDcf = async () => {
+    if (!hasUsableReferencePrice) return null
+    try {
+      const res = await fetch(`${API_BASE}/api/dcf/implied-growth`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          target_price: Number(form.referencePrice),
+          base_year_fcf: Number(form.baseYearFcf),
+          forecast_years: Number(form.forecastYears),
+          wacc: Number(form.wacc) / 100,
+          terminal_growth_rate: Number(form.terminalGrowthRate) / 100,
+          net_debt: Number(form.netDebt),
+          diluted_shares_outstanding: Number(form.dilutedSharesOutstanding),
+        }),
+      })
+      return res.ok ? await res.json() : { status: 'request_failed' }
+    } catch {
+      return { status: 'request_failed' }
+    }
+  }
+
   const runSingleValuation = async () => {
     setError(null)
     setLoading(true)
     setSensitivity(null)
     setComparison(null)
+    // Deliberately NOT setResultsStale(false)/setReverseResultStale(false) here - the
+    // previous results are still sitting in state until their replacements are installed
+    // below, and clearing either stale flag this early would let showActiveResults (or the
+    // reverse-DCF display) treat old numbers as current for the whole duration of the
+    // fetch. Each is cleared only once its own fresh outcome actually replaces it.
     try {
       const payload = buildPayload(form)
-      const res = await fetch(`${API_BASE}/api/dcf/valuation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      if (!res.ok) {
-        throw new Error(await parseErrorResponse(res))
+
+      // Wrapped so a forward failure can never discard (or be discarded by) the reverse
+      // attempt's own independent outcome - see fetchReverseDcf's docstring. Promise.all
+      // rejects as soon as either promise rejects, which would otherwise mean a failed
+      // forward valuation silently drops a reverse result that resolved just fine, or
+      // vice versa.
+      const [forwardOutcome, reverseOutcome] = await Promise.all([
+        (async () => {
+          const res = await fetch(`${API_BASE}/api/dcf/valuation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+          if (!res.ok) {
+            throw new Error(await parseErrorResponse(res))
+          }
+          return res.json()
+        })().then(
+          (value) => ({ ok: true, value }),
+          (err) => ({ ok: false, err }),
+        ),
+        fetchReverseDcf(),
+      ])
+
+      setReverseResult(reverseOutcome)
+      setReverseResultStale(false)
+
+      if (!forwardOutcome.ok) {
+        setError(friendlyErrorMessage(forwardOutcome.err))
+        setResults(null)
+        // A failed rerun is a fresh, current outcome in its own right - not a stale one.
+        // Leaving resultsStale=true here would make activeResultsStale's "assumptions
+        // changed" notice take precedence over the real error below, in the ternary that
+        // renders it, hiding the actual failure message behind a misleading "click Run
+        // Valuation to refresh" - even though that's exactly what was just clicked.
+        setResultsStale(false)
+        return
       }
-      setResults(await res.json())
+      setResults(forwardOutcome.value)
+      setResultsStale(false)
 
       // Best-effort: the sensitivity grid is a supplementary view, so a failure here
       // shouldn't block or overwrite the main valuation result the user asked for.
@@ -466,9 +600,6 @@ function DcfValuation() {
       } catch {
         // Sensitivity grid is supplementary; leave it blank on failure.
       }
-    } catch (err) {
-      setError(friendlyErrorMessage(err))
-      setResults(null)
     } finally {
       setLoading(false)
     }
@@ -482,47 +613,53 @@ function DcfValuation() {
   // silently paired with) a sibling case's real result.
   const runDemoValuation = async () => {
     setLoading(true)
-    // Deliberately NOT setDemoResultsStale(false) here - the previous demoResults are still
-    // sitting in state until the new ones are installed below, and clearing the stale flag
-    // this early would let showActiveResults (and the tabpanel's own check) treat those old
-    // numbers as current for the whole duration of the fetch. Only cleared once the fresh,
-    // reconciled results actually replace them.
+    // Deliberately NOT setDemoResultsStale(false)/setReverseResultStale(false) here - see
+    // runSingleValuation's identical comment; both stay stale (hiding old numbers) for the
+    // whole fetch, cleared only once their own fresh outcome replaces what's there.
     try {
       const caseIds = COSTCO_CASES.map((c) => c.id)
-      const settled = await Promise.allSettled(
-        caseIds.map(async (caseId) => {
-          const payload = buildPayload({ ...form, fcfGrowthRate: demoCaseGrowth[caseId] })
-          const res = await fetch(`${API_BASE}/api/dcf/valuation`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          })
-          if (!res.ok) {
-            throw new Error(await parseErrorResponse(res))
-          }
-          const caseResults = await res.json()
-
-          // Same best-effort treatment as the single-case path: a missing sensitivity grid
-          // for one case doesn't fail that case's headline result.
-          let caseSensitivity = null
-          try {
-            const sensRes = await fetch(`${API_BASE}/api/dcf/sensitivity`, {
+      // Promise.allSettled already never rejects, and neither does fetchReverseDcf - so
+      // pairing them with Promise.all is safe without the extra ok/err wrapping
+      // runSingleValuation needs for its plain (rejectable) forward fetch.
+      const [settled, reverseOutcome] = await Promise.all([
+        Promise.allSettled(
+          caseIds.map(async (caseId) => {
+            const payload = buildPayload({ ...form, fcfGrowthRate: demoCaseGrowth[caseId] })
+            const res = await fetch(`${API_BASE}/api/dcf/valuation`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(payload),
             })
-            if (sensRes.ok) {
-              caseSensitivity = await sensRes.json()
+            if (!res.ok) {
+              throw new Error(await parseErrorResponse(res))
             }
-          } catch {
-            // Sensitivity grid is supplementary; leave it blank on failure.
-          }
+            const caseResults = await res.json()
 
-          return { results: caseResults, sensitivity: caseSensitivity }
-        }),
-      )
+            // Same best-effort treatment as the single-case path: a missing sensitivity
+            // grid for one case doesn't fail that case's headline result.
+            let caseSensitivity = null
+            try {
+              const sensRes = await fetch(`${API_BASE}/api/dcf/sensitivity`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+              })
+              if (sensRes.ok) {
+                caseSensitivity = await sensRes.json()
+              }
+            } catch {
+              // Sensitivity grid is supplementary; leave it blank on failure.
+            }
+
+            return { results: caseResults, sensitivity: caseSensitivity }
+          }),
+        ),
+        fetchReverseDcf(),
+      ])
       setDemoResults(reconcileDemoResults(caseIds, settled, friendlyErrorMessage))
       setDemoResultsStale(false)
+      setReverseResult(reverseOutcome)
+      setReverseResultStale(false)
     } finally {
       setLoading(false)
     }
@@ -559,7 +696,8 @@ function DcfValuation() {
   // ambiguous, undated situation this milestone replaced ("current price"), so it must not
   // produce a comparison either. An unusable value (blank, zero, negative, non-numeric
   // mid-edit, or a price with no date) hides the comparison entirely rather than showing a
-  // misleading figure. Both fields stay editable regardless.
+  // misleading figure. Both fields stay editable regardless. fetchReverseDcf's own "skip"
+  // check is exactly this same condition, so "skipped" and "unusable" can never disagree.
   const referencePriceNum = Number(form.referencePrice)
   const hasUsableReferencePrice =
     form.referencePrice !== '' &&
@@ -569,15 +707,33 @@ function DcfValuation() {
   const impliedUpside =
     activeResults && hasUsableReferencePrice ? activeResults.value_per_share / referencePriceNum - 1 : null
 
+  // One flag covering "the currently-visible forward result is stale," in whichever mode is
+  // active - demoResultsStale in demo mode, resultsStale otherwise. Everything below reads
+  // this instead of either raw flag, the same way activeResults/activeSensitivity/activeError
+  // already read one shared name regardless of mode.
+  const activeResultsStale = isDemoSnapshot ? demoResultsStale : resultsStale
+
   // Gates CSV/Print and the Analysis Outputs card - not just activeResults, since a stale
-  // demo result must not be exportable or printable either, even though it's still sitting
-  // in state (never wiped, only flagged) so it can reappear the instant a rerun completes.
-  // The `loading` check is a second, independent guard, not a redundant one: it also covers
+  // result must not be exportable or printable either, even though it's still sitting in
+  // state (never wiped, only flagged) so it can reappear the instant a rerun completes. The
+  // `loading` check is a second, independent guard, not a redundant one: it also covers
   // clicking Run Valuation again on results that were never stale (nothing forces staleness
   // before a rerun) - without it, the previous run's numbers would stay exportable/printable
   // for the whole duration of a fetch that might return something different, or fail
-  // outright. Always equals activeResults outside demo mode, where none of this applies.
-  const showActiveResults = activeResults && !demoResultsStale && !(isDemoSnapshot && loading)
+  // outright. Applies identically in both modes now - showing a stale forward result beside
+  // edited assumptions is a correctness problem in plain single-ticker mode too, not just demo.
+  const showActiveResults = activeResults && !activeResultsStale && !loading
+
+  // Historical context for the reverse-DCF card - pure client-side computation from data
+  // already on companyData.periods, no extra request. See historicalGrowth.js for why this
+  // is endpoint CAGR over the real fiscal-date span, not a periods.length - 1 approximation.
+  const historicalFcfCagr = companyData ? historicalCagr(companyData.periods, 'unlevered_fcf') : null
+  const historicalRevenueCagr = companyData ? historicalCagr(companyData.periods, 'revenue') : null
+
+  // Same shape as showActiveResults, for the reverse-DCF card specifically: a stale or
+  // in-flight reverse result must never render (or export) as if it were current, even
+  // while the forward side is showing fine.
+  const showReverseResult = reverseResult && !reverseResultStale && !loading
 
   return (
     <div className="feature-page workspace">
@@ -844,18 +1000,21 @@ function DcfValuation() {
             aria-labelledby={isDemoSnapshot ? `demo-tab-${activeDemoCaseId}` : undefined}
             tabIndex={isDemoSnapshot ? 0 : undefined}
           >
-            {isDemoSnapshot && loading ? (
-              <p className="col-empty-hint">Calculating all three cases…</p>
+            {loading ? (
+              <p className="col-empty-hint">
+                {isDemoSnapshot ? 'Calculating all three cases…' : 'Calculating…'}
+              </p>
             ) : isDemoSnapshot && !demoResults ? (
               <p className="col-empty-hint">
                 One click of Run Valuation calculates all three cases - switch tabs afterward
                 to compare them instantly, with no new calculation.
               </p>
-            ) : isDemoSnapshot && demoResultsStale ? (
+            ) : activeResultsStale ? (
               <p className="terminal-growth-warning">
                 <span className="terminal-growth-warning-explanation">
-                  Assumptions changed since these results were calculated. Click Run Valuation
-                  to refresh all three cases.
+                  {isDemoSnapshot
+                    ? 'Assumptions changed since these results were calculated. Click Run Valuation to refresh all three cases.'
+                    : 'Assumptions changed since this valuation was calculated. Click Run Valuation to refresh.'}
                 </span>
               </p>
             ) : activeError ? (
@@ -927,6 +1086,88 @@ function DcfValuation() {
             ) : (
               <p className="col-empty-hint">Run a valuation to see results here.</p>
             )}
+
+            {/* Reverse DCF: the growth rate this same model needs to reconcile the
+                reference price, not a market forecast - the copy throughout this block says
+                "reconciles," never "the market expects" or similar. One shared result
+                regardless of mode (never per Low/Base/High case), compared against
+                whichever growth assumption is currently active. Deliberately a sibling of
+                the forward ternary above, not nested inside its activeResults branch: the
+                two calculations invalidate independently (see FORWARD_STALE_FIELDS/
+                REVERSE_STALE_FIELDS), so forward going stale, erroring, or still being
+                mid-run must never also hide a reverse result that's still perfectly valid,
+                and vice versa. The card itself always renders (never conditioned on
+                hasUsableReferencePrice) so the feature stays discoverable before any price
+                is entered - its own first ternary branch below covers "no usable price yet"
+                with a concrete instruction, rather than the whole block disappearing. */}
+            <div className="reverse-dcf-card">
+              <div className="reverse-dcf-label">Price-Implied FCF Growth</div>
+              {!hasUsableReferencePrice ? (
+                <p className="col-empty-hint">
+                  Enter a positive reference price and as-of date to calculate price-implied
+                  growth.
+                </p>
+              ) : loading ? (
+                <p className="col-empty-hint">Calculating…</p>
+              ) : reverseResultStale ? (
+                <p className="terminal-growth-warning">
+                  <span className="terminal-growth-warning-explanation">
+                    Assumptions changed since this was calculated. Click Run Valuation to
+                    refresh.
+                  </span>
+                </p>
+              ) : !reverseResult ? (
+                <p className="col-empty-hint">
+                  Run Valuation to calculate the growth rate that reconciles the reference
+                  price.
+                </p>
+              ) : reverseResult.status === 'solved' ? (
+                <>
+                  <span className="reverse-dcf-value">
+                    {percent(reverseResult.implied_fcf_growth_rate)}
+                  </span>
+                  <p className="reverse-dcf-context">
+                    The constant annual FCF growth rate that reconciles{' '}
+                    {dollarsPerShare(referencePriceNum)} as of {form.referencePriceDate},
+                    given the current WACC, terminal growth, forecast period, base year
+                    FCF, net debt, and share count - not a market forecast.
+                  </p>
+                  <p className="reverse-dcf-compare">
+                    vs.{' '}
+                    {isDemoSnapshot
+                      ? `${COSTCO_CASES.find((c) => c.id === activeDemoCaseId)?.label}’s`
+                      : 'the'}{' '}
+                    {form.fcfGrowthRate}%/yr {isDemoSnapshot ? '' : 'analyst '}assumption
+                  </p>
+                  <p className="reverse-dcf-historical">
+                    {historicalFcfCagr
+                      ? `Historical UFCF CAGR (FY${historicalFcfCagr.oldestFiscalYearEnd.slice(0, 4)}–FY${historicalFcfCagr.newestFiscalYearEnd.slice(0, 4)}): ${percent(historicalFcfCagr.cagr)}`
+                      : "Historical UFCF CAGR: not meaningful for this company's history"}
+                    {historicalRevenueCagr && (
+                      <span className="reverse-dcf-historical-secondary">
+                        {' '}
+                        (revenue CAGR over the same span: {percent(historicalRevenueCagr.cagr)})
+                      </span>
+                    )}
+                  </p>
+                </>
+              ) : reverseResult.status === 'target_below_floor' ? (
+                <p className="col-empty-hint">
+                  Even at very low explicit-period growth, this model can&rsquo;t reach{' '}
+                  {dollarsPerShare(referencePriceNum)} given the current net debt and share
+                  count - the floor here is {dollarsPerShare(reverseResult.floor_value_per_share)}.
+                </p>
+              ) : reverseResult.status === 'not_bracketed' ? (
+                <p className="col-empty-hint">
+                  Price-implied growth couldn&rsquo;t be solved within a computable range
+                  for these inputs.
+                </p>
+              ) : (
+                <p className="error">
+                  Price-implied growth is unavailable (connection or server issue).
+                </p>
+              )}
+            </div>
           </div>
         </section>
       </div>
@@ -934,8 +1175,6 @@ function DcfValuation() {
       {companyData && companyData.periods.length > 1 && (
         <SourcedHistoryPanel periods={companyData.periods} visible={showHistory} />
       )}
-
-      {!isDemoSnapshot && error && <p className="error">{error}</p>}
 
       {showActiveResults && (
         <WorkflowCard

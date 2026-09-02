@@ -96,8 +96,15 @@ merits before reverse DCF - is also done. Remaining items, in dependency order:
    tooltip. See `docs/decisions.md` for the full design record, including the print-specific
    fix this needed that the rest of the workspace didn't (`print-color-adjust: exact`, since
    a bar chart's fill is the data itself, unlike the sensitivity heatmap's tint).
-6. **Reverse DCF** — analyst case vs. historical performance vs. market-implied FCF growth.
-   Needs (2) done first (a real price to solve against). Followed later by deterministic
+6. ~~**Reverse DCF.**~~ **Implemented locally (2026-09-02) — not yet committed/pushed.**
+   Solves for the constant explicit-period FCF growth rate that reconciles the dated
+   reference price, reported as a compact "Price-Implied FCF Growth" figure under Valuation
+   Summary alongside historical unlevered FCF CAGR, never framed as a market forecast. One
+   shared result per Run Valuation (not per Costco Low/Base/High case), invalidated
+   independently from the forward valuation. See `docs/MODELING_CONVENTIONS.md` for the
+   solver's domain/statuses and `docs/decisions.md` for the full design record. A
+   WACC-based reverse-sensitivity table and a comparison chart were deliberately deferred
+   out of this milestone's scope — see "Later" below. Followed later by deterministic
    "Explain This Valuation" diagnostics, before any AI commentary — a full version benefits
    from reverse DCF being done first; a narrower version (explaining sensitivity/warnings
    already computed today) has no such dependency and could be pulled forward independently
@@ -110,6 +117,10 @@ Reasonable follow-ups, not yet scheduled:
 - **Driver-based DCF forecast** — revenue → margin → taxes → D&A → CapEx → ΔNWC, replacing
   the current flat-growth explicit period. The long-signaled next evolution of the DCF
   engine; the data layer is already shaped to support it without a rewrite.
+- **Reverse DCF sensitivity table / comparison chart** — a WACC-based reverse-sensitivity
+  grid, and a chart comparing price-implied growth against the analyst's own case and
+  historical FCF CAGR. Deliberately deferred out of the core reverse-DCF milestone
+  (2026-09-02) until that workflow itself has been used and validated.
 - **DCF assumption-difference comparison** — mirrors the real estate scenario-workflow
   feature (highlights exactly which saved-scenario assumptions differ).
 - **DCF Professional Deal Summary** — mirrors the real estate one. The 2026-08-28 workstation

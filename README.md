@@ -105,6 +105,12 @@ see [`docs/decisions.md`](docs/decisions.md).*
   value per share, with a deterministic Implied Upside/Downside — arithmetic only, never a
   recommendation. Editing a sourced price marks it Adjusted rather than silently presenting
   it as untouched sourced data.
+- **Reverse DCF (price-implied FCF growth):** solves for the constant explicit-period FCF
+  growth rate that reconciles the reference price, holding every other assumption fixed —
+  reported as *the growth rate required to reconcile this price*, never as a market forecast.
+  Shown alongside historical unlevered FCF CAGR for context, with an honest, distinct status
+  for a target below the model's mathematical floor or outside the solver's computable range
+  — never silently reported as a market-implied prediction.
 - **Sensitivity analysis:** value per share across a grid of WACC × terminal growth rate
 - Save, load, **duplicate**, and **compare named scenarios** side by side
 - CSV export and print-friendly output
@@ -145,7 +151,7 @@ Every calculation is a pure, tested function, separate from the API and UI layer
 Every calculation — cap rate, amortization, IRR, equity multiple, DSCR, debt yield, terminal
 value, enterprise value, unlevered FCF construction — is backed by automated tests checked
 against values computed independently by hand, not just "does the code agree with itself."
-136 backend tests total, plus a GitHub Actions CI pipeline that runs the backend suite and
+153 backend tests total, plus a GitHub Actions CI pipeline that runs the backend suite and
 the frontend lint/build checks on every push and pull request.
 
 ## Architecture
@@ -203,7 +209,7 @@ workstation redesign → hardened DCF validation → SEC EDGAR as the primary DC
 source → SEC-independent DCF data resilience (Alpha Vantage optional, never a hard
 dependency) → per-value provenance and an editable, dated reference price → an embedded,
 provider-independent Costco DCF demo → compact historical Revenue/Unlevered FCF trend
-mini-charts. Detail:
+mini-charts → reverse DCF (price-implied FCF growth). Detail:
 [`PROGRESS.md`](PROGRESS.md), [`docs/decisions.md`](docs/decisions.md).
 What's next: [`docs/ROADMAP.md`](docs/ROADMAP.md).
 

@@ -89,6 +89,41 @@ Every calculation named here is a pure, independently tested function — see
   disclaimer sentence accompanies the comparison wherever it's shown.
 - **Sensitivity grid:** value per share across WACC × terminal growth, fixed deltas around
   the base case; cells outside Gordon Growth's convergence domain are `null`, not computed.
+- **Reverse DCF (price-implied FCF growth):** solves for the single constant explicit-period
+  FCF growth rate that reconciles a given reference price, holding every other input (base
+  year UFCF, forecast period, WACC, terminal growth, net debt, diluted shares) fixed — a
+  numerical inverse of the same shared, unrounded valuation core `run_dcf` itself uses
+  (`_compute_dcf`), never a second implementation of the formula. Reported strictly as *the
+  constant annual growth rate required to reconcile the dated reference price under the
+  model's current assumptions* — never framed as a market forecast, an analyst prediction,
+  or an objective "correct" growth rate.
+  - **Solver domain:** `g > -1`. On this domain every projected cash flow is strictly
+    increasing in `g`, so `value_per_share` is too, guaranteeing a unique root for bisection
+    to find. This is a reverse-solver *uniqueness* requirement, not a new restriction on
+    manually entered forward growth assumptions — those remain governed only by the
+    explicit-period FCF growth convention above (no fixed ceiling or floor).
+  - **Three outcomes, never collapsed into one generic failure:** `solved` (a unique growth
+    rate found within the solver's price tolerance); `target_below_floor` (the target price
+    is at or below the mathematical floor `-net_debt / diluted_shares_outstanding` — the
+    limit of `value_per_share` as `g → -1+`, never attained — a closed-form fact checked
+    before any search, not a search failure); `not_bracketed` (the numerical search itself
+    couldn't complete within computational limits — bracketing never found a bound, or
+    bisection exhausted its step budget without ever landing within tolerance — an honest
+    computational limit, never a fabricated "solved" result and never an economic ceiling on
+    growth).
+  - **Invalidation:** reads base year UFCF, forecast period, WACC, terminal growth, net
+    debt, and diluted shares — all shared with the forward valuation — plus the reference
+    price itself (which the forward valuation never reads). It does not read the analyst's
+    own FCF growth assumption, since it produces a growth rate rather than consuming one.
+    The reference price's "as of" date affects neither calculation numerically; it only
+    controls whether a usable reference price currently exists and what date displays
+    beside it.
+  - **Historical comparison:** shown alongside the solved rate as historical unlevered FCF
+    CAGR (endpoint CAGR over the real elapsed fiscal-date span between the oldest and newest
+    available periods, not a periods-count approximation), with revenue CAGR as secondary
+    context only — never presented as equivalent to FCF growth. Unavailable (shown as such,
+    never a misleading number) when either endpoint is missing, zero, or negative, or when
+    the endpoints leave no positive elapsed time between them.
 
 ## Shared conventions
 

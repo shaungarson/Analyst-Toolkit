@@ -184,7 +184,7 @@ def value_per_share(equity_value_, diluted_shares_outstanding):
     return equity_value_ / diluted_shares_outstanding
 
 
-def run_dcf(
+def _compute_dcf(
     base_year_fcf,
     fcf_growth_rate,
     forecast_years,
@@ -193,23 +193,22 @@ def run_dcf(
     net_debt,
     diluted_shares_outstanding,
 ):
+    """The one place the forward valuation formula is actually implemented - run_dcf (the
+    public, rounded forward API) and implied_fcf_growth_rate (the reverse solver) both call
+    this rather than each computing enterprise value / equity value / value per share their
+    own way, so the two can never silently drift into disagreement. Returns raw, unrounded
+    values deliberately: the solver needs the true continuous value_per_share to bisect
+    against, not a figure already quantized to the nearest cent - solving against a rounded
+    target would mean the "root" it finds is only accurate to within that $0.01 step, not to
+    the solver's own numerical tolerance.
+    """
     fcfs = project_fcf(base_year_fcf, fcf_growth_rate, forecast_years)
+    discount_factors = [discount_factor(wacc, t) for t in range(1, forecast_years + 1)]
 
-    forecast = []
     pv_fcfs = []
-    for t, fcf in enumerate(fcfs, start=1):
+    for fcf, df in zip(fcfs, discount_factors):
         _require_finite(fcf, "projected free cash flow")
-        df = discount_factor(wacc, t)
-        pv = fcf * df
-        pv_fcfs.append(pv)
-        forecast.append(
-            {
-                "year": t,
-                "fcf": round(fcf, 2),
-                "discount_factor": round(df, 6),
-                "present_value": round(pv, 2),
-            }
-        )
+        pv_fcfs.append(fcf * df)
 
     tv = _require_finite(terminal_value(fcfs[-1], wacc, terminal_growth_rate), "terminal value")
     pv_tv = present_value(tv, wacc, forecast_years)
@@ -221,12 +220,55 @@ def run_dcf(
     )
 
     return {
+        "fcfs": fcfs,
+        "discount_factors": discount_factors,
+        "pv_fcfs": pv_fcfs,
+        "terminal_value": tv,
+        "pv_terminal_value": pv_tv,
+        "enterprise_value": ev,
+        "equity_value": eq_value,
+        "value_per_share": per_share,
+    }
+
+
+def run_dcf(
+    base_year_fcf,
+    fcf_growth_rate,
+    forecast_years,
+    wacc,
+    terminal_growth_rate,
+    net_debt,
+    diluted_shares_outstanding,
+):
+    core = _compute_dcf(
+        base_year_fcf,
+        fcf_growth_rate,
+        forecast_years,
+        wacc,
+        terminal_growth_rate,
+        net_debt,
+        diluted_shares_outstanding,
+    )
+
+    forecast = [
+        {
+            "year": t,
+            "fcf": round(fcf, 2),
+            "discount_factor": round(df, 6),
+            "present_value": round(pv, 2),
+        }
+        for t, (fcf, df, pv) in enumerate(
+            zip(core["fcfs"], core["discount_factors"], core["pv_fcfs"]), start=1
+        )
+    ]
+
+    return {
         "forecast": forecast,
-        "terminal_value": round(tv, 2),
-        "pv_terminal_value": round(pv_tv, 2),
-        "enterprise_value": round(ev, 2),
-        "equity_value": round(eq_value, 2),
-        "value_per_share": round(per_share, 2),
+        "terminal_value": round(core["terminal_value"], 2),
+        "pv_terminal_value": round(core["pv_terminal_value"], 2),
+        "enterprise_value": round(core["enterprise_value"], 2),
+        "equity_value": round(core["equity_value"], 2),
+        "value_per_share": round(core["value_per_share"], 2),
         "terminal_growth_warnings": terminal_growth_warnings(wacc, terminal_growth_rate),
         "fcf_growth_warnings": fcf_growth_warnings(fcf_growth_rate),
     }
@@ -289,3 +331,161 @@ def dcf_sensitivity(
         rows.append({"wacc": w, "value_per_share_by_growth": value_per_share_by_growth})
 
     return {"terminal_growth_rates": growth_values, "rows": rows}
+
+
+# --- Reverse DCF: the constant explicit-period FCF growth rate that reconciles a target ---
+# --- price under every other assumption held fixed --------------------------------------
+
+PRICE_TOLERANCE = 0.005  # half a cent - matches the 2dp precision run_dcf's own output uses
+MAX_BRACKET_EXPANSION_STEPS = 200  # a defensive iteration cap, not a growth-rate cap - see
+# the comment in _bracket() below for why this is never expected to actually bind
+MAX_BISECTION_STEPS = 200
+
+
+def _value_per_share_at_growth(growth_rate, base_year_fcf, forecast_years, wacc, terminal_growth_rate, net_debt, diluted_shares_outstanding):
+    return _compute_dcf(
+        base_year_fcf, growth_rate, forecast_years, wacc, terminal_growth_rate, net_debt, diluted_shares_outstanding
+    )["value_per_share"]
+
+
+def _bracket(f, f0, target_price):
+    """Finds [g_low, g_high] with f(g_low) <= target_price <= f(g_high), for f strictly
+    increasing on (-1, inf) (see implied_fcf_growth_rate's own docstring for why that's true
+    on this domain). Doubles outward from 0 toward +inf for a target above f(0); for a
+    target below f(0), approaches -1 from above by repeatedly halving the remaining distance
+    to it (d = 1 + g, halved each step) - this is guaranteed to eventually bracket the target
+    because the caller has already confirmed target_price is above the floor (the limit of f
+    as g -> -1+), so somewhere in (-1, 0) f must cross it.
+
+    MAX_BRACKET_EXPANSION_STEPS exists only so this loop is provably finite; it is not a
+    growth-rate ceiling. In practice the loop always ends one of two other ways first: the
+    target gets bracketed (the overwhelmingly common case for any real reference price), or
+    NonFiniteResultError fires from genuine float overflow (project_fcf's own guard) long
+    before 200 doublings - doubling from 0.05 for even 60 steps already reaches a growth
+    rate no float64 DCF survives. Reaching the step cap without either happening would mean
+    something is wrong with the *other* inputs (e.g. a share count or base FCF near zero),
+    not that this target's growth rate is unusually high.
+    """
+    if target_price >= f0:
+        g_low, g_high = 0.0, 0.05
+        steps = 0
+        while f(g_high) < target_price:
+            steps += 1
+            if steps > MAX_BRACKET_EXPANSION_STEPS:
+                return None
+            g_low, g_high = g_high, g_high * 2
+        return g_low, g_high
+
+    g_high = 0.0
+    d = 0.5
+    steps = 0
+    while f(-1 + d) > target_price:
+        steps += 1
+        if steps > MAX_BRACKET_EXPANSION_STEPS:
+            return None
+        d /= 2
+    return -1 + d, g_high
+
+
+def implied_fcf_growth_rate(
+    target_price,
+    base_year_fcf,
+    forecast_years,
+    wacc,
+    terminal_growth_rate,
+    net_debt,
+    diluted_shares_outstanding,
+):
+    """The constant annual explicit-period FCF growth rate that reconciles target_price
+    under every other DCF input held fixed - a reverse solve over run_dcf's own formula
+    (via the shared _compute_dcf core), not a second implementation of it.
+
+    Solved by bisection because there's no closed-form inverse (unlike terminal value, the
+    explicit-period sum has no algebraic simplification once discounting is involved). This
+    is well-posed - guaranteed a unique answer, not just *an* answer - on g in (-1, inf):
+    every projected cash flow base_year_fcf * (1+g)^t is strictly increasing in g there (for
+    t >= 1, base_year_fcf > 0), so value_per_share, a positive-weighted sum of those terms
+    run through terminal value/discounting/net debt/shares, is strictly increasing in g too.
+    At g <= -1, (1+g) is non-positive and (1+g)^t alternates sign by year - monotonicity (and
+    with it, a unique root) breaks down entirely, which is exactly why the existing forward
+    engine already treats that region as economically incoherent (see fcf_growth_warnings).
+    This bound is a reverse-solver *uniqueness* requirement, not a new restriction on what an
+    analyst can type into the forward form - manually entered growth rates are completely
+    unaffected, still validated (or not) exactly as DCFInputs already does today.
+
+    Three distinct non-"solved" outcomes, deliberately not collapsed into one "failed":
+    - target_below_floor: target_price is at or below the mathematical floor
+      (-net_debt / diluted_shares_outstanding, the limit of value_per_share as g -> -1+) -
+      no g in the modeled domain reaches it. A closed-form fact about these inputs, checked
+      before any search is attempted, not a search failure.
+    - not_bracketed: the search itself couldn't complete within computational limits -
+      either bracketing never found an upper/lower bound (see _bracket's docstring), or
+      bisection ran its full MAX_BISECTION_STEPS without ever landing within
+      PRICE_TOLERANCE of target_price. Both are the same honest admission ("couldn't solve
+      this within computational limits"), never papered over with an unconverged midpoint
+      dressed up as "solved" - expected to be rare, and when it happens, points at the other
+      inputs rather than at the target price itself.
+    - solved: a unique g was found within PRICE_TOLERANCE of target_price.
+    """
+    floor = -net_debt / diluted_shares_outstanding
+
+    def f(g):
+        return _value_per_share_at_growth(
+            g, base_year_fcf, forecast_years, wacc, terminal_growth_rate, net_debt, diluted_shares_outstanding
+        )
+
+    if target_price <= floor:
+        return {
+            "status": "target_below_floor",
+            "implied_fcf_growth_rate": None,
+            "reconciled_value_per_share": None,
+            "floor_value_per_share": round(floor, 2),
+        }
+
+    try:
+        f0 = f(0.0)
+        bracket = _bracket(f, f0, target_price)
+        if bracket is None:
+            return {
+                "status": "not_bracketed",
+                "implied_fcf_growth_rate": None,
+                "reconciled_value_per_share": None,
+                "floor_value_per_share": round(floor, 2),
+            }
+        g_low, g_high = bracket
+
+        for _ in range(MAX_BISECTION_STEPS):
+            g_mid = (g_low + g_high) / 2
+            v_mid = f(g_mid)
+            if abs(v_mid - target_price) < PRICE_TOLERANCE:
+                break
+            if v_mid < target_price:
+                g_low = g_mid
+            else:
+                g_high = g_mid
+        else:
+            # The loop ran out of steps without ever hitting `break` - i.e. without ever
+            # getting within PRICE_TOLERANCE. g_mid/v_mid still hold the last midpoint tried,
+            # but returning "solved" with them would fabricate a result that never actually
+            # converged. An exhausted bracket is the same honest "couldn't solve within
+            # computational limits" outcome as a bracket that never formed at all.
+            return {
+                "status": "not_bracketed",
+                "implied_fcf_growth_rate": None,
+                "reconciled_value_per_share": None,
+                "floor_value_per_share": round(floor, 2),
+            }
+    except NonFiniteResultError:
+        return {
+            "status": "not_bracketed",
+            "implied_fcf_growth_rate": None,
+            "reconciled_value_per_share": None,
+            "floor_value_per_share": round(floor, 2),
+        }
+
+    return {
+        "status": "solved",
+        "implied_fcf_growth_rate": g_mid,
+        "reconciled_value_per_share": round(v_mid, 2),
+        "floor_value_per_share": round(floor, 2),
+    }

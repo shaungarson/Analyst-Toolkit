@@ -335,6 +335,128 @@ never-a-recommendation positioning is unchanged: the app performs deterministic 
 numbers the analyst can see and can invalidate; it does not make or imply a recommendation. A
 fixed disclaimer sentence accompanies the comparison wherever it's shown.
 
+## Reverse DCF (price-implied FCF growth)
+**Status:** Accepted
+
+Solves for the single constant explicit-period FCF growth rate that reconciles a target
+(reference) price under every other DCF input held fixed — the last item in the "Revised DCF
+sequence" below, needing a real, dated reference price to solve against (item 2) and real
+historical performance to compare it with. Reported strictly as *the growth rate required to
+reconcile the dated reference price under the model's current WACC, terminal growth,
+forecast period, base year FCF, net debt, and share count* — never as a market forecast, an
+analyst prediction, or an objective "correct" growth rate, the same never-a-recommendation
+positioning already established for Implied Upside/Downside.
+
+**One shared unrounded valuation core for both directions, not a second formula
+implementation.** `_compute_dcf` is the one place the forward valuation formula actually
+lives; both `run_dcf` (rounded, forward, existing public API) and the new
+`implied_fcf_growth_rate` (reverse solver) call it. The solver bisects against the core's raw
+`value_per_share` directly, never against `run_dcf`'s already-cent-rounded output — solving
+against a pre-quantized target would mean the "root" found is only accurate to within that
+$0.01 step, not to the solver's own numerical tolerance.
+
+**Solved by bisection, not a closed form, over a domain chosen for genuine mathematical
+uniqueness.** Unlike terminal value, the explicit-period sum has no algebraic inverse once
+discounting is involved. On `g > -1`, every projected cash flow `base_year_fcf * (1+g)^t` is
+strictly increasing in `g` (`t ≥ 1`, `base_year_fcf > 0`), so `value_per_share` — a
+positive-weighted sum of those terms run through terminal value, discounting, net debt, and
+shares — is strictly increasing too, guaranteeing bisection converges to a *unique* root, not
+just *a* root. At `g ≤ -1`, `(1+g)^t` alternates sign by year and monotonicity breaks down
+entirely — exactly the region the existing forward engine already treats as economically
+incoherent (see "DCF explicit-period FCF-growth validation" above). This is a reverse-solver
+*uniqueness* requirement, stated explicitly as such, not a new restriction on what an analyst
+can type into the forward form — manually entered growth rates remain validated exactly as
+before, no ceiling or floor.
+
+**Three distinct outcomes, deliberately not collapsed into one "failed."**
+`target_below_floor`: the target price is at or below the mathematical floor
+(`-net_debt / diluted_shares_outstanding`, the limit of `value_per_share` as `g → -1+`,
+never attained) — a closed-form fact about the inputs, checked before any search is
+attempted, not a search failure; the floor itself is computed and returned on every
+response for diagnostics, but the frontend only ever displays it while explaining this
+status, never alongside a successful result. `not_bracketed`: the numerical search itself
+couldn't complete within computational limits — either adaptive bracketing (doubling
+outward from a target above `f(0)`, or approaching `-1` from above for a target below it)
+never found a bound within its defensive step cap, or genuine float64 overflow fired first
+(both empirically verified: targets up to `1e300` solve; `1e305` genuinely overflows at a
+15-year forecast). `solved`: a unique `g` was found within the solver's price tolerance
+(half a cent, matching `run_dcf`'s own 2dp precision). None of these read as an economic
+ceiling on growth — deliberately not the originally-considered flat percentage search cap,
+which would have silently reintroduced exactly the kind of arbitrary economic threshold this
+project's validation principle already rejects for the forward form (see "DCF
+terminal-growth validation" above).
+
+**Caught in pre-commit review, not shipped:** the bisection loop originally fell through to
+`status: "solved"` using the last midpoint tried even when the loop exhausted its full step
+budget without ever landing within tolerance — fabricating a "solved" result for a target
+that was never actually reconciled (verified directly: a synthetic 1-step budget against a
+$500 target returned a "solved" $11.02 reconciliation, a $489 miss). Fixed with a `for...else`
+on the bisection loop: exhausting the loop without hitting `break` now returns
+`not_bracketed`, the same honest "couldn't solve this within computational limits" outcome as
+a bracket that never formed at all, never a fabricated convergence.
+
+**Independent invalidation, not shared with the forward valuation's own staleness.** Reverse
+DCF reads base year UFCF, forecast period, WACC, terminal growth, net debt, and diluted
+shares — every one shared with the forward valuation — plus the reference price itself,
+which the forward valuation never reads; it deliberately does not read the analyst's FCF
+growth assumption, since it produces a growth rate rather than consuming one. The reference
+price's "as of" date invalidates neither calculation — it only gates whether a usable
+reference price currently exists and what date displays beside it. This required extending
+result-staleness tracking to ordinary single-company/manual mode, not just Costco demo mode,
+which previously had no forward-staleness notion at all — showing a stale valuation beside
+edited assumptions is a correctness problem regardless of mode.
+
+**Caught in pre-commit review, not shipped:** the reverse-DCF card was originally nested
+inside the forward result's own `activeResults` conditional branch, so a forward-only edit
+(e.g. the analyst's FCF growth rate, which reverse DCF never reads) collapsed the entire
+branch to the generic "assumptions changed" banner — hiding a reverse result that was still
+completely valid. Fixed by making the reverse-DCF card an independent sibling of the forward
+result block, with its own state ternary, so each side's stale/loading/error/success state
+renders (or doesn't) entirely independently of the other's. Verified live in both
+directions: editing FCF growth rate leaves the reverse card fully intact, and a simulated
+reverse-DCF network failure leaves a successful forward result fully intact.
+
+**A failed rerun is its own current outcome, not a stale one.** `runSingleValuation`
+originally cleared `results` on a failed forward rerun but never cleared `resultsStale`,
+so a rerun triggered from an already-stale state left the generic "assumptions changed,
+click Run Valuation to refresh" notice showing in front of the real error — even though
+clicking Run Valuation is exactly what had just been done and failed. Fixed by clearing
+`resultsStale` on the failure path too, the same way it already clears on success; a failed
+rerun now shows the actual friendly error message, with old results and CSV/Print correctly
+staying hidden throughout. Caught and fixed in the same pre-commit review pass as the two
+issues above, before anything shipped.
+
+**Kept discoverable before any reference price exists.** The Price-Implied FCF Growth card
+always renders — never conditioned on a usable reference price existing — so the feature is
+visible even on a freshly loaded company or the empty pre-load state, with a concrete "enter
+a positive reference price and as-of date" instruction rather than disappearing entirely.
+
+**Historical context is unlevered FCF CAGR specifically, labeled as such, with revenue CAGR
+only as clearly secondary context.** Computed from the real elapsed time between the oldest
+and newest available `fiscal_year_end` dates (not `periods.length - 1` — a company's fiscal
+calendar, like Costco's 52/53-week year, doesn't land exactly 365 days apart), endpoint-based
+by definition (an interior dip, e.g. Costco's real FY2022 UFCF dip, doesn't disqualify it),
+returning "unavailable" rather than a misleading number when either endpoint is missing,
+zero, or negative. Labeled "Historical UFCF CAGR" in the UI (not the bare "Historical FCF
+CAGR" an earlier draft used) specifically so it reads as the same cash-flow concept the DCF
+itself is built on, matching the "UFCF" abbreviation already used elsewhere in the sourced-
+data panel.
+
+**CSV export preserves conditional context, and only for a genuinely current result.** The
+Price-Implied FCF Growth section is appended only when the reverse result is currently
+showing as solved (never stale, loading, unavailable, or failed), and always includes the
+dated reference price alongside all six held-constant assumptions — never the growth figure
+in isolation from the conditions it depends on.
+
+**Scope deliberately held to the approved design, nothing broadened in review.** One reverse
+request per Run Valuation click; one shared result across all three Costco cases, compared
+against whichever case's tab is active; placement under Valuation Summary, not beside the
+editable reference price input; no saved derived output; no WACC-based reverse-sensitivity
+table or comparison chart (see `docs/ROADMAP.md`'s Later column). Costco's own price-implied
+growth result (30.73% under Base Growth's assumptions) was not adjusted or tuned during this
+milestone — the same "arithmetic only, don't engineer the number to look better" discipline
+already established for the embedded demo's forward valuation gap.
+
 ## Real estate freeze pending professional validation
 **Status:** Deferred — trigger: user validates real-estate underwriting conventions with a
 CRE professional

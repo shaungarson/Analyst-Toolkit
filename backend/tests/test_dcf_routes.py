@@ -7,6 +7,7 @@ re-proving the math here (that's test_dcf.py's job): each case below is about
 whether the HTTP layer wires it up correctly, not whether the number is right.
 """
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -147,3 +148,74 @@ def test_sensitivity_route_returns_422_when_base_case_overflows():
     res = client.post("/api/dcf/sensitivity", json=payload)
     assert res.status_code == 422
     assert "can't be computed safely" in res.text
+
+
+REVERSE_PAYLOAD = {
+    "target_price": 1000,
+    "base_year_fcf": 100_000_000,
+    "forecast_years": 5,
+    "wacc": 0.10,
+    "terminal_growth_rate": 0.02,
+    "net_debt": 200_000_000,
+    "diluted_shares_outstanding": 100_000_000,
+}
+
+
+def test_implied_growth_route_returns_200_with_expected_shape():
+    res = client.post("/api/dcf/implied-growth", json=REVERSE_PAYLOAD)
+    assert res.status_code == 200
+    body = res.json()
+    assert set(body.keys()) == {
+        "status",
+        "implied_fcf_growth_rate",
+        "reconciled_value_per_share",
+        "floor_value_per_share",
+    }
+    assert body["status"] == "solved"
+    assert isinstance(body["implied_fcf_growth_rate"], float)
+
+
+def test_implied_growth_route_reuses_valuation_route_and_agrees():
+    # Round trip through the actual HTTP layer: the forward route's own output, fed back
+    # in as the reverse route's target, should reconcile to the same growth rate.
+    forward_payload = {**VALID_PAYLOAD, "fcf_growth_rate": 0.08}
+    forward_res = client.post("/api/dcf/valuation", json=forward_payload)
+    target = forward_res.json()["value_per_share"]
+
+    reverse_payload = {k: v for k, v in forward_payload.items() if k != "fcf_growth_rate"}
+    reverse_payload["target_price"] = target
+    reverse_res = client.post("/api/dcf/implied-growth", json=reverse_payload)
+    assert reverse_res.status_code == 200
+    body = reverse_res.json()
+    assert body["status"] == "solved"
+    assert body["implied_fcf_growth_rate"] == pytest.approx(0.08, abs=1e-3)
+    assert body["reconciled_value_per_share"] == pytest.approx(target, abs=0.005)
+
+
+def test_implied_growth_route_rejects_wacc_at_or_below_terminal_growth():
+    payload = {**REVERSE_PAYLOAD, "wacc": 0.05, "terminal_growth_rate": 0.05}
+    res = client.post("/api/dcf/implied-growth", json=payload)
+    assert res.status_code == 422
+    assert "WACC must be greater than the terminal growth rate" in res.text
+
+
+def test_implied_growth_route_rejects_non_positive_target_price():
+    payload = {**REVERSE_PAYLOAD, "target_price": 0}
+    res = client.post("/api/dcf/implied-growth", json=payload)
+    assert res.status_code == 422
+
+
+def test_implied_growth_route_target_below_floor_returns_200_not_error():
+    # An unreachable target is an honest, typed result - not an HTTP error. Floor here is
+    # -net_debt/shares = 100e9/100e6 = $1000, comfortably above the $500 target.
+    payload = {**REVERSE_PAYLOAD, "target_price": 500, "net_debt": -100_000_000_000}
+    res = client.post("/api/dcf/implied-growth", json=payload)
+    assert res.status_code == 200
+    body = res.json()
+    assert body["status"] == "target_below_floor"
+    assert body["implied_fcf_growth_rate"] is None
+
+
+def test_implied_growth_route_only_accepts_post():
+    res = client.get("/api/dcf/implied-growth")
+    assert res.status_code == 405
