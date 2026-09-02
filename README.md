@@ -23,6 +23,17 @@ professionals, and finance teams evaluating whether AI-assisted development can 
 something genuinely useful — not a toy demo with a spreadsheet's worth of hardcoded numbers
 behind it.
 
+## Screenshots
+
+**DCF Valuation** — the embedded Costco demo, sourced historical financials, editable
+assumptions, and the full valuation summary with price-implied FCF growth:
+
+![DCF Valuation screenshot](docs/screenshots/dcf-costco-results.png)
+
+**Real Estate Underwriting** — the acquisition and financing inputs:
+
+![Real Estate Underwriting screenshot](docs/screenshots/re-empty.png)
+
 ## Who built what
 
 I'm the finance-domain owner: an Honours BComm in Financial Services, background in
