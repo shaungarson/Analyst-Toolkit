@@ -1,29 +1,18 @@
 # Analyst Toolkit — Progress
 
-**Last verified:** 2026-09-02 (Reverse DCF implemented and verified locally — backend/frontend
-test suites, lint, build, and a full browser invalidation/failure-state matrix all pass; NOT
-yet committed, pushed, or deployed). Prior to this: 2026-09-01, Costco header profile fix and
-the one-run/three-tab demo consolidation both pushed and verified live in production, on top
-of the historical trend mini-charts, chart-color/print refinements, the Source Details
-inspector redesign, and the AGENTS.md Codex-consultant boundary already deployed.
+**Last verified:** 2026-09-02 (Reverse DCF — price-implied FCF growth — committed, pushed, CI
+green, and verified live in production on both Render and Vercel, including a focused
+production smoke test covering the full invalidation matrix, CSV export, and a simulated
+reverse-request failure). Prior to this: 2026-09-01, Costco header profile fix and the
+one-run/three-tab demo consolidation both pushed and verified live in production, on top of
+the historical trend mini-charts, chart-color/print refinements, the Source Details inspector
+redesign, and the AGENTS.md Codex-consultant boundary already deployed.
 
 ## Current Milestone
 
-**Reverse DCF (price-implied FCF growth) — implemented and verified locally, awaiting
-commit/push.** Solves for the constant explicit-period FCF growth rate that reconciles the
-dated reference price, shown as a compact "Price-Implied FCF Growth" figure under Valuation
-Summary alongside historical unlevered FCF CAGR — never framed as a market forecast. Backend:
-153 tests pass (up from 152, +1 for a pre-commit-review fix — see below). Frontend: 18 tests,
-lint, and build all pass. Full browser verification covered the invalidation/failure-state
-matrix (independent forward/reverse staleness, mid-rerun hiding, `target_below_floor`/
-`not_bracketed`/network-failure states, CSV export honesty, company/scenario/demo reload
-clearing, mobile layout) plus a focused re-check after two bugs caught during pre-commit
-review: (1) a failed single-company rerun could leave the generic "assumptions changed"
-notice showing in front of the real error instead of it, and (2) the backend bisection loop
-could fall through to a fabricated "solved" result if it ran out of steps without ever
-converging within tolerance. Both fixed and re-verified. See `docs/decisions.md` for the
-full design record. **Not yet committed, pushed, or deployed** — awaiting explicit approval
-per this project's standing commit/push gating.
+None — awaiting direction. Reverse DCF (price-implied FCF growth) is now shipped and
+deployed alongside every other DCF milestone below. See `docs/ROADMAP.md` and
+`docs/decisions.md`.
 
 ## Blockers / Frozen Areas
 
@@ -32,6 +21,15 @@ per this project's standing commit/push gating.
 
 ## Recently Shipped
 
+- 2026-09-02 — Reverse DCF (price-implied FCF growth): solves for the constant
+  explicit-period FCF growth rate that reconciles the dated reference price, shown under
+  Valuation Summary alongside historical unlevered FCF CAGR, never framed as a market
+  forecast. One shared result per Run Valuation, invalidated independently from the forward
+  valuation. Backend 153 tests / frontend 18 tests / lint / build all pass; production
+  smoke-tested (solved result reconciling within tolerance, forward valuations unchanged,
+  Costco Base Growth's 30.73% untouched, one request per run shared across tabs, zero
+  requests on tab switch, the full invalidation matrix, a simulated reverse-request failure
+  leaving forward intact, and CSV export honesty) — [decisions.md](docs/decisions.md#reverse-dcf-price-implied-fcf-growth)
 - 2026-09-01 — Costco demo-entry consolidation and one-run case tabs: removed the DCF
   module's synthetic "Load Example"; a full-sized "Costco Demo" header button activates the
   demo and opens/closes its disclosure, replacing the old subtle toggle + button pair; case
@@ -75,8 +73,9 @@ per this project's standing commit/push gating.
 
 ## Next Actions
 
-1. Commit and push Reverse DCF once explicitly approved, then verify the deploy live in
-   production (Vercel + Render) the same way every prior milestone has been.
+1. None currently planned for DCF — awaiting direction on the next milestone (the deferred
+   reverse-DCF sensitivity table/comparison chart, driver-based forecasting, or something
+   else; see `docs/ROADMAP.md`).
 2. Real estate: no action planned until the user has the CRE-professional conversation.
 
 ## See Also

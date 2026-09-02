@@ -96,19 +96,22 @@ merits before reverse DCF - is also done. Remaining items, in dependency order:
    tooltip. See `docs/decisions.md` for the full design record, including the print-specific
    fix this needed that the rest of the workspace didn't (`print-color-adjust: exact`, since
    a bar chart's fill is the data itself, unlike the sensitivity heatmap's tint).
-6. ~~**Reverse DCF.**~~ **Implemented locally (2026-09-02) — not yet committed/pushed.**
-   Solves for the constant explicit-period FCF growth rate that reconciles the dated
-   reference price, reported as a compact "Price-Implied FCF Growth" figure under Valuation
-   Summary alongside historical unlevered FCF CAGR, never framed as a market forecast. One
-   shared result per Run Valuation (not per Costco Low/Base/High case), invalidated
-   independently from the forward valuation. See `docs/MODELING_CONVENTIONS.md` for the
-   solver's domain/statuses and `docs/decisions.md` for the full design record. A
-   WACC-based reverse-sensitivity table and a comparison chart were deliberately deferred
-   out of this milestone's scope — see "Later" below. Followed later by deterministic
-   "Explain This Valuation" diagnostics, before any AI commentary — a full version benefits
-   from reverse DCF being done first; a narrower version (explaining sensitivity/warnings
-   already computed today) has no such dependency and could be pulled forward independently
-   if ever wanted.
+6. ~~**Reverse DCF.**~~ **Done (2026-09-02).** Solves for the constant explicit-period FCF
+   growth rate that reconciles the dated reference price, reported as a compact
+   "Price-Implied FCF Growth" figure under Valuation Summary alongside historical unlevered
+   FCF CAGR, never framed as a market forecast. One shared result per Run Valuation (not per
+   Costco Low/Base/High case), invalidated independently from the forward valuation.
+   Production-verified: a solved result reconciling within tolerance, forward valuations
+   unchanged, Costco Base Growth's 30.73% untouched, one request per run shared across
+   tabs, zero requests on tab switch, the full invalidation matrix, and a simulated
+   reverse-request failure leaving a successful forward valuation intact. See
+   `docs/MODELING_CONVENTIONS.md` for the solver's domain/statuses and `docs/decisions.md`
+   for the full design record. A WACC-based reverse-sensitivity table and a comparison
+   chart were deliberately deferred out of this milestone's scope — see "Later" below.
+   Followed later by deterministic "Explain This Valuation" diagnostics, before any AI
+   commentary — a full version benefits from reverse DCF being done first; a narrower
+   version (explaining sensitivity/warnings already computed today) has no such dependency
+   and could be pulled forward independently if ever wanted.
 
 ## Later
 
