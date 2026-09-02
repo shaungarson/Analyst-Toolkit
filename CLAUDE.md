@@ -46,8 +46,20 @@ storage, changing the framework, adopting TypeScript, a significant new dependen
 restructuring major parts of the app, or changing how a financial calculation is
 fundamentally implemented.
 
-For a stop-and-ask decision: explain the decision briefly → present real options → recommend
-one → say why → wait for approval.
+For a stop-and-ask decision — or whenever explicitly asked for an independent review —
+produce a concise **Consultant Brief** (~200–300 words) in place of an ad hoc explanation: (1)
+decision required, (2) relevant current state, (3) recommendation, (4) meaningful
+alternatives, (5) material risks/tradeoffs, (6) the exact question for Codex to evaluate.
+Present it and wait for approval before acting, exactly as before; I separately decide
+whether to carry it to Codex and whether to bring back Codex's response — that exchange stays
+manual and user-mediated, never automated.
+
+These are the only two triggers, and neither adds a new pause point: a stop-and-ask condition
+above already paused for approval before this existed, and an explicit request is
+user-initiated, not an autonomous decision to stop. Routine work under "Proceed without
+asking" is unaffected. §5's materiality rule remains the filter for whether escalation is
+warranted at all — not a third, broader trigger. The brief itself is ephemeral, not saved to
+any file; a resulting durable decision still goes through §9's documentation review.
 
 ## 5. Push Back & Materiality
 
