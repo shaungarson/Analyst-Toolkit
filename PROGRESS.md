@@ -1,18 +1,14 @@
 # Analyst Toolkit — Progress
 
-**Last verified:** 2026-09-02 (Deployment polish sprint — commits `d1659b5`/`862a9b8`, CI
-green, deployed and production-verified on both Render and Vercel: DCF confirmed as the
-default module on load, page title/OG/Twitter metadata and the social-preview image confirmed
-live, the real estate scope note confirmed rendering, the backend warm-up ping confirmed
-firing on mount without gating Run Valuation, and both an immediate click and a delayed click
-of Run Valuation against the Costco demo produced results matching local exactly). Prior to
-this: 2026-09-02, Explain This Valuation committed, pushed, CI green, and production-verified
-(live bundle confirmed serving the new code; a focused smoke test against the Costco demo
-covering all three observations' numbers, case-tab switching, and independent
-forward/reverse invalidation, all matching local verification exactly). Prior to that:
-2026-09-02, Reverse DCF (price-implied FCF growth) committed, pushed, CI green, and verified
-live in production on both Render and Vercel, including a focused production smoke test
-covering the full invalidation matrix, CSV export, and a simulated reverse-request failure.
+**Last verified:** 2026-09-02 (Cross-company stale-input fix — commit `449156d`, CI green,
+deployed and production-verified: Base Year UFCF, Net Debt, and Diluted Shares Outstanding
+now explicitly replace-or-clear on every company load instead of silently surviving from the
+previously loaded company when the new one is missing a field. Reproduced and re-verified
+live in production with AAPL → EOSE → AAPL: EOSE's null `unlevered_fcf` correctly blanks Base
+Year UFCF with no Sourced badge, EOSE's own Net Debt/Shares populate correctly, a manually
+entered WACC survives both switches untouched, and Valuation Summary stays cleared
+throughout). Prior verified milestone: 2026-09-02, the deployment polish sprint — see
+Recently Shipped below for that and every earlier DCF milestone.
 
 ## Current Milestone
 
@@ -27,6 +23,17 @@ is awaiting the user's decision on whether/how to carry it forward (see Next Act
 
 ## Recently Shipped
 
+- 2026-09-02 — Cross-company stale-input fix: `loadCompany` only set the sourced patch for
+  Base Year UFCF / Net Debt / Diluted Shares Outstanding when the newly loaded company
+  actually had a value, so a field a new company lacks (e.g. EOSE's null `unlevered_fcf`)
+  left the *previously* loaded company's figure sitting in the form, unbadged. Fixed by a new
+  pure `companyDataToSourcedFields` helper that always returns every key (the real value, or
+  `''`), so the merge always replaces; `fieldBadgeType` (also extracted to a pure
+  `sourceableFieldBadgeType` helper) now shows no badge for a blank field and "Analyst Input"
+  (never "Sourced") for a value the analyst typed in with nothing sourced this load. 11 new
+  regression tests. Analyst-only assumptions (WACC, terminal growth, FCF growth rate,
+  forecast years) were never affected. Committed `449156d`, CI green, deployed and
+  production-verified (see Last Verified above).
 - 2026-09-02 — Deployment polish sprint: DCF Valuation is now the app's default module on
   load (was real estate); the DCF module opportunistically pings `/api/health` on mount
   (cache-bypassing, non-blocking, silent on failure) so a cold Render instance starts waking
