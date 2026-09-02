@@ -14,6 +14,7 @@ import CompanyHeader from './CompanyHeader'
 import CostcoDemoPanel from './CostcoDemoPanel'
 import ValueBridge from './ValueBridge'
 import { nextDemoTabIndex, reconcileDemoResults } from './demoCaseLogic'
+import { companyDataToSourcedFields, sourceableFieldBadgeType } from './companyDataToForm'
 import { historicalCagr } from './historicalGrowth'
 import { explainValuation } from './explainValuation'
 import {
@@ -251,28 +252,14 @@ function DcfValuation() {
       setReverseResultStale(false)
       setShowHistory(false)
 
-      const latest = data.periods[0]
-      const sourced = {}
-      if (latest?.unlevered_fcf != null) sourced.baseYearFcf = String(Math.round(latest.unlevered_fcf))
-      if (latest?.net_debt != null) sourced.netDebt = String(Math.round(latest.net_debt))
-      if (data.profile.shares_outstanding != null) {
-        sourced.dilutedSharesOutstanding = String(Math.round(data.profile.shares_outstanding))
-      }
-      // Alpha Vantage's quote is independent of fundamentals (see the data-resilience
-      // milestone). Every one of these five keys is set explicitly on every load - to the
-      // new company's real value, or to '' - rather than only when present, so a price (or
-      // its sourced-baseline record) from a previously loaded company can never survive
-      // into a load whose own quote came back empty. referencePriceSourced* is what
-      // referencePriceBadgeType compares the live fields against; persisting it as part of
-      // `form` (not just the ephemeral sourcedSnapshot below) is what lets a saved scenario
-      // restore the correct Sourced/Adjusted status after a reload - see loadScenario.
-      const referencePrice = data.profile.reference_price != null ? String(data.profile.reference_price) : ''
-      const referencePriceDate = data.profile.reference_price_as_of ?? ''
-      sourced.referencePrice = referencePrice
-      sourced.referencePriceDate = referencePriceDate
-      sourced.referencePriceSourcedValue = referencePrice
-      sourced.referencePriceSourcedDate = referencePriceDate
-      sourced.referencePriceSourceTicker = referencePrice ? data.profile.ticker : ''
+      // Every key companyDataToSourcedFields returns is always set - to this company's real
+      // value, or '' when it doesn't have one - so a value from a previously loaded company
+      // (e.g. Base Year UFCF when the new company's latest unlevered_fcf is null) can never
+      // survive into this load. referencePriceSourced* is what referencePriceBadgeType
+      // compares the live fields against; persisting it as part of `form` (not just the
+      // ephemeral sourcedSnapshot below) is what lets a saved scenario restore the correct
+      // Sourced/Adjusted status after a reload - see loadScenario.
+      const sourced = companyDataToSourcedFields(data)
       setSourcedSnapshot(sourced)
       setForm((prev) => ({ ...prev, ...sourced }))
     } catch (err) {
@@ -396,8 +383,7 @@ function DcfValuation() {
   const fieldBadgeType = (field) => {
     if (!companyData || !sourcedSnapshot) return null
     if (SOURCEABLE_FIELDS.includes(field)) {
-      if (!(field in sourcedSnapshot)) return null
-      return form[field] === sourcedSnapshot[field] ? 'sourced' : 'adjusted'
+      return sourceableFieldBadgeType(form[field], sourcedSnapshot[field])
     }
     return 'analyst'
   }
