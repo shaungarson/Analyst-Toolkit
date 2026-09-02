@@ -11,127 +11,44 @@ conventions with a CRE professional. See "Real estate freeze" in
 ## Next
 
 The agreed DCF sequence (see "Revised DCF sequence: data resilience, combined
-provenance/price milestone, and a validated real-company demo" in `decisions.md`) — hardening,
-SEC EDGAR as primary fundamentals, DCF data resilience, per-value provenance/reference price,
-Costco candidate validation, and the embedded Costco demo itself are done. One small item not
-in that original sequence - historical trend mini-charts, proposed and evaluated on its own
-merits before reverse DCF - is also done. Remaining items, in dependency order:
+provenance/price milestone, and a validated real-company demo" in
+[`decisions.md`](decisions.md)) is complete, together with one item added to it on its own
+merits — historical trend mini-charts, proposed and evaluated before reverse DCF. The
+completed items, in the dependency order they were built:
 
-1. ~~**DCF data resilience.**~~ **Done (2026-08-31).** Alpha Vantage fundamentals and current
-   price are now genuinely optional — a ticker-search request succeeds on SEC-sourced data
-   alone if Alpha Vantage is unavailable, rate-limited, or unconfigured, with any
-   Alpha-Vantage-only field honestly absent rather than the whole request failing. Company
-   periods are now built from the union of both providers' own fiscal dates rather than
-   requiring Alpha Vantage's first. 10 new backend tests (including a regression test for the
-   oldest displayed period's prior-year NWC lookup, caught and fixed before this shipped -
-   the canonical period list must never include a balance-sheet-only year, but the extra
-   balance-only year Alpha Vantage provides specifically for that NWC delta still needs to be
-   found); live-verified against AAPL and WMT with the Alpha Vantage key removed entirely
-   (full 5-period SEC-sourced responses) and with it configured normally (unchanged
-   behavior). See `docs/ARCHITECTURE.md` for the resulting pipeline shape.
+1. ~~**DCF data resilience.**~~ **Done (2026-08-31).** Alpha Vantage fundamentals and price
+   became genuinely optional, so a ticker search succeeds on SEC-sourced data alone rather
+   than failing outright. See "DCF ticker-search data pipeline" in
+   [`ARCHITECTURE.md`](ARCHITECTURE.md).
 2. ~~**Per-value provenance and an editable, dated reference share price — one combined
-   milestone.**~~ **Done (2026-08-31).** Every historical field now discloses status
-   (reported/combined/calculated/fallback), filing period, filing date, accession number,
-   XBRL tag(s), and a source link where applicable — compact dots by default (latest-period
-   panel and the 5-year history table alike), full detail one click away via a "Sources"
-   toggle, never a wall of permanent badges. `current_price` is retired: the DCF workstation
-   now has an editable, dated Reference Price that extends the existing
-   `Sourced/Analyst/Adjusted` badge pattern, with its own rule for the reload case (see
-   `decisions.md`). Provenance assertions added across the existing company-data test suite,
-   plus 3 new tests (reference-price sourcing, and a new route-level test file covering
-   full-schema serialization) — 136 backend tests total, up from 133; live-verified against
-   AAPL. See `docs/decisions.md` for the full design record.
+   milestone.**~~ **Done (2026-08-31).** Every historical field now discloses its own status,
+   period, and source, and `current_price` was retired in favour of an editable, dated
+   Reference Price. See "Per-value provenance and reference price disclosure" in
+   [`decisions.md`](decisions.md).
 3. ~~**Bounded validation of a real-company demo candidate.**~~ **Done (2026-08-31) — Costco
-   confirmed.** Run live against the deployed production API (`/api/company/COST`), not a
-   local fixture. Result: complete and clean. Every field across all 5 SEC-sourced years is
-   `reported`/`combined`/`calculated` — zero `fallback` to Alpha Vantage anywhere, a cleaner
-   result than AAPL/WMT's original validation runs. `cash`/`total_debt` components are
-   sensible (cash + short-term investments; long-term + current debt plus finance leases, no
-   overlap). Revenue, D&A, and CapEx all grow smoothly year over year (steady warehouse
-   footprint expansion), and operating margin holds in a tight 3.4–3.8% band throughout - the
-   thin-margin, high-volume characteristic that makes Costco a legible teaching example in the
-   first place. One real, non-disqualifying pattern worth knowing before (4) is built: FY2022
-   unlevered FCF dips to ~1.2% of revenue (vs. ~1.9–2.4% every other year), driven by a
-   genuine swing in change-in-NWC that year (+$1.08B vs. negative in 4 of 5 years) rather than
-   any data-mapping issue - confirmed by re-deriving UFCF by hand from the reported EBIT/tax/
-   D&A/CapEx/ΔNWC components. Doesn't affect the most recent year (FY2025, the likely demo
-   base year), and is itself fully explained by this milestone's own provenance UI if a viewer
-   expands it. See `docs/decisions.md` for the full validation record.
+   confirmed.** A live run against the deployed production API returned five complete
+   SEC-sourced years with no fallback fields anywhere, clearing Costco as the demo candidate.
+   See "Revised DCF sequence: data resilience, combined provenance/price milestone, and a
+   validated real-company demo" in [`decisions.md`](decisions.md).
 4. ~~**Embedded, provider-independent real-company DCF demonstration.**~~ **Done
-   (2026-08-31).** Costco (COST), the confirmed candidate from (3) — a frozen five-year
-   financial snapshot (transcribed by hand from a live call to the deployed production API,
-   real SEC EDGAR data down to the accession number) and a dated reference price ($943.88 as
-   of 2026-08-31, from stockanalysis.com's historical close table, since Alpha Vantage's
-   quote was unavailable when the snapshot was built - never fabricated, never presented as
-   SEC- or Alpha-Vantage-sourced), with three ephemeral Low/Base/High Growth cases. Loading
-   the demo makes no SEC/Alpha Vantage request at all (verified: zero `/api/company` calls in
-   the network log); one click of "Run Valuation" calculates all three cases together via the
-   real `/api/dcf/valuation` engine, so results are computed live, never hardcoded (verified:
-   $335.59 / $395.69 / $464.96 per share across the three cases, a clean monotonic spread) -
-   switching tabs afterward makes zero further requests. WACC (7.5%) and terminal growth
-   (2.5%) are identical across all three; only explicit-period FCF growth varies (4% / 8% /
-   12%), with a plain-language line explaining exactly that. A full-sized "Costco Demo"
-   disclosure button in the header activates the demo and opens/closes its disclosure -
-   replacing the DCF module's old synthetic "Load Example" entirely (real estate's own Load
-   Example is unaffected); case switching itself happens via three accessible result tabs
-   under Valuation Summary, not buttons in the disclosure. The header shows a visually
-   distinct
-   "Embedded demo snapshot · not live data" label whenever the frozen data is loaded, and
-   switching to a real ticker search clears it immediately. Cases never touch `localStorage`
-   or the saved-scenario list. See `docs/decisions.md` for the full design record, including
-   why the ~51-64% gap against Costco's real reference price is a genuine, expected result of
-   the model's flat-growth simplicity against a premium-multiple stock, not a tuning error.
-5. ~~**Historical trend mini-charts.**~~ **Done (2026-08-31).** A small insertion proposed
-   and evaluated on its own merits before reverse DCF, not part of the original agreed
-   sequence - two compact CSS bar charts (Revenue, Unlevered FCF) in the sourced-data panel,
-   visible whenever at least two historical periods are loaded (live ticker or the Costco
-   demo), sharing one fiscal-year label strip with independently labeled scales rather than
-   a dual-axis chart. No chart library; reuses `periods` data already on `companyData`, so
-   no new network request. Correctly handles negative values (extending below a visible
-   zero baseline), exactly-zero values (a small visible tick, not indistinguishable from
-   nothing), and missing values (no bar at all, never a zero-height one) - verified against
-   the real Costco data (the FY2022 UFCF dip is now visually obvious at a glance) and a
-   synthetic mixed positive/negative/missing series. Each chart carries a real
-   `role="img"`/`aria-label` summary of the full year/value sequence, not a hover-only
-   tooltip. See `docs/decisions.md` for the full design record, including the print-specific
-   fix this needed that the rest of the workspace didn't (`print-color-adjust: exact`, since
-   a bar chart's fill is the data itself, unlike the sensitivity heatmap's tint).
+   (2026-08-31).** A frozen five-year Costco snapshot and dated reference price drive three
+   Low/Base/High growth cases through the real valuation engine with no provider request at
+   all. See "DCF demo-entry consolidation and the one-run, three-tab case model" in
+   [`decisions.md`](decisions.md).
+5. ~~**Historical trend mini-charts.**~~ **Done (2026-08-31).** Two compact, library-free bar
+   charts (Revenue, Unlevered FCF) in the sourced-data panel, drawn from period data already
+   loaded. See "Historical trend mini-charts" in [`decisions.md`](decisions.md).
 6. ~~**Reverse DCF.**~~ **Done (2026-09-02).** Solves for the constant explicit-period FCF
-   growth rate that reconciles the dated reference price, reported as a compact
-   "Price-Implied FCF Growth" figure under Valuation Summary alongside historical unlevered
-   FCF CAGR, never framed as a market forecast. One shared result per Run Valuation (not per
-   Costco Low/Base/High case), invalidated independently from the forward valuation.
-   Production-verified: a solved result reconciling within tolerance, forward valuations
-   unchanged, Costco Base Growth's 30.73% untouched, one request per run shared across
-   tabs, zero requests on tab switch, the full invalidation matrix, and a simulated
-   reverse-request failure leaving a successful forward valuation intact. See
-   `docs/MODELING_CONVENTIONS.md` for the solver's domain/statuses and `docs/decisions.md`
-   for the full design record. A WACC-based reverse-sensitivity table and a comparison
-   chart were deliberately deferred out of this milestone's scope — see "Later" below.
+   growth rate that reconciles the dated reference price, reported as "Price-Implied FCF
+   Growth" and never framed as a market forecast. A WACC-based reverse-sensitivity table and
+   a comparison chart were deliberately deferred out of this milestone's scope — see "Later"
+   below. See "Reverse DCF (price-implied FCF growth)" in [`decisions.md`](decisions.md) and
+   [`MODELING_CONVENTIONS.md`](MODELING_CONVENTIONS.md).
 7. ~~**Explain This Valuation.**~~ **Done (2026-09-02).** Up to three deterministic
-   observations synthesized from outputs the forward
-   DCF, reverse DCF, sensitivity grid, and historical-CAGR helper already compute — no
-   change to the valuation engine or methodology, only presentation-level differences,
-   ratios, and ranges; no AI commentary (per this sequence's own "before any AI commentary"
-   rule). Price-implied growth vs. the analyst's case and historical UFCF CAGR, as exact
-   percentage-point differences (or an explicit match when the two round to the same figure)
-   rather than qualitative "materially/somewhat" bands (an
-   invented magnitude threshold would repeat the judgment-dressed-as-objective pattern
-   `CLAUDE.md`'s standing lesson warns against); terminal value's share of enterprise value,
-   stated only as a proportion — never a sensitivity claim the ratio alone can't support, and
-   omitted when enterprise value is non-positive/non-finite or the ratio falls outside [0, 1];
-   and the sensitivity grid's downside/upside relative to the base-case value per share, with
-   an explicitly defined denominator and no "highly sensitive" label. A fourth candidate
-   (redirecting to an existing warning with no synthesis of its own) was cut in review as
-   padding, not an observation — two or three strong ones, not more weaker ones. Frontend
-   suite (44 tests — 26 new for this milestone, up from 18), lint, and build all pass; 153
-   backend tests unaffected (no backend change). Committed `6d7404c`, CI green, deployed and
-   production-verified: the live bundle confirmed serving the new code, and a smoke test
-   against the Costco demo confirmed all three observations' exact numbers, case-tab
-   switching, and independent forward/reverse invalidation, all matching the pre-deploy dev-
-   server verification (tab switching, independent forward/reverse invalidation, mobile
-   responsive layout, and print CSS). See `docs/decisions.md` for the full design record,
-   including the corrections made during review.
+   observations synthesized from figures the forward DCF, reverse DCF, sensitivity grid, and
+   historical-CAGR helper already compute — no engine or methodology change, and no AI
+   commentary, per this sequence's own "before any AI commentary" rule. See "Explain This
+   Valuation" in [`decisions.md`](decisions.md).
 
 ## Later
 
