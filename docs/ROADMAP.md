@@ -108,10 +108,27 @@ merits before reverse DCF - is also done. Remaining items, in dependency order:
    `docs/MODELING_CONVENTIONS.md` for the solver's domain/statuses and `docs/decisions.md`
    for the full design record. A WACC-based reverse-sensitivity table and a comparison
    chart were deliberately deferred out of this milestone's scope — see "Later" below.
-   Followed later by deterministic "Explain This Valuation" diagnostics, before any AI
-   commentary — a full version benefits from reverse DCF being done first; a narrower
-   version (explaining sensitivity/warnings already computed today) has no such dependency
-   and could be pulled forward independently if ever wanted.
+7. ~~**Explain This Valuation.**~~ **Implemented (2026-09-02), not yet committed or
+   deployed.** Up to three deterministic observations synthesized from outputs the forward
+   DCF, reverse DCF, sensitivity grid, and historical-CAGR helper already compute — no
+   change to the valuation engine or methodology, only presentation-level differences,
+   ratios, and ranges; no AI commentary (per this sequence's own "before any AI commentary"
+   rule). Price-implied growth vs. the analyst's case and historical UFCF CAGR, as exact
+   percentage-point differences (or an explicit match when the two round to the same figure)
+   rather than qualitative "materially/somewhat" bands (an
+   invented magnitude threshold would repeat the judgment-dressed-as-objective pattern
+   `CLAUDE.md`'s standing lesson warns against); terminal value's share of enterprise value,
+   stated only as a proportion — never a sensitivity claim the ratio alone can't support, and
+   omitted when enterprise value is non-positive/non-finite or the ratio falls outside [0, 1];
+   and the sensitivity grid's downside/upside relative to the base-case value per share, with
+   an explicitly defined denominator and no "highly sensitive" label. A fourth candidate
+   (redirecting to an existing warning with no synthesis of its own) was cut in review as
+   padding, not an observation — two or three strong ones, not more weaker ones. Verified
+   locally only: the frontend suite (41 tests — 23 of them new for this milestone, up from
+   18), lint, and build all pass; 153 backend tests unaffected (no backend change); manually verified in the dev
+   server against the Costco demo (tab switching, independent forward/reverse invalidation,
+   mobile responsive layout, and print CSS all confirmed). See `docs/decisions.md` for the
+   full design record, including the corrections made during review.
 
 ## Later
 

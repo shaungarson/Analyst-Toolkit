@@ -124,6 +124,20 @@ Every calculation named here is a pure, independently tested function — see
     context only — never presented as equivalent to FCF growth. Unavailable (shown as such,
     never a misleading number) when either endpoint is missing, zero, or negative, or when
     the endpoints leave no positive elapsed time between them.
+- **Explain This Valuation:** up to three deterministic observations over already-computed
+  outputs — no change to the valuation engine or methodology, only presentation-level
+  differences, ratios, and ranges. Price-implied growth vs. the analyst's case and historical
+  UFCF CAGR is reported as an exact signed percentage-point difference, never a qualitative
+  band; when the difference rounds to 0.0 at the displayed one-decimal precision, it is
+  reported as matching that figure rather than as a signed "above"/"below" difference, so the
+  wording never implies a direction the displayed number doesn't actually show. Terminal
+  value's share of enterprise value (`pv_terminal_value / enterprise_value`) is
+  stated only as a proportion, never a sensitivity claim; omitted when enterprise value is
+  non-positive/non-finite or the ratio falls outside `[0, 1]`. Sensitivity range is downside
+  (`base − gridMin`) and upside (`gridMax − base`) relative to the base-case value per share,
+  shown as dollars and, only when that base value is a usable positive reference, percent —
+  no severity label at any threshold. Each observation gates independently on the same
+  current-ness its own inputs already track (forward vs. reverse), never a combined check.
 
 ## Shared conventions
 

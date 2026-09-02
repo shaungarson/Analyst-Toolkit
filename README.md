@@ -111,6 +111,15 @@ see [`docs/decisions.md`](docs/decisions.md).*
   Shown alongside historical unlevered FCF CAGR for context, with an honest, distinct status
   for a target below the model's mathematical floor or outside the solver's computable range
   — never silently reported as a market-implied prediction.
+- **Explain This Valuation:** up to three deterministic observations over outputs already
+  computed above — no change to the valuation engine or methodology, only presentation-level
+  differences, ratios, and ranges; no AI commentary. Price-implied growth vs. the analyst's
+  case and historical UFCF CAGR as an exact percentage-point difference (or an explicit
+  "matches to displayed precision" when the two round to the same figure), never a
+  qualitative label; terminal value's share of enterprise value, stated only as a proportion;
+  and the sensitivity grid's downside/upside relative to the base-case value per share. Each
+  observation appears only when its own inputs are current and meaningful — never merely
+  repeating an existing output without synthesis.
 - **Sensitivity analysis:** value per share across a grid of WACC × terminal growth rate
 - Save, load, **duplicate**, and **compare named scenarios** side by side
 - CSV export and print-friendly output

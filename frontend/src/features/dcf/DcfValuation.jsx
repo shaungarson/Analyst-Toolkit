@@ -15,6 +15,7 @@ import CostcoDemoPanel from './CostcoDemoPanel'
 import ValueBridge from './ValueBridge'
 import { nextDemoTabIndex, reconcileDemoResults } from './demoCaseLogic'
 import { historicalCagr } from './historicalGrowth'
+import { explainValuation } from './explainValuation'
 import {
   COSTCO_CASES,
   COSTCO_COMPANY_DATA,
@@ -735,6 +736,21 @@ function DcfValuation() {
   // while the forward side is showing fine.
   const showReverseResult = reverseResult && !reverseResultStale && !loading
 
+  // "Explain This Valuation": up to three deterministic observations over outputs already
+  // computed above - see explainValuation.js. Each observation independently respects the same
+  // forward/reverse invalidation as the cards it draws from (showActiveResults/
+  // showReverseResult), so this never needs its own staleness logic.
+  const explainObservations = explainValuation({
+    showActiveResults,
+    activeResults,
+    activeSensitivity,
+    showReverseResult,
+    reverseResult,
+    historicalFcfCagr,
+    fcfGrowthRate: form.fcfGrowthRate,
+    forecastYears: form.forecastYears,
+  })
+
   return (
     <div className="feature-page workspace">
       <CompanyHeader
@@ -1168,6 +1184,17 @@ function DcfValuation() {
                 </p>
               )}
             </div>
+
+            {explainObservations.length > 0 && (
+              <div className="explain-valuation">
+                <h3>Explain This Valuation</h3>
+                <ul>
+                  {explainObservations.map((obs) => (
+                    <li key={obs.id}>{obs.text}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </section>
       </div>

@@ -1109,6 +1109,37 @@
   opacity: 0.8;
 }
 
+/* Deliberately no color coding here (no value-positive/value-negative reuse) - "above" or
+   "below" the analyst case or historical CAGR isn't inherently good or bad, so this stays
+   plain text, matching the app's "arithmetic only, never a recommendation" principle used
+   elsewhere (Implied Upside/Downside). Applied consistently across all three observations,
+   not just the price-implied-growth one, for internal consistency of this whole section. */
+.explain-valuation {
+  margin-top: 0.9rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.explain-valuation h3 {
+  font-size: 0.78rem;
+  color: var(--text-h);
+  margin: 0 0 0.5rem;
+}
+
+.explain-valuation ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.explain-valuation li {
+  font-size: 0.78rem;
+  color: var(--text);
+  line-height: 1.45;
+}
+
 .valuation-support-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

@@ -241,6 +241,15 @@
     border-top-color: #ccc;
   }
 
+  .explain-valuation {
+    border-top-color: #ccc;
+  }
+
+  .explain-valuation h3,
+  .explain-valuation li {
+    color: #000;
+  }
+
   .step-badge,
   .workflow-card-step {
     border-color: #000;

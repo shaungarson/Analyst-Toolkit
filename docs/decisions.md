@@ -457,6 +457,90 @@ growth result (30.73% under Base Growth's assumptions) was not adjusted or tuned
 milestone — the same "arithmetic only, don't engineer the number to look better" discipline
 already established for the embedded demo's forward valuation gap.
 
+## Explain This Valuation
+**Status:** Accepted
+
+Deterministic, frontend-only synthesis of up to three observations drawn from outputs the
+forward DCF, reverse DCF, sensitivity grid, and historical-CAGR helper already compute — no
+change to the valuation engine or methodology, only presentation-level differences, ratios,
+and ranges over already-returned numbers; no backend or schema change. Reached after a
+proposal-critique-revision cycle, not built as first drafted; several of the corrections
+below reversed a design choice in the original proposal, including one caught after initial
+approval and fixed before commit (see the percentage-point-equality point below).
+
+**Exact percentage-point differences, not qualitative bands.** The first draft proposed
+"materially/somewhat/roughly" labels for the gap between price-implied growth and the
+analyst's case/historical UFCF CAGR. Rejected before implementation: an invented magnitude
+threshold to decide those cutoffs would repeat exactly the pattern `CLAUDE.md`'s standing
+lesson warns against (an economic-judgment label dressed as something more objective), just
+applied to a presentation string instead of a validation block. An exact signed
+percentage-point difference lets the analyst judge materiality themselves.
+
+**A near-zero difference must not silently claim a direction.** Caught in a post-approval
+review pass, fixed before commit: the first implementation always wrote "X.X percentage
+points above/below," including when the underlying gap rounded to 0.0 at the same
+one-decimal precision actually displayed — "0.0 percentage points above" implies a direction
+that the displayed number doesn't actually show. Fixed with a shared `gapClause` helper: when
+`Math.abs(diff).toFixed(1)` — the exact same call used for display — equals `'0.0'`, the
+clause reads "matches Y to displayed precision" instead of a signed comparison. Derived from
+the display formatting itself rather than a separately hand-picked threshold, so the wording
+and the number shown can never disagree. Verified for both directions (a gap that rounds to
+0.0 from slightly above and slightly below zero) and for exact equality with both the
+analyst's case and historical CAGR, independently.
+
+**Terminal value's share of enterprise value states only what the ratio supports.** The
+first draft additionally claimed a high share implies greater sensitivity to WACC/terminal
+growth than to the explicit-period forecast — corrected in review: proportion of value and
+sensitivity (how much output moves per unit change in an input) are different questions, and
+the ratio alone proves only the former. Final wording states the proportion only. Omitted
+when `enterprise_value` is non-positive or non-finite, or when
+`pv_terminal_value / enterprise_value` falls outside `[0, 1]` — the latter is reachable when
+explicit-period PV is itself negative (large negative FCF growth), making terminal value
+exceed 100% of a smaller enterprise value. Arithmetically real, but confusing stated as "X%
+of enterprise value," so specifically excluded. Explicit-period length is read from
+`forecastYears`, never hardcoded, so the wording stays correct at any forecast length.
+
+**Sensitivity range is relative to the base case, with an explicit denominator, no
+threshold language.** Downside (`base − gridMin`) and upside (`gridMax − base`) are each
+shown in dollars and, when usable, as a percent of `activeResults.value_per_share` — the
+current headline result, stated as the denominator rather than left implicit, and the same
+value the grid's own center cell is built to reproduce exactly. No "highly sensitive" label
+at any threshold — the numbers are left to speak for themselves, the same reasoning as the
+first point above. When the base value per share is non-positive or non-finite, the percent
+figures are dropped (division by a non-positive base would flip or undefine the intuitive
+sign) and only the dollar range is shown, with a plain note explaining why no percent is
+present — never silently computed and shown anyway.
+
+**A fourth candidate — redirecting to an existing severity-tier warning — was cut, not
+shipped.** It named an existing warning without synthesizing anything about it, which is
+padding, not an observation, under this project's own "two or three strong observations over
+five weak ones" standard. Final scope: three diagnostics.
+
+**Independent forward/reverse invalidation, preserved exactly.** The price-implied-growth
+diagnostic reads only `showReverseResult`/`reverseResult` (plus the live `form.fcfGrowthRate`
+value and `historicalFcfCagr`, neither of which is a forward result) — never
+`activeResults`/`activeResultsStale`. The terminal-value-share and sensitivity-range
+diagnostics read only `showActiveResults`/`activeResults`/`activeSensitivity`. Verified live:
+editing the case-specific FCF growth rate (in `FORWARD_STALE_FIELDS`, not
+`REVERSE_STALE_FIELDS`) leaves the price-implied-growth observation fully intact, correctly
+updated to the new live value, while the other two disappear until rerun — confirming the
+same independent-invalidation behavior already established for the reverse-DCF card itself.
+
+**No color coding, applied to all three observations, not only the price-implied-growth
+one.** "Above" or "below" the analyst's case or historical CAGR isn't inherently good or bad,
+so no `value-positive`/`value-negative` reuse — extended to the terminal-value and
+sensitivity observations too, for internal consistency of the whole section with the
+existing "arithmetic only, never a recommendation" principle (Implied Upside/Downside). All
+three observations render in one uniform text color, confirmed via computed style.
+
+**No live-verification requirement.** Unlike the DCF ticker-search pipeline's provider
+integrations, this milestone reads only outputs already computed by existing, already-tested
+code — no new external data source, so `CLAUDE.md`'s live-verification standing lesson does
+not apply here. Verification is 23 new unit tests (synthetic inputs covering every omission
+guard and edge case) plus manual dev-server verification against the Costco demo (tab
+switching, invalidation, mobile layout, print CSS wiring) — the synthetic tests cover the
+degenerate cases; the demo covers the ordinary integrated path.
+
 ## Real estate freeze pending professional validation
 **Status:** Deferred — trigger: user validates real-estate underwriting conventions with a
 CRE professional

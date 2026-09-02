@@ -145,6 +145,19 @@ same typed-exception-to-422 pattern as the other two DCF routes. See
 `docs/MODELING_CONVENTIONS.md` for the solver's domain, its three outcome statuses, and the
 forward/reverse invalidation matrix, and `docs/decisions.md` for the full design record.
 
+## Explain This Valuation
+
+`frontend/src/features/dcf/explainValuation.js` - a pure function returning up to three
+deterministic observations synthesized from outputs the forward DCF, reverse DCF, sensitivity
+grid, and `historicalGrowth.js` already compute. No change to the valuation engine or
+methodology - only presentation-level differences, ratios, and ranges; no backend or schema
+change, no new request. Rendered as a semantic `<h3>`/`<ul>` block in `DcfValuation.jsx`, after the
+reverse-DCF card and before Analysis Outputs; renders nothing when no diagnostic currently
+qualifies. Each observation independently gates on the same `showActiveResults`/
+`showReverseResult` flags the rest of the workstation already uses, so it never needs its
+own staleness logic. See `docs/decisions.md`'s "Explain This Valuation" record for the full
+design rationale, including the corrections made during review.
+
 ## Calculation and validation layers
 
 - `backend/app/calculations/` — pure functions, no framework code, no side effects (real

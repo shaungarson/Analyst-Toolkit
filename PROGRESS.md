@@ -10,9 +10,12 @@ redesign, and the AGENTS.md Codex-consultant boundary already deployed.
 
 ## Current Milestone
 
-None — awaiting direction. Reverse DCF (price-implied FCF growth) is now shipped and
-deployed alongside every other DCF milestone below. See `docs/ROADMAP.md` and
-`docs/decisions.md`.
+**Explain This Valuation** — implemented and verified locally, **not yet committed or
+deployed**: the frontend suite (41 tests — 23 of them new for this milestone, up from 18),
+lint, and build all pass; 153 backend tests unaffected (no backend change); manually verified in the
+dev server against the Costco demo (tab switching, independent forward/reverse invalidation,
+mobile responsive layout, print CSS wiring). Awaiting review before commit. See
+`docs/ROADMAP.md` and `docs/decisions.md`.
 
 ## Blockers / Frozen Areas
 
@@ -73,10 +76,12 @@ deployed alongside every other DCF milestone below. See `docs/ROADMAP.md` and
 
 ## Next Actions
 
-1. None currently planned for DCF — awaiting direction on the next milestone (the deferred
+1. Review and, if approved, commit and deploy **Explain This Valuation** (implemented,
+   locally verified, currently uncommitted).
+2. After that: no DCF milestone currently planned — next direction open (the deferred
    reverse-DCF sensitivity table/comparison chart, driver-based forecasting, or something
    else; see `docs/ROADMAP.md`).
-2. Real estate: no action planned until the user has the CRE-professional conversation.
+3. Real estate: no action planned until the user has the CRE-professional conversation.
 
 ## See Also
 
