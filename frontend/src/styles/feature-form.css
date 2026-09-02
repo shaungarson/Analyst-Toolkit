@@ -6,6 +6,13 @@
 
 .subtitle {
   color: var(--text);
+  margin-bottom: 0.4rem;
+}
+
+.scope-note {
+  color: var(--text);
+  font-size: 0.84rem;
+  font-style: italic;
   margin-bottom: 1.5rem;
 }
 

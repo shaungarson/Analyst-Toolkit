@@ -985,6 +985,13 @@
   margin-top: 0.25rem;
 }
 
+.warmup-status {
+  margin: 0.35rem 0 0;
+  font-size: 0.76rem;
+  color: var(--text);
+  text-align: center;
+}
+
 /* --- Valuation Summary: hero + market comparison + supporting grid ------------------- */
 .valuation-hero {
   margin-bottom: 0.85rem;

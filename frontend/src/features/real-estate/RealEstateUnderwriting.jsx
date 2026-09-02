@@ -337,6 +337,10 @@ function RealEstateUnderwriting() {
         Multi-year acquisition model: purchase price, financing, NOI growth, and a hold period
         through exit.
       </p>
+      <p className="scope-note">
+        Simplified asset-level underwriting model; further expansion is paused pending external
+        practitioner review.
+      </p>
 
       <form onSubmit={handleSubmit} className="underwriting-form">
         <label>

@@ -4,12 +4,12 @@ import DcfValuation from './features/dcf/DcfValuation'
 import './App.css'
 
 const MODULES = {
-  'real-estate': { label: 'Real Estate Underwriting', Component: RealEstateUnderwriting },
   dcf: { label: 'DCF Valuation', Component: DcfValuation },
+  'real-estate': { label: 'Real Estate Underwriting', Component: RealEstateUnderwriting },
 }
 
 function App() {
-  const [active, setActive] = useState('real-estate')
+  const [active, setActive] = useState('dcf')
   const { Component } = MODULES[active]
 
   return (

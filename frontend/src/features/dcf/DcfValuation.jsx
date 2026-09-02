@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { compactCurrency, compactShares, currency, percent } from '../../lib/format'
 import { downloadCsv } from '../../lib/csv'
 import { friendlyErrorMessage, parseErrorResponse } from '../../lib/apiError'
@@ -167,6 +167,24 @@ function DcfValuation() {
   // sitting on screen.
   const [reverseResult, setReverseResult] = useState(null)
   const [reverseResultStale, setReverseResultStale] = useState(false)
+
+  // Opportunistic backend warm-up: pings the health endpoint on mount so a cold Render
+  // instance starts spinning up before the analyst finishes filling in the form. Never gates
+  // Run Valuation - a failed or slow ping just leaves backendAwake false and this component
+  // says nothing further; if the backend really is unreachable, the Run Valuation request
+  // itself will fail through the normal error path.
+  const [backendAwake, setBackendAwake] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    fetch(`${API_BASE}/api/health?_=${Date.now()}`, { cache: 'no-store' })
+      .then((res) => {
+        if (!cancelled && res.ok) setBackendAwake(true)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Any edit to a field a calculation actually reads invalidates that calculation's
   // retained result - never silently keep showing a stale number beside assumptions that no
@@ -957,6 +975,11 @@ function DcfValuation() {
             <button type="submit" className="run-valuation-btn" disabled={loading}>
               {loading ? 'Calculating…' : 'Run Valuation'}
             </button>
+            {!backendAwake && !loading && (
+              <p className="warmup-status">
+                Waking up the valuation engine - the first run may take up to a minute.
+              </p>
+            )}
           </form>
         </section>
 
