@@ -1,21 +1,23 @@
 # Analyst Toolkit — Progress
 
-**Last verified:** 2026-09-02 (Reverse DCF — price-implied FCF growth — committed, pushed, CI
-green, and verified live in production on both Render and Vercel, including a focused
-production smoke test covering the full invalidation matrix, CSV export, and a simulated
-reverse-request failure). Prior to this: 2026-09-01, Costco header profile fix and the
-one-run/three-tab demo consolidation both pushed and verified live in production, on top of
-the historical trend mini-charts, chart-color/print refinements, the Source Details inspector
-redesign, and the AGENTS.md Codex-consultant boundary already deployed.
+**Last verified:** 2026-09-02 (Explain This Valuation — commit `6d7404c`, CI green, deployed
+and production-verified on both Render and Vercel: the live bundle confirmed serving the new
+code, and a focused production smoke test against the Costco demo covering all three
+observations' numbers, case-tab switching, and independent forward/reverse invalidation, all
+matching local verification exactly). Prior to this: 2026-09-02, Reverse DCF (price-implied
+FCF growth) committed, pushed, CI green, and verified live in production on both Render and
+Vercel, including a focused production smoke test covering the full invalidation matrix, CSV
+export, and a simulated reverse-request failure. Prior to that: 2026-09-01, Costco header
+profile fix and the one-run/three-tab demo consolidation both pushed and verified live in
+production, on top of the historical trend mini-charts, chart-color/print refinements, the
+Source Details inspector redesign, and the AGENTS.md Codex-consultant boundary already
+deployed.
 
 ## Current Milestone
 
-**Explain This Valuation** — implemented and verified locally, **not yet committed or
-deployed**: the frontend suite (41 tests — 23 of them new for this milestone, up from 18),
-lint, and build all pass; 153 backend tests unaffected (no backend change); manually verified in the
-dev server against the Costco demo (tab switching, independent forward/reverse invalidation,
-mobile responsive layout, print CSS wiring). Awaiting review before commit. See
-`docs/ROADMAP.md` and `docs/decisions.md`.
+None — awaiting direction. Explain This Valuation is now shipped, deployed, and
+production-verified alongside every other DCF milestone below. See `docs/ROADMAP.md` and
+`docs/decisions.md`.
 
 ## Blockers / Frozen Areas
 
@@ -24,6 +26,19 @@ mobile responsive layout, print CSS wiring). Awaiting review before commit. See
 
 ## Recently Shipped
 
+- 2026-09-02 — Explain This Valuation: up to three deterministic observations synthesized
+  from outputs the forward DCF, reverse DCF, sensitivity grid, and historical-CAGR helper
+  already compute — no change to the valuation engine or methodology, only presentation-level
+  differences, ratios, and ranges; no backend or schema change. Price-implied growth vs. the
+  analyst's case and historical UFCF CAGR as an exact percentage-point difference (or an
+  explicit "matches to displayed precision" when the two round to the same figure); terminal
+  value's share of enterprise value, stated only as a proportion; sensitivity range relative
+  to the base-case value per share. Frontend: 44 tests (26 new for this milestone), lint, and
+  build all pass; 153 backend tests unaffected. Committed `6d7404c`, CI green, deployed and
+  production-verified: the live bundle confirmed serving the new code, and a smoke test
+  against the Costco demo confirmed all three observations' exact numbers, case-tab
+  switching, and independent forward/reverse invalidation, all matching local verification —
+  [decisions.md](docs/decisions.md#explain-this-valuation)
 - 2026-09-02 — Reverse DCF (price-implied FCF growth): solves for the constant
   explicit-period FCF growth rate that reconciles the dated reference price, shown under
   Valuation Summary alongside historical unlevered FCF CAGR, never framed as a market
@@ -76,12 +91,10 @@ mobile responsive layout, print CSS wiring). Awaiting review before commit. See
 
 ## Next Actions
 
-1. Review and, if approved, commit and deploy **Explain This Valuation** (implemented,
-   locally verified, currently uncommitted).
-2. After that: no DCF milestone currently planned — next direction open (the deferred
+1. None currently planned for DCF — awaiting direction on the next milestone (the deferred
    reverse-DCF sensitivity table/comparison chart, driver-based forecasting, or something
    else; see `docs/ROADMAP.md`).
-3. Real estate: no action planned until the user has the CRE-professional conversation.
+2. Real estate: no action planned until the user has the CRE-professional conversation.
 
 ## See Also
 
