@@ -72,7 +72,6 @@ Reasonable follow-ups, not yet scheduled:
 - **Contextual (currency/macro-aware) terminal-growth plausibility guidance** — needs a real
   reference-rate data source before it can be more than another hard-coded universal
   threshold; static methodology text covers this for now.
-- **README screenshots.**
 
 ## Parked
 
