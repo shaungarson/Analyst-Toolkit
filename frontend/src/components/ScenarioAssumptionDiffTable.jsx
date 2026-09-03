@@ -1,3 +1,5 @@
+import { useId } from 'react'
+
 // Compares raw saved-scenario inputs (not calculation results) across the scenarios the
 // analyst selected. Values are normalized with Number() before comparing, since a saved
 // scenario's inputs are raw form strings - "6" and "6.0" are the same economic assumption
@@ -6,6 +8,7 @@
 // framework needed. A field counts as changed if it isn't identical across every selected
 // scenario; there's no designated "baseline" scenario to diff against.
 function ScenarioAssumptionDiffTable({ comparisons, fields }) {
+  const headingId = useId()
   const changedFields = []
   const unchangedLabels = []
 
@@ -22,12 +25,12 @@ function ScenarioAssumptionDiffTable({ comparisons, fields }) {
 
   return (
     <div className="results">
-      <h2>Assumptions Compared</h2>
+      <h2 id={headingId}>Assumptions Compared</h2>
       {changedFields.length === 0 ? (
         <p className="assumptions">All compared assumptions are identical.</p>
       ) : (
         <div className="table-wrap">
-          <table>
+          <table aria-labelledby={headingId}>
             <thead>
               <tr>
                 <th>Assumption</th>

@@ -1276,6 +1276,11 @@ function DcfValuation() {
 
   return (
     <div className="feature-page workspace">
+      {/* The workspace deliberately has no visible page title - the compact company
+          bar takes that space. The document still needs a top-level heading, so this
+          one is available to assistive tech and absent visually. Real Estate has a
+          visible <h1> because its layout has room for one. */}
+      <h1 className="visually-hidden">DCF Valuation</h1>
       <CompanyHeader
         profile={companyData?.profile ?? null}
         source={companyData?.source ?? null}
@@ -1320,7 +1325,7 @@ function DcfValuation() {
       <div className="analytical-row">
         <section className="analytical-col">
           <div className="analytical-col-header">
-            <span className="step-badge">1</span>
+            <span className="step-badge" aria-hidden="true">1</span>
             <h2>Sourced Historical Data</h2>
           </div>
           {companyData ? (
@@ -1338,7 +1343,7 @@ function DcfValuation() {
 
         <section className="analytical-col">
           <div className="analytical-col-header">
-            <span className="step-badge">2</span>
+            <span className="step-badge" aria-hidden="true">2</span>
             <h2>Assumptions</h2>
             <div className="forecast-mode-toggle no-print">
               <button
@@ -1541,7 +1546,7 @@ function DcfValuation() {
 
         <section className="analytical-col">
           <div className="analytical-col-header">
-            <span className="step-badge">3</span>
+            <span className="step-badge" aria-hidden="true">3</span>
             <h2>Valuation Summary</h2>
             {showActiveResults && (
               <div className="col-actions no-print">
@@ -1854,9 +1859,11 @@ function DcfValuation() {
               {forecastMode === 'driver' && <DriverTornadoChart tornado={driverTornado} />}
               {activeSensitivity ? (
                 <>
-                  <h3>Sensitivity: Value per Share by WACC &amp; Terminal Growth</h3>
+                  <h3 id="dcf-sensitivity-heading">
+                    Sensitivity: Value per Share by WACC &amp; Terminal Growth
+                  </h3>
                   <div className="table-wrap">
-                    <table>
+                    <table aria-labelledby="dcf-sensitivity-heading">
                       <thead>
                         <tr>
                           <th>WACC</th>
@@ -1941,9 +1948,9 @@ function DcfValuation() {
           </div>
 
           <div className={analysisTab === 'schedule' ? undefined : 'no-screen'}>
-            <h3>Forecast &amp; Discounting</h3>
+            <h3 id="dcf-forecast-heading">Forecast &amp; Discounting</h3>
             <div className="table-wrap">
-              <table>
+              <table aria-labelledby="dcf-forecast-heading">
                 <thead>
                   <tr>
                     <th>Year</th>

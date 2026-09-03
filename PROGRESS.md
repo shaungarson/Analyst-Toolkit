@@ -1,36 +1,42 @@
 # Analyst Toolkit — Progress
 
-**Last verified:** 2026-09-03 (Driver-Based DCF: standardized ±1pp driver sensitivity —
-tornado). Committed as `a4430ce`, CI run #28 green, **deployed to Vercel and Render and
-production-verified**. Backend 216 tests, frontend 223 tests, lint and production build clean.
+**Last verified:** 2026-09-03 (UI audit Phase 1 — dark-only interface, split accent token, and
+semantic accessibility corrections). Committed, CI green, **deployed to Vercel and Render and
+production-verified**. Backend untouched by this milestone; frontend 223 tests, lint and
+production build clean.
 
-Production verification against the live app: the Costco demo activated and switched to
-Driver-Based, with `performance` showing exactly three backend calls — `driver-valuation`,
-`driver-sensitivity` and **`driver-tornado` (104 ms on Render)** — and **no `/api/company/`
-request at all**, so the demo stays provider-independent. Run Valuation returned
-**$263.25/share**, matching the previously production-verified Driver Base Case, with the
-tornado rendering above the WACC × terminal-growth grid and ranking every driver by tested
-range: **D&A and CapEx tied at the top** (−$142.10 / +$142.10 each, mirrored), then EBIT Margin
-(−$107.21 / +$107.22), Revenue Growth (−$14.31 / +$14.97), Tax Rate (+$4.88 / −$4.87) and NWC
-Investment (+$4.16 / −$4.16). D&A's **−1pp endpoint is marked `caution · Negative D&A %
-(yrs 1-5)`** — the only flagged endpoint in the run, and the one that drives the top-ranked
-row. Both sign reversals render correctly: Tax Rate and NWC Investment each have their −1pp
-endpoint *raising* value, drawn right of the zero line rather than forced left. The Fade row
-summarizes as `7.46% → 2.50% over 5 years`; flat rows show `base · tested x and y`, including
-the negative `-3.00% · tested -4.00% and -2.00%` NWC row. Mode-switch lifecycle confirmed live:
-switching to Quick DCF clears the tornado, switching back does not resurrect it from stale
-state, and a fresh Run Valuation restores it with its warning mark intact. Lane labels stay
-clear of the bars and the page never scrolls horizontally. Browser console clean throughout.
+Production verification against the live app, with the operating-system preference forced to
+**light**: the app still renders dark (`--bg #0f1720`, `color-scheme: dark`, sensitivity tiers
+and gain/loss on their dark values), confirming the `prefers-color-scheme` switch is gone rather
+than merely overridden. A contrast sweep of the fully populated workspace returned **0 WCAG AA
+failures, down from 15**, while the Run Valuation surface stayed `rgb(74, 111, 146)` with white
+text at **5.28:1** — every accent surface unchanged. Semantics confirmed live: a `<main>`
+landmark, a visually-hidden DCF `<h1>`, `aria-current="page"` on the active module only, all six
+tables carrying accessible names that resolve (`aria-labelledby` to existing headings, or
+`aria-label` where no heading exists) with **no visible captions added**, and the decorative step
+numerals hidden from assistive technology. Quick and Driver-Based modes both run, the tornado
+renders with its `caution · Negative D&A % (yrs 1-5)` endpoint intact, and the browser console is
+clean throughout.
 
 ## Current Milestone
 
-**None in progress.** The Driver-Based ±1pp sensitivity tornado (see below) is complete,
-committed, deployed, and production-verified. One bounded milestone: one backend calculation,
-one route, one chart. The valuation engine, warning tiers, completeness rules and shared
-valuation core are untouched — `run_driver_dcf` is called thirteen times rather than
-reimplemented. Full design and verification record:
-[`docs/decisions.md`](docs/decisions.md#driver-based-dcf-standardized-1pp-driver-sensitivity-tornado);
-methodology: [`docs/MODELING_CONVENTIONS.md`](docs/MODELING_CONVENTIONS.md).
+**UI audit Phase 1 complete. Phase 2 design awaiting approval.** The comprehensive UI audit —
+measured against the deployed app across desktop, mobile, and both colour schemes — is in
+[`docs/UI_AUDIT.md`](docs/UI_AUDIT.md), with findings ranked Fix now / Defer / Informational and
+four agreed implementation phases. **Every phase presents a design for approval before it is
+built, and pauses again for approval before commit, deploy, or moving on.**
+
+- **Phase 1 — done.** Dark-only, split accent token, semantic accessibility. No calculation,
+  payload, or engine change; no layout or typography change.
+- **Phase 2 — next, design not yet approved.** Driver Schedule clarity: the historical evidence /
+  historical benchmark / reliability hierarchy, the visible "History-informed" terminology
+  (internal `seededFields` and `clearSeed` names preserved), a static reliability badge, and the
+  floating NWC popover replaced by inline expandable guidance.
+- **Phase 3** — stacked mobile Driver Schedule and touch targets.
+- **Phase 4** — optional type-scale/focus cleanup, to be re-justified before it is built.
+
+Print is **out of scope** for the audit and is not tracked; the existing Print controls and
+README wording are deliberately untouched.
 
 ## Blockers / Frozen Areas
 
@@ -39,6 +45,20 @@ methodology: [`docs/MODELING_CONVENTIONS.md`](docs/MODELING_CONVENTIONS.md).
 
 ## Recently Shipped
 
+- 2026-09-03 — **UI audit Phase 1: dark-only interface, split accent token, semantic
+  accessibility.** A contrast sweep of the populated workspace found **15 WCAG AA failures in
+  dark mode against 1 in light** — including the Load Company and Costco Demo buttons that begin
+  every session, and a sourced value (`$6.45B`). The dark palette was promoted to `:root` and
+  both `prefers-color-scheme` blocks removed, so the app is dark-only with no toggle and no
+  second palette to keep passing. `--accent` was split by role: `--accent` (`#4a6f92`) for
+  surfaces, `--accent-text` (`#6b89a6`) for foreground text — because one token cannot serve
+  both, with white-on-accent at 5.28:1 and accent-as-text at 3.12:1. Result: **0 contrast
+  failures with every accent surface unchanged.** Semantics: `<main>`, a visually-hidden DCF
+  `<h1>` (the workspace has no visible page title by design), `aria-current` on the active
+  module, accessible names for all six tables via existing headings, and decorative step
+  numerals hidden. No engine, payload, or layout change —
+  [decisions.md](docs/decisions.md#dark-only-interface-and-a-split-accent-token) ·
+  [UI_AUDIT.md](docs/UI_AUDIT.md)
 - 2026-09-03 — **Driver-Based DCF: standardized ±1pp driver sensitivity (tornado).** The first
   sensitivity treatment of Driver mode's own drivers — the existing grid tests WACC × terminal
   growth, neither of which is a driver. `POST /api/dcf/driver-tornado` runs thirteen
@@ -126,18 +146,21 @@ methodology: [`docs/MODELING_CONVENTIONS.md`](docs/MODELING_CONVENTIONS.md).
 
 ## Next Actions
 
-1. Driver-Based follow-ups in [`docs/ROADMAP.md`](docs/ROADMAP.md)'s Later column: the two-way
-   **Revenue Growth × EBIT Margin** table (the tornado has now settled the perturbation
-   convention it was waiting on), and **Quick DCF FCF-growth sensitivity**, which no existing
-   surface covers.
-2. Separately raised and deliberately not bundled into the tornado commit: the **Seeded →
-   History-informed** terminology change on driver badges.
-3. Real estate: no action planned until the user has the CRE-professional conversation.
+1. **Present the Phase 2 Driver Schedule design for approval** — one reliable row and the
+   unstable NWC row, the NWC guidance collapsed and expanded, the evidence/benchmark/reliability
+   hierarchy, visible "History-informed" terminology, and full fiscal-year labels. Do not
+   implement before approval.
+2. Then Phase 3 (stacked mobile Driver Schedule, touch targets), each with its own design
+   approval, and Phase 4 only if still justified.
+3. Driver-Based modeling follow-ups in [`docs/ROADMAP.md`](docs/ROADMAP.md)'s Later column: the
+   two-way **Revenue Growth × EBIT Margin** table, and **Quick DCF FCF-growth sensitivity**.
+4. Real estate: no action planned until the user has the CRE-professional conversation.
 
 ## See Also
 
 - [docs/ROADMAP.md](docs/ROADMAP.md) — Now / Next / Later / Rejected / Parked
 - [docs/decisions.md](docs/decisions.md) — durable decision history
+- [docs/UI_AUDIT.md](docs/UI_AUDIT.md) — measured UI findings and the agreed phase plan
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — current technical state
 - [docs/MODELING_CONVENTIONS.md](docs/MODELING_CONVENTIONS.md) — current financial methodology
 - [docs/archive/PROGRESS_HISTORY.md](docs/archive/PROGRESS_HISTORY.md) — full pre-restructuring implementation log

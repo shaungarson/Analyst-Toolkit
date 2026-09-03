@@ -281,7 +281,10 @@ function DriverScheduleBuilder({
         <p className="col-empty-hint">Set a Forecast Period (years) above to build the driver schedule.</p>
       ) : (
         <div className="table-wrap driver-schedule-table-wrap">
-          <table className="driver-schedule-table">
+          {/* No heading of its own to reference (it sits inside the Assumptions
+              column), so the table is named directly rather than by adding a
+              visible caption that would duplicate the surrounding copy. */}
+          <table className="driver-schedule-table" aria-label="Driver schedule by forecast year">
             <thead>
               <tr>
                 <th>Driver</th>

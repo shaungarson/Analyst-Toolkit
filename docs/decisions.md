@@ -1517,3 +1517,44 @@ caught.
   — they are not; the existing grid covers only WACC and terminal growth, so Quick DCF's flat
   FCF growth rate still has no sensitivity treatment of its own. The reason is narrower: this
   chart measures the six operating drivers, which exist only in Driver mode.
+
+## Dark-only interface, and a split accent token
+**Status:** Accepted
+
+UI audit Phase 1. Two presentation decisions taken together because they touch the same tokens;
+full evidence in [`UI_AUDIT.md`](UI_AUDIT.md).
+
+**The app is dark-only.** The former dark values are promoted to `:root`, both
+`prefers-color-scheme` blocks are gone (one in `index.css` for the base palette, one in
+`workspace.css` for sensitivity tiers, gain/loss, provenance dots and chart colours), and
+`color-scheme` is `dark`. This preserves the appearance the app already had in dark mode rather
+than introducing a new theme - no toggle, no light palette to maintain, and no second set of
+contrast results to keep passing. The measured trigger: a contrast sweep of the populated
+workspace found **15 AA failures in dark mode against 1 in light**, so the dark palette was the
+one carrying real defects and the light palette was mostly cost.
+
+**`--accent` was split into a surface token and a text token.** The single accent was used as
+`color` in 15 rules and as `background` in 10, and those two roles have opposite contrast
+requirements: at `#4a6f92` it reaches only 3.12-3.42:1 as foreground (failing AA) while white
+text *on* it is 5.28:1 (passing). Lightening the one token to `#6b89a6` fixes all 15 foreground
+uses and breaks all 10 surfaces - white text on the lightened surface drops to 3.65:1 - unless
+every filled control also flips to dark text, which is a visual redesign arriving as a side
+effect of an accessibility fix.
+
+So: **`--accent` (`#4a6f92`) is the surface accent** - filled buttons, active states, bars,
+borders, outlines, anywhere text sits *on* it. **`--accent-text` (`#6b89a6`) is the foreground
+accent** - accent-coloured text on `--bg`/`--panel-bg`. Borders and outlines stay on `--accent`
+and already satisfy the 3:1 non-text requirement. Result: **0 contrast failures, down from 15,
+with every accent surface pixel-identical to before.**
+
+**Also in this milestone, semantic only:** a `<main>` landmark; a visually-hidden `<h1>` for the
+DCF module (the workspace deliberately has no visible page title - the compact company bar takes
+that space - and adding one would have been a layout change, so the heading exists for assistive
+technology only); `aria-current="page"` on the active module button, which previously conveyed
+its state through a visual class alone; accessible names for all six tables via `aria-labelledby`
+to headings that already exist, or `aria-label` for the two that have no heading, with **no
+visible captions added**; and `aria-hidden` on the decorative step numerals, which otherwise
+announced a bare "1" before each section name.
+
+**Print was explicitly excluded** from this milestone and is not tracked as a finding. The
+existing Print controls and README wording are deliberately untouched.

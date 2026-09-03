@@ -136,7 +136,9 @@ function DriverTornadoChart({ tornado }) {
 
   return (
     <div className="tornado">
-      <h3>Driver Sensitivity: Value per Share at &plusmn;{pp} per Driver</h3>
+      <h3 id="driver-tornado-heading">
+        Driver Sensitivity: Value per Share at &plusmn;{pp} per Driver
+      </h3>
       <p className="tornado-base">
         Base case {dollars(baseValue)}/share. Each row shifts one driver by &plusmn;{pp} in
         every forecast year, holding all other drivers, WACC, terminal growth, net debt and
@@ -144,7 +146,7 @@ function DriverTornadoChart({ tornado }) {
       </p>
 
       <div className="table-wrap">
-        <table className="tornado-table">
+        <table className="tornado-table" aria-labelledby="driver-tornado-heading">
           <thead>
             <tr>
               <th scope="col">Driver</th>

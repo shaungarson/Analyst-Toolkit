@@ -249,6 +249,22 @@ qualifies. Each observation independently gates on the same `showActiveResults`/
 own staleness logic. See `docs/decisions.md`'s "Explain This Valuation" record for the full
 design rationale, including the corrections made during review.
 
+## Theming
+
+Dark-only by design. The palette lives in one `:root` block in `index.css` (base surfaces,
+text, border, flag) plus one in `workspace.css` (sensitivity tiers, gain/loss, provenance dots,
+chart colours); there is no `prefers-color-scheme` switch, no toggle, and no light palette, and
+`color-scheme: dark` tells the browser to render its own controls and scrollbars for a dark
+surface.
+
+Two accent tokens, and the distinction is load-bearing rather than stylistic: **`--accent`** is
+the surface accent (filled buttons, active states, bars, borders, outlines - anywhere text sits
+*on* it), and **`--accent-text`** is the foreground accent (accent-coloured text on
+`--bg`/`--panel-bg`). They exist separately because the two roles have opposing contrast
+requirements - see "Dark-only interface, and a split accent token" in
+[`decisions.md`](decisions.md). When adding a rule: `color` takes `--accent-text`; `background`,
+`border*` and `outline` take `--accent`.
+
 ## Calculation and validation layers
 
 - `backend/app/calculations/` — pure functions, no framework code, no side effects (real

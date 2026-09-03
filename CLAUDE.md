@@ -176,6 +176,9 @@ mature.
 - **`docs/MODELING_CONVENTIONS.md`** — current accepted financial methodology.
 - **`docs/ROADMAP.md`** — Now / Next / Later / Parked.
 - **`docs/decisions.md`** — durable decision history (Accepted / Superseded / Deferred).
+- **`docs/UI_AUDIT.md`** — measured UI findings (Fix now / Defer / Informational) and the
+  agreed implementation phases. Each phase presents a design for approval before it is
+  built. Print is out of scope there and untracked.
 - **`docs/archive/PROGRESS_HISTORY.md`** — full historical implementation log, frozen.
 - **`AGENTS.md`** — automatically loaded by Codex; defines its consultant-only operating
   boundary (no file edits, builds, or state-changing Git operations).

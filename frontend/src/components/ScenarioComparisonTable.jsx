@@ -1,8 +1,14 @@
+import { useId } from 'react'
+
 function ScenarioComparisonTable({ title, comparisons, metrics, onClear }) {
+  // useId rather than a constant: this renders once per module today, but a fixed id
+  // would silently collide the moment a second instance appears.
+  const headingId = useId()
+
   return (
     <div className="results">
       <div className="results-header">
-        <h2>{title}</h2>
+        <h2 id={headingId}>{title}</h2>
         <div className="results-actions no-print">
           <button type="button" className="secondary" onClick={onClear}>
             Clear Comparison
@@ -10,7 +16,7 @@ function ScenarioComparisonTable({ title, comparisons, metrics, onClear }) {
         </div>
       </div>
       <div className="table-wrap">
-        <table>
+        <table aria-labelledby={headingId}>
           <thead>
             <tr>
               <th>Metric</th>

@@ -7,7 +7,10 @@ function RealEstateSensitivityGrid({ sensitivity, baseExitCapRate, baseHoldPerio
   return (
     <div className={compact ? 'sensitivity-compact' : undefined}>
       <div className="table-wrap">
-        <table>
+        {/* Named rather than heading-linked: this component renders twice on one page
+            (full results and the compact deal summary) and has no heading of its own,
+            so an id would collide and a visible caption would duplicate its context. */}
+        <table aria-label="IRR by exit cap rate and hold period">
           <thead>
             <tr>
               <th>Exit Cap Rate</th>

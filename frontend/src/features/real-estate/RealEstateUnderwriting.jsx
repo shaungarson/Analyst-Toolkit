@@ -622,9 +622,9 @@ function RealEstateUnderwriting() {
             </div>
           </div>
 
-          <h3>Annual Cash Flow Schedule</h3>
+          <h3 id="re-cash-flow-heading">Annual Cash Flow Schedule</h3>
           <div className="table-wrap">
-            <table>
+            <table aria-labelledby="re-cash-flow-heading">
               <thead>
                 <tr>
                   <th>Year</th>

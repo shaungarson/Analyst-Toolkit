@@ -12,41 +12,23 @@
 
 /* --- Sensitivity heatmap tiers -------------------------------------------------- */
 :root {
-  --sens-tier-0: #f6dcd6;
-  --sens-tier-1: #f8e9dd;
+  --sens-tier-0: #3d2521;
+  --sens-tier-1: #382c22;
   --sens-tier-2: var(--panel-bg);
-  --sens-tier-3: #e3ecdf;
-  --sens-tier-4: #d3e6d6;
-  --gain: #256a42;
-  --loss: #b3261e;
+  --sens-tier-3: #23301f;
+  --sens-tier-4: #1d3324;
+  --gain: #5fb787;
+  --loss: #e5776d;
   /* Per-value provenance status dots (CompanySourcedData) - distinct from --gain/--loss
      (direction of a number) and from the Sourced/Adjusted/Analyst Input badges (whether
      an assumption field still matches what was loaded). This is a separate vocabulary:
      how a historical financial value was obtained. */
-  --prov-reported: #2c5fb8;
-  --prov-combined: #008575;
-  --prov-calculated: #7b4bb7;
-  --prov-fallback: #bd6500;
-  --chart-revenue: #3b6ea8;
-  --chart-fcf: #2f7d64;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --sens-tier-0: #3d2521;
-    --sens-tier-1: #382c22;
-    --sens-tier-2: var(--panel-bg);
-    --sens-tier-3: #23301f;
-    --sens-tier-4: #1d3324;
-    --gain: #5fb787;
-    --loss: #e5776d;
-    --prov-reported: #76a9f0;
-    --prov-combined: #49c8b0;
-    --prov-calculated: #c793ef;
-    --prov-fallback: #f0a13b;
-    --chart-revenue: #6f92c8;
-    --chart-fcf: #59a886;
-  }
+  --prov-reported: #76a9f0;
+  --prov-combined: #49c8b0;
+  --prov-calculated: #c793ef;
+  --prov-fallback: #f0a13b;
+  --chart-revenue: #6f92c8;
+  --chart-fcf: #59a886;
 }
 
 .sens-tier-0 { background: var(--sens-tier-0); }
@@ -278,7 +260,7 @@
   height: 1.35rem;
   border-radius: 50%;
   border: 1.5px solid var(--accent);
-  color: var(--accent);
+  color: var(--accent-text);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -357,7 +339,7 @@
 }
 
 .kv-row--emphasis dd {
-  color: var(--accent);
+  color: var(--accent-text);
   font-size: 0.9rem;
 }
 
@@ -498,7 +480,7 @@
   border: none;
   padding: 0;
   font-size: 0.76rem;
-  color: var(--accent);
+  color: var(--accent-text);
   cursor: pointer;
   text-decoration: none;
 }
@@ -520,7 +502,7 @@
   border: none;
   padding: 0;
   font-size: 0.76rem;
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 /* --- Per-value provenance: compact dots inline, full detail behind "Sources" ------- */
@@ -616,7 +598,7 @@
 }
 
 .prov-detail-component-friendly a {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .prov-detail-component-technical {
@@ -801,7 +783,7 @@
 }
 
 .source-details-rows .source-detail-row-toggle:hover .prov-detail-field {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .source-details-rows .source-detail-row-toggle:focus-visible {
@@ -850,7 +832,7 @@
 }
 
 .costco-demo-disclosure a {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .costco-demo-cases {
@@ -864,7 +846,7 @@
   border: 1px solid var(--accent);
   border-radius: 4px;
   background: transparent;
-  color: var(--accent);
+  color: var(--accent-text);
   font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
@@ -1017,7 +999,7 @@
   display: block;
   font-size: 2.4rem;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--accent-text);
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
 }
@@ -1091,7 +1073,7 @@
   display: block;
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--accent-text);
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
   margin-bottom: 0.3rem;
@@ -1339,7 +1321,7 @@
   height: 1.35rem;
   border-radius: 50%;
   border: 1.5px solid var(--accent);
-  color: var(--accent);
+  color: var(--accent-text);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1737,7 +1719,7 @@
   border: none;
   padding: 0;
   font: inherit;
-  color: var(--accent);
+  color: var(--accent-text);
   text-decoration: underline;
   cursor: pointer;
 }
@@ -2333,4 +2315,19 @@
   .tornado-bars-head {
     display: none;
   }
+}
+
+/* Present for assistive technology, absent visually - not display:none, which would remove it
+   from the accessibility tree along with everything else. Used for the DCF page heading, whose
+   layout deliberately has no visible page title. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }

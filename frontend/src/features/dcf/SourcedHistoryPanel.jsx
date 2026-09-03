@@ -53,9 +53,9 @@ function SourcedHistoryPanel({ periods, visible }) {
 
   return (
     <section className={visible ? 'history-panel' : 'history-panel no-screen'}>
-      <h3>5-Year Financial History</h3>
+      <h3 id="sourced-history-heading">5-Year Financial History</h3>
       <div className="table-wrap">
-        <table>
+        <table aria-labelledby="sourced-history-heading">
           <thead>
             <tr>
               <th>FY End</th>

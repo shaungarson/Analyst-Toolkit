@@ -21,6 +21,10 @@ function App() {
             <button
               key={key}
               type="button"
+              // The active module was previously conveyed by the `active` class alone, i.e.
+              // visually only. aria-current names it for assistive tech; it stays a button
+              // (not a link) because this is a no-router SPA with no per-module URL.
+              aria-current={key === active ? 'page' : undefined}
               className={key === active ? 'active' : ''}
               onClick={() => setActive(key)}
             >
@@ -29,7 +33,9 @@ function App() {
           ))}
         </div>
       </nav>
-      <Component />
+      <main>
+        <Component />
+      </main>
     </>
   )
 }

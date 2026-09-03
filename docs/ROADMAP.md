@@ -93,6 +93,13 @@ completed items, in the dependency order they were built:
 
 Reasonable follow-ups, not yet scheduled:
 
+- **UI audit Phases 2-4** — the Driver Schedule evidence hierarchy and inline NWC guidance
+  (Phase 2), the stacked mobile Driver Schedule and touch targets (Phase 3), and an optional
+  type-scale/focus cleanup to be re-justified before it is built (Phase 4). Designs, measured
+  evidence and priorities live in [`UI_AUDIT.md`](UI_AUDIT.md); each phase is presented for
+  approval before implementation. Phase 1 (dark-only, split accent token, semantic
+  accessibility) is done — see [`decisions.md`](decisions.md).
+
 - **Two-way Revenue Growth x EBIT Margin sensitivity table** — the tornado (item 11 above) has
   now settled the perturbation convention: a fixed, stated shift, transparently labeled, rather
   than one scaled to each driver's own historical dispersion. Must inherit the documented
