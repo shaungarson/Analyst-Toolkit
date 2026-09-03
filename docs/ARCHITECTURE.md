@@ -111,16 +111,24 @@ data (5 years, full per-field provenance, transcribed by hand from a live produc
 call) plus a separately-sourced, dated reference price - shaped exactly like a live
 `CompanyData` API response so `CompanySourcedData`/`SourcedHistoryPanel`/the provenance UI
 render it with zero special-casing. A full-sized "Costco Demo" button in `CompanyHeader.jsx`
-(replacing the DCF module's old synthetic "Load Example") activates the demo on first click
-(`DcfValuation.jsx`'s `activateCostcoDemo()` populates the same form fields a live ticker
-load would, plus Base Growth's assumptions) and thereafter only opens/closes the purely
-informational `CostcoDemoPanel.jsx` disclosure. Case selection (Low/Base/High Growth) is
-three WAI-ARIA result tabs under Valuation Summary, not buttons in the disclosure. Activating
-the demo makes no network request; one click of Run Valuation fires three parallel calls to
-the same `/api/dcf/valuation` + `/api/dcf/sensitivity` endpoints every other path in the app
-uses (`runDemoValuation()`, `reconcileDemoResults()` in `demoCaseLogic.js`), and switching
-tabs afterward is request-free. See `docs/decisions.md`'s "DCF demo-entry consolidation and
-the one-run, three-tab case model" record for the full design rationale.
+(replacing the DCF module's old synthetic "Load Example") activates the demo on first click,
+available in either Quick DCF or Driver-Based mode and never mode-gated
+(`DcfValuation.jsx`'s `activateCostcoDemo()` populates the same form fields a live ticker load
+would, plus Base Growth's assumptions AND `costcoDemo.js`'s `COSTCO_DRIVER_BASE_CASE`, so
+whichever mode is active already shows a complete, ready-to-run preset and the other mode's is
+waiting the moment the analyst switches to it), and thereafter only opens/closes the
+`CostcoDemoPanel.jsx` disclosure, whose second paragraph is mode-aware. Quick mode's case
+selection (Low/Base/High Growth) is three WAI-ARIA result tabs under Valuation Summary, not
+buttons in the disclosure, and never renders in Driver mode - Driver-Based DCF has no
+Low/Base/High case management for any company, Costco included. Activating the demo makes no
+network request in either mode; in Quick mode, one click of Run Valuation fires three parallel
+calls to the same `/api/dcf/valuation` + `/api/dcf/sensitivity` endpoints every other path in
+the app uses (`runDemoValuation()`, `reconcileDemoResults()` in `demoCaseLogic.js`), and
+switching tabs afterward is request-free; in Driver mode, Run Valuation is the same
+`/api/dcf/driver-valuation` + `/api/dcf/driver-sensitivity` call any Driver-Based forecast
+uses. See `docs/decisions.md`'s "DCF demo-entry consolidation and the one-run, three-tab case
+model" record for the Quick-mode design rationale, and "Costco demo: a provider-independent
+Driver Base Case" for the Driver-mode extension.
 
 ## Historical trend mini-charts
 

@@ -99,14 +99,19 @@ see [`docs/decisions.md`](docs/decisions.md).*
   working-capital-driven FCF dip visible at a glance instead of requiring a row-by-row read
   of the table. Pure CSS, no chart library; handles negative, zero, and missing values
   correctly (a missing year is a gap, never a fabricated zero).
-- **Embedded Costco (COST) demo:** a header button loads a frozen, real, fully-sourced
-  five-year snapshot and a dated reference price — no SEC or Alpha Vantage request, so it
-  works even when both providers are unavailable. Three ephemeral Low/Base/High Growth
+- **Embedded Costco (COST) demo, in either forecast mode:** a header button loads a frozen,
+  real, fully-sourced five-year snapshot and a dated reference price — no SEC or Alpha Vantage
+  request, so it works even when both providers are unavailable, and it's available whether
+  Quick DCF or Driver-Based DCF is selected. In Quick DCF, three ephemeral Low/Base/High Growth
   cases hold WACC and terminal growth fixed and vary only the explicit-period FCF growth
   assumption; one click of Run Valuation calculates all three via the real valuation engine,
-  then accessible result tabs switch between them instantly, with no further requests.
-  Clearly labeled as a demo snapshot throughout, never presented as live data, and never
-  saved to the scenario list.
+  then accessible result tabs switch between them instantly, with no further requests. In
+  Driver-Based DCF, the same snapshot yields one complete, deterministic five-year Driver Base
+  Case, immediately ready to run — historically-seeded revenue growth, margin, tax, D&A and
+  CapEx, and an explicit, clearly-unbadged `-3.0%` demo assumption for NWC Investment where the
+  company's own working-capital history is too unstable to seed automatically. Clearly labeled
+  as a demo snapshot throughout, never presented as live data, and never saved to the scenario
+  list.
 - **Two forecast-entry modes, one shared valuation engine:** Quick DCF projects Unlevered FCF
   from a base year at a flat annual growth rate; Driver-Based DCF builds the same annual FCF
   schedule year-by-year from revenue → margin → tax → D&A → CapEx → working-capital drivers

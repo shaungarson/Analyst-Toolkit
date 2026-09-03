@@ -1066,7 +1066,11 @@ tabs are unaffected.** The Driver-Based mode toggle is disabled while viewing th
 (and the Costco Demo button is disabled while Driver mode is active), with an explanatory
 title on each - verified live. A saved driver scenario's `data` shape (forecast mode plus
 `driverForm`) is already what a future "copy Base into analyst-edited Low/High cases"
-workflow would clone, confirmed as a design property rather than built now.
+workflow would clone, confirmed as a design property rather than built now. **Superseded in
+part:** the mutual Quick/Driver lockout described above was reversed by "Costco demo: a
+provider-independent Driver Base Case" below - the demo is no longer Quick DCF-only. The
+Low/Base/High tabs themselves, and live-ticker case management generally, are unaffected by
+that change and remain exactly as described here.
 
 **Terminal year uses the schedule's own final explicit year as-is - not framed as "D&A
 converges with CapEx."** An earlier design draft's roadmap wording named that convergence as
@@ -1327,3 +1331,93 @@ at once (a 12% EBIT/pre-tax divergence, unreported CapEx across all five periods
 sub-materiality NWC years, and a direction-reversing revenue window), plus the
 AT&T → COST → COST sequence and a saved-scenario → COST sequence for the reset rules, and a
 final Quick DCF Costco Base Growth check at $395.69. Browser console clean.
+
+## Costco demo: a provider-independent Driver Base Case
+**Status:** Accepted — reverses the Quick-only restriction recorded in "Driver-Based DCF (v1)"
+above.
+
+v1 and v2 both left the Costco demo Quick DCF-only: the Driver-Based toggle was disabled while
+viewing the demo, and the Costco Demo button was disabled while Driver mode was active. That
+was a real product gap once Driver-Based DCF itself matured (evidence-led seeding, refusal
+rules, Flat/Fade/Custom) - the app's own provider-independent demonstration could not show any
+of it. This milestone extends the demo into Driver mode rather than replacing Quick mode's
+Low/Base/High experience, which is untouched.
+
+**The demo activates into whichever mode is already selected, and both modes' presets are
+populated together on every activation.** `activateCostcoDemo()` no longer forces `forecastMode`
+back to `'quick'`; it now also writes `driverForm` unconditionally from a new frozen constant,
+`COSTCO_DRIVER_BASE_CASE` (`costcoDemo.js`), the same way it already writes `form` from the
+frozen snapshot. Switching Quick ↔ Driver afterward is the ordinary, pre-existing mode switch
+(an explicit reset of results only, never of input values - see "Driver-Based DCF (v1)"'s design
+delta 5/guardrail 5) - no demo-specific plumbing was needed there, because each mode already
+reads from its own already-populated state slice. The `CostcoDemoPanel` disclosure body is the
+one thing that had to become mode-aware (a `forecastMode` prop selects which second paragraph
+renders); the shared top paragraph - frozen data, no live lookup - is identical in both.
+
+**`COSTCO_DRIVER_BASE_CASE` is computed once, at module load, from the same frozen
+`COSTCO_COMPANY_DATA` and the same `driverHistory()`/`buildBaseForecast()` pipeline Initialize
+Forecast uses for any live ticker - not a hand-typed schedule that could silently drift from
+the accepted v2 methodology.** Five drivers seed exactly as they would for any company: EBIT
+margin, tax rate, D&A and CapEx Flat at their historical medians (3.43% / 24.55% / 0.88% /
+1.83%), and revenue growth Fade - but with its end target moved from `buildBaseForecast`'s
+default (both endpoints at the historical median) to the shared 2.5% terminal growth rate, the
+same one-time "Use terminal growth as target" action any analyst already has, giving
+7.46 → 6.22 → 4.98 → 3.74 → 2.5. All five stay badged **Seeded**.
+
+NWC Investment is the one deliberate departure. Costco's own working-capital history is
+`unstable` (a sign flip - see "Driver-Based DCF (v2)" above) and `buildBaseForecast` correctly
+refuses to seed it, exactly as it would for a live ticker - but a refused, blank required cell
+would fail "immediately ready to run." Silently seeding a number the evidence does not support
+would misrepresent it as historically reliable, which is exactly the "computationally
+undefined" vs. "economically strange" conflation `CLAUDE.md`'s Financial Validation Principle
+warns against. The row is force-set to an explicit **`-3.0% Flat`** demo assumption instead -
+rounded and judgment-based, deliberately close to but not asserting the reliability of the
+frozen history's own ~-3.26% aggregate - and is pointedly excluded from `seededFields`, so it
+renders exactly like ordinary analyst-entered data (no Seeded chip) directly beneath its own
+still-live `driverHistory()`-computed **Unstable** badge (the interactive popover from "Add
+guidance for unstable NWC assumptions" - unmodified; nothing about that evidence is
+special-cased for the demo). `CostcoDemoPanel`'s driver-mode disclosure names this explicitly.
+
+**Leaving the demo resets the driver schedule even when the ticker matches.**
+`shouldResetDriverSchedule`'s same-ticker-preserves rule is right for two live loads of the
+same company (the evidence genuinely is unchanged), but wrong across the demo/live boundary: an
+analyst who types COST and clicks Load Company while viewing the demo must not keep
+`COSTCO_DRIVER_BASE_CASE`'s Seeded badges sitting on screen as if they were derived from the
+live response that was actually just fetched. `loadCompany`'s reset condition is now
+`isDemoSnapshot || shouldResetDriverSchedule(...)` - `shouldResetDriverSchedule` itself, and
+every one of its existing guarantees, is untouched. Loading a *different* company while the
+demo is active already resets unconditionally, the same way `activateCostcoDemo` always
+overwrites `driverForm` regardless of what was there before.
+
+**Rejected in scope:** a distinct third badge/color for the NWC row ("demo assumption," as
+opposed to Seeded or unbadged). The existing vocabulary already says everything needed - no
+Seeded chip plus a still-visible Unstable badge on the same row - and the disclosure panel
+states the reasoning in prose; a fourth provenance color for one row in one demo was judged to
+add chrome without adding information a careful reader doesn't already have.
+
+**Verification.** No backend file touched; no new backend tests needed. Frontend: 20 new tests
+(`costcoDemo.test.js` - `COSTCO_DRIVER_BASE_CASE`'s exact values, Flat/Fade shape, NWC excluded
+from `seededFields`, completeness via `driverInputsError`/`buildDriverPayload`, and independent
+re-derivation from `driverHistory()` matching it exactly; `costcoDriverDemo.test.js` - a
+component-level suite mounting the real `DcfValuation.jsx` under a general JSX/CSS Node loader
+built for this milestone, `frontend/src/testUtils/{registerJsxLoader,jsxLoaderHooks}.mjs`,
+covering provider-independent activation from both modes with an explicit assertion that
+`fetch` is never called against `/api/company/`, mode-switch preset isolation, the exact
+Seeded/unstable provenance split, a deterministic `/api/dcf/driver-valuation` payload assertion,
+and both state-isolation directions - a different company's schedule fully replaced on
+activation, and a live same-ticker load resetting the demo's schedule rather than inheriting
+its badges), plus the pre-existing suite re-verified - 198 total, lint and production build
+clean. Live dev-server verification against the real backend: the demo activated directly from
+Driver-Based mode with the network log showing only the two `/api/health` pings, zero
+`/api/company` requests; the five-row Driver Base Case rendered with the documented values and
+Seeded badges, NWC Investment showing `-3` with no Seeded chip beside its own Unstable badge;
+Run Valuation returned **$263.25/share** ($109.08B enterprise value, $117.09B equity value, 79%
+of enterprise value from terminal value) with a populated sensitivity grid, and correctly showed
+"Not available in Driver-Based mode" for Price-Implied FCF Growth; switching to Quick DCF and
+running Base Growth still returned **$395.69**, unchanged; switching back to Driver-Based
+correctly cleared results to "Run a valuation to see results here" (the pre-existing v1
+mode-switch-is-an-explicit-reset rule, unmodified) while the driver schedule itself - including
+the `-3` NWC cell - survived the round trip untouched; and typing COST into the ticker search
+and clicking Load Company while the demo was active fetched the live company, cleared every
+Seeded badge, and blanked the schedule rather than inheriting it. Browser console clean
+throughout.

@@ -37,6 +37,7 @@ import { driverHistory, formatSeedValue, referenceBasisLabel } from './driverHis
 import {
   COSTCO_CASES,
   COSTCO_COMPANY_DATA,
+  COSTCO_DRIVER_BASE_CASE,
   COSTCO_REFERENCE_PRICE,
   COSTCO_REFERENCE_PRICE_DATE,
   COSTCO_SHARED_ASSUMPTIONS,
@@ -443,7 +444,15 @@ function DcfValuation() {
       // must reset too, and clearAllDriverRows for why per-row seed tracking cannot do this
       // selectively. Shared assumptions in `form` are analyst judgement that carries across
       // companies and are deliberately untouched here, as are saved scenarios.
-      const resetSchedule = shouldResetDriverSchedule(companyData?.profile?.ticker, data?.profile?.ticker)
+      //
+      // Leaving the Costco demo always resets too, even when the ticker matches (typing COST
+      // and clicking Load Company while the demo is showing): the schedule on screen may be
+      // COSTCO_DRIVER_BASE_CASE, badged Seeded against the frozen snapshot's own history, not
+      // against whatever this live call just returned - same-ticker "the evidence is
+      // unchanged" cannot be assumed across that boundary the way it can between two live
+      // loads of the same company.
+      const resetSchedule =
+        isDemoSnapshot || shouldResetDriverSchedule(companyData?.profile?.ticker, data?.profile?.ticker)
       setDriverForm((prev) => ({
         ...prev,
         baseYearRevenue: sourced.baseYearRevenue,
@@ -508,11 +517,22 @@ function DcfValuation() {
   // First activation only: populates the exact same form fields a live ticker load would
   // (base year UFCF, net debt, diluted shares, reference price/date, and its sourced-
   // baseline record), but from the frozen local snapshot - no fetch, so this works with SEC
-  // EDGAR and Alpha Vantage both unavailable. Loads Base Growth's assumptions and opens the
-  // disclosure; never auto-runs the valuation and never saves a scenario, same as every
-  // other data-loading path here. WACC, terminal growth, forecast period, and the entire
-  // sourced snapshot are shared across all three cases - only each case's own FCF growth
-  // rate (demoCaseGrowth) differs, seeded here from COSTCO_CASES' initial values.
+  // EDGAR and Alpha Vantage both unavailable. Loads Base Growth's assumptions, populates
+  // Driver mode's own Costco Driver Base Case (COSTCO_DRIVER_BASE_CASE - itself computed from
+  // the same frozen snapshot, no fetch either), and opens the disclosure; never auto-runs a
+  // valuation and never saves a scenario, same as every other data-loading path here. WACC,
+  // terminal growth, forecast period, and the entire sourced snapshot are shared across all
+  // three Quick-mode cases - only each case's own FCF growth rate (demoCaseGrowth) differs,
+  // seeded here from COSTCO_CASES' initial values.
+  //
+  // Both modes' presets are written unconditionally on every activation, regardless of which
+  // mode is currently selected - the analyst can open the demo from either Quick or
+  // Driver-Based (see handleToggleCostcoDemo and the Driver-Based toggle button below, neither
+  // mode-gated against the demo any more) and whichever mode they're in shows its own
+  // complete, ready-to-run Costco preset
+  // immediately, with the other mode's preset already waiting the moment they switch to it.
+  // forecastMode itself is deliberately left untouched here - activating the demo no longer
+  // forces Quick mode the way it did before Driver mode could show it at all.
   const activateCostcoDemo = () => {
     setCompanyData(COSTCO_COMPANY_DATA)
     setIsDemoSnapshot(true)
@@ -531,15 +551,22 @@ function DcfValuation() {
     setTicker('COST')
     setShowHistory(false)
     setShowCostcoDemo(true)
-    // The Costco demo is Quick DCF only (guardrail: keep its predetermined tabs unchanged,
-    // no Driver-mode case management this milestone) - forced back to Quick even if the
-    // analyst had Driver mode selected, with Driver's own results cleared the same way any
-    // other mode switch clears them.
-    setForecastModeState('quick')
+    // Driver mode's own results are a different company's (or nothing's) - always cleared and
+    // replaced by the fresh Costco Driver Base Case below, the same "loading a company resets
+    // unrelated prior driver values" rule loadCompany already follows.
     setDriverResults(null)
     setDriverResultsStale(false)
     setDriverSensitivity(null)
     setDriverError(null)
+    setShowInitializePlan(false)
+    setDriverForm((prev) => ({
+      ...prev,
+      baseYearRevenue: COSTCO_DRIVER_BASE_CASE.baseYearRevenue,
+      driverYears: COSTCO_DRIVER_BASE_CASE.driverYears,
+      rowModes: COSTCO_DRIVER_BASE_CASE.rowModes,
+      seededFields: COSTCO_DRIVER_BASE_CASE.seededFields,
+    }))
+    setDriverSourcedSnapshot({ baseYearRevenue: COSTCO_DRIVER_BASE_CASE.baseYearRevenue })
 
     const latest = COSTCO_COMPANY_DATA.periods[0]
     const baseCase = COSTCO_CASES.find((c) => c.id === 'base')
@@ -562,12 +589,12 @@ function DcfValuation() {
     }))
   }
 
-  // The header's "Costco Demo" button: activates fresh (loading Base Growth) the first time,
-  // or while switched away to a live ticker/scenario. Once Costco is already the active
-  // company, it only opens/closes the disclosure - never re-triggered by, or resetting,
-  // whatever's already loaded or calculated.
+  // The header's "Costco Demo" button: activates fresh (loading both modes' presets) the
+  // first time, or while switched away to a live ticker/scenario - available in either Quick
+  // or Driver-Based mode, and activation no longer forces a mode switch (see
+  // activateCostcoDemo). Once Costco is already the active company, it only opens/closes the
+  // disclosure - never re-triggered by, or resetting, whatever's already loaded or calculated.
   const handleToggleCostcoDemo = () => {
-    if (forecastMode === 'driver') return // see costcoDemoDisabled below - kept as a guard
     if (!isDemoSnapshot) {
       activateCostcoDemo()
     } else {
@@ -1106,14 +1133,24 @@ function DcfValuation() {
 
   // The single source every result-rendering, CSV, and print consumer below reads instead
   // of the raw results/sensitivity/error state - Driver mode's own results when that mode is
-  // active (Driver mode never has demo cases - Costco is Quick-only, see
-  // activateCostcoDemo); in demo mode, "the active tab's own outcome" (which may be a
-  // result, an error, or neither pre-run); otherwise, exactly the single-run state,
-  // unchanged. This is what makes every consumer already written against
-  // results/sensitivity/error automatically become mode- and tab-correct without being
-  // rewritten - including explainValuation and the Analysis Outputs card below, neither of
-  // which needed a single Driver-specific line added to them.
+  // active (Driver mode never has demo CASES - the Low/Base/High tab management stays
+  // Quick-only, see COSTCO_DRIVER_BASE_CASE's own comment - even though the demo itself is no
+  // longer Quick-only); in demo mode, "the active tab's own outcome" (which may be a result,
+  // an error, or neither pre-run); otherwise, exactly the single-run state, unchanged. This is
+  // what makes every consumer already written against results/sensitivity/error automatically
+  // become mode- and tab-correct without being rewritten - including explainValuation and the
+  // Analysis Outputs card below, neither of which needed a single Driver-specific line added
+  // to them.
   const activeDemoCase = isDemoSnapshot ? demoResults?.[activeDemoCaseId] : null
+  // True only while the Quick-mode three-case tab strip is the thing on screen - isDemoSnapshot
+  // alone used to imply this (Driver mode was unreachable while the demo was active), but no
+  // longer does now that both modes can show the same active demo. Everything below that's
+  // specific to the tab strip/three-case phrasing gates on this, not on isDemoSnapshot alone;
+  // Driver mode's own demo rendering (the DriverScheduleBuilder panel, and this same results
+  // area falling through to its ordinary single-result presentation) needs no such gating,
+  // since activeResults/activeSensitivity/activeError/activeResultsStale below already read
+  // Driver's own state whenever forecastMode === 'driver', demo or not.
+  const isQuickDemoActive = isDemoSnapshot && forecastMode !== 'driver'
   const activeResults =
     forecastMode === 'driver' ? driverResults : isDemoSnapshot ? (activeDemoCase?.results ?? null) : results
   const activeSensitivity =
@@ -1222,10 +1259,9 @@ function DcfValuation() {
         isDemoSnapshot={isDemoSnapshot}
         isDemoOpen={showCostcoDemo}
         onToggleDemo={handleToggleCostcoDemo}
-        costcoDemoDisabled={forecastMode === 'driver'}
       />
 
-      <CostcoDemoPanel open={showCostcoDemo} />
+      <CostcoDemoPanel open={showCostcoDemo} forecastMode={forecastMode} />
 
       {forecastMode === 'driver' && (
         <DriverScheduleBuilder
@@ -1288,8 +1324,6 @@ function DcfValuation() {
                 type="button"
                 className={forecastMode === 'driver' ? 'active' : ''}
                 onClick={() => setForecastMode('driver')}
-                disabled={isDemoSnapshot}
-                title={isDemoSnapshot ? 'Not available while viewing the Costco demo' : undefined}
               >
                 Driver-Based
               </button>
@@ -1504,7 +1538,7 @@ function DcfValuation() {
               Authoring Practices, but would mean either rendering the whole result body
               three times or extracting it into its own component for no behavioral gain -
               this app has exactly one visible case at a time, never more. */}
-          {isDemoSnapshot && (
+          {isQuickDemoActive && (
             <div className="demo-case-tabs no-print" role="tablist" aria-label="Costco demo case">
               {COSTCO_CASES.map((c) => (
                 <button
@@ -1528,16 +1562,16 @@ function DcfValuation() {
           )}
 
           <div
-            id={isDemoSnapshot ? DEMO_TABPANEL_ID : undefined}
-            role={isDemoSnapshot ? 'tabpanel' : undefined}
-            aria-labelledby={isDemoSnapshot ? `demo-tab-${activeDemoCaseId}` : undefined}
-            tabIndex={isDemoSnapshot ? 0 : undefined}
+            id={isQuickDemoActive ? DEMO_TABPANEL_ID : undefined}
+            role={isQuickDemoActive ? 'tabpanel' : undefined}
+            aria-labelledby={isQuickDemoActive ? `demo-tab-${activeDemoCaseId}` : undefined}
+            tabIndex={isQuickDemoActive ? 0 : undefined}
           >
             {loading ? (
               <p className="col-empty-hint">
-                {isDemoSnapshot ? 'Calculating all three cases…' : 'Calculating…'}
+                {isQuickDemoActive ? 'Calculating all three cases…' : 'Calculating…'}
               </p>
-            ) : isDemoSnapshot && !demoResults ? (
+            ) : isQuickDemoActive && !demoResults ? (
               <p className="col-empty-hint">
                 One click of Run Valuation calculates all three cases - switch tabs afterward
                 to compare them instantly, with no new calculation.
@@ -1545,7 +1579,7 @@ function DcfValuation() {
             ) : activeResultsStale ? (
               <p className="terminal-growth-warning">
                 <span className="terminal-growth-warning-explanation">
-                  {isDemoSnapshot
+                  {isQuickDemoActive
                     ? 'Assumptions changed since these results were calculated. Click Run Valuation to refresh all three cases.'
                     : 'Assumptions changed since this valuation was calculated. Click Run Valuation to refresh.'}
                 </span>
@@ -1557,7 +1591,7 @@ function DcfValuation() {
                 <div className="valuation-hero">
                   <span className="hero-label">
                     Implied Value per Share
-                    {isDemoSnapshot &&
+                    {isQuickDemoActive &&
                       ` — ${COSTCO_CASES.find((c) => c.id === activeDemoCaseId)?.label}`}
                   </span>
                   <span className="hero-value">{dollarsPerShare(activeResults.value_per_share)}</span>

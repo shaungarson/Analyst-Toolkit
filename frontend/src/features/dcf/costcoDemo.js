@@ -12,6 +12,9 @@
 // provenance dot/detail panel render this identically to a live ticker-search result -
 // nothing about the sourced-data UI needed to special-case "is this a demo."
 
+import { driverHistory, formatSeedValue } from './driverHistory.js'
+import { buildBaseForecast, setFadeEndpoint, setFlatValue } from './driverSchedule.js'
+
 // Each Costco 10-K's own filing metadata, factored out once so the many XBRL facts that
 // cite the same filing (a 10-K reports the current year plus prior-year comparatives)
 // don't repeat five identical fields apiece. This is a DRY transcription of real, static
@@ -348,6 +351,53 @@ export const COSTCO_SHARED_ASSUMPTIONS = {
   forecastYears: '5',
   wacc: '7.5',
   terminalGrowthRate: '2.5',
+}
+
+// Explicit, rounded, judgment-based normalized assumption for demo purposes only - never a
+// seeded historical figure. Costco's own NWC history is classified 'unstable' by
+// driverHistory.js's classifyNwc (working capital was both consumed and released as revenue
+// grew - a sign flip) and is correctly refused for auto-seeding below, exactly as it would be
+// for any live ticker with this pattern. Deliberately close to, but not asserting the
+// reliability of, the frozen history's own aggregate (computed live from PERIODS above -
+// see the driverHistory test asserting it formats to '-3.26') - a rounded, defensible
+// judgment call, not the historical figure itself presented as reliable.
+export const COSTCO_DEMO_NWC_INVESTMENT_PCT = '-3'
+
+// The Driver-Based DCF starting schedule for the Costco demo - computed once, at module load,
+// from the same frozen PERIODS data and the same driverHistory()/buildBaseForecast() pipeline
+// every live ticker's Initialize Forecast action uses, so this is provider-independent,
+// deterministic, and never drifts from the accepted v2 methodology. Two departures from a
+// bare buildBaseForecast() call, both a product decision rather than a methodology change:
+//
+//   1. Revenue growth's Fade target is moved from buildBaseForecast's default (both endpoints
+//      at the historical median, i.e. a flat-looking fade) to the shared terminal growth rate
+//      - the same one-time "Use terminal growth as target" action any analyst already has.
+//      Still badged Seeded: the row's basis is still the historical median, and fading from
+//      Year 1's historical rate toward a stated Year 5 target is the Fade convention this app
+//      already ships, not a new one invented for this demo.
+//
+//   2. NWC Investment is force-set to COSTCO_DEMO_NWC_INVESTMENT_PCT Flat and deliberately
+//      excluded from seededFields, since buildBaseForecast correctly refuses to seed it
+//      (Costco's own history is unstable). A Driver Base Case with a blank required cell would
+//      not be "immediately ready to run", but silently seeding a value the evidence does not
+//      support would misrepresent it as historically reliable - so this is the one row an
+//      analyst must treat as an explicit judgment call, not a reviewed starting point. See
+//      CostcoDemoPanel.jsx's driver-mode disclosure and the Unstable badge this row still
+//      carries in its own History & reference column (driven by the same live
+//      driverHistory() call every other company gets - nothing about that evidence is
+//      special-cased for the demo).
+const costcoSeededForecast = buildBaseForecast(driverHistory(COSTCO_COMPANY_DATA), 5, formatSeedValue)
+const costcoDriverYears = setFlatValue(
+  setFadeEndpoint(costcoSeededForecast.driverYears, 'revenueGrowthRate', 'end', COSTCO_SHARED_ASSUMPTIONS.terminalGrowthRate),
+  'nwcInvestmentPct',
+  COSTCO_DEMO_NWC_INVESTMENT_PCT,
+)
+
+export const COSTCO_DRIVER_BASE_CASE = {
+  baseYearRevenue: String(Math.round(PERIODS[0].revenue)),
+  driverYears: costcoDriverYears,
+  rowModes: costcoSeededForecast.rowModes,
+  seededFields: costcoSeededForecast.seededFields,
 }
 
 // Ids double as the result-tab identifiers in DcfValuation.jsx's three-case demo mode, so

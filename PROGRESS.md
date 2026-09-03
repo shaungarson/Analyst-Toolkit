@@ -22,10 +22,16 @@ clean throughout.
 
 ## Current Milestone
 
-**None in progress.** Driver-Based DCF v2 (evidence-led forecast entry) is complete and
-verified locally. The engine, warning tiers, completeness rules and shared valuation core are
-untouched — every change is input-side. Full design, correction and verification record:
-[`docs/decisions.md#driver-based-dcf-v2-evidence-led-forecast-entry`](docs/decisions.md);
+**Costco demo: a provider-independent Driver Base Case — complete and verified locally, not
+yet committed.** The Costco demo is no longer Quick DCF-only: activating it now populates a
+complete, deterministic five-year Driver Base Case (computed from the same frozen snapshot and
+the same `driverHistory()`/`buildBaseForecast()` pipeline Initialize Forecast uses) alongside
+the unchanged Quick-mode Low/Base/High presets, and the analyst can switch Quick ↔ Driver with
+the demo loaded either way. NWC Investment is force-set to an explicit `-3.0% Flat` demo
+assumption rather than seeded (Costco's own working-capital history is `unstable` and correctly
+refused, same as it would be for a live ticker) and stays unbadged, distinct from the five
+historically-seeded rows. No engine, methodology, or backend change. Full design and
+verification record: [`docs/decisions.md#costco-demo-a-provider-independent-driver-base-case`](docs/decisions.md);
 methodology: [`docs/MODELING_CONVENTIONS.md`](docs/MODELING_CONVENTIONS.md).
 
 ## Blockers / Frozen Areas

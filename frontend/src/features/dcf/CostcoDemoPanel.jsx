@@ -15,12 +15,16 @@ import {
 } from './costcoDemo'
 
 // Purely a disclosure now - no case selection here at all. Opening the Costco Demo header
-// button activates Base Growth immediately (see DcfValuation.jsx's activateCostcoDemo);
-// switching among Low/Base/High Growth happens via the result tabs under Valuation Summary,
-// not here. Entirely externally controlled - the "Costco Demo" button that opens/closes
-// this lives in CompanyHeader, so this component owns no toggle state of its own and
-// renders nothing while `open` is false.
-function CostcoDemoPanel({ open }) {
+// button activates the demo immediately in whichever mode is currently selected (see
+// DcfValuation.jsx's activateCostcoDemo); in Quick mode, switching among Low/Base/High
+// Growth happens via the result tabs under Valuation Summary, not here. Entirely externally
+// controlled - the "Costco Demo" button that opens/closes this lives in CompanyHeader, so
+// this component owns no toggle state of its own and renders nothing while `open` is false.
+//
+// The top disclosure paragraph (frozen snapshot, no live lookup) is shared by both modes
+// unchanged; only the second paragraph is mode-specific, since Quick mode's three-case setup
+// and Driver mode's single five-year schedule have nothing in common to describe together.
+function CostcoDemoPanel({ open, forecastMode }) {
   if (!open) return null
 
   return (
@@ -44,17 +48,33 @@ function CostcoDemoPanel({ open }) {
           - not SEC-sourced, not live).
         </p>
 
-        <p className="costco-demo-note">
-          {COSTCO_CASES[0].label} ({COSTCO_CASES[0].fcfGrowthRate}%/yr),{' '}
-          {COSTCO_CASES[1].label} ({COSTCO_CASES[1].fcfGrowthRate}%/yr), and{' '}
-          {COSTCO_CASES[2].label} ({COSTCO_CASES[2].fcfGrowthRate}%/yr) share the same WACC (
-          {COSTCO_SHARED_ASSUMPTIONS.wacc}%) and terminal growth (
-          {COSTCO_SHARED_ASSUMPTIONS.terminalGrowthRate}%) - only the explicit-period FCF
-          growth assumption differs, so the comparison isolates one variable. One click of
-          Run Valuation (in Valuation Summary below) calculates all three; all figures are
-          illustrative analyst assumptions for this demo, not Costco management guidance or a
-          sourced forecast.
-        </p>
+        {forecastMode === 'driver' ? (
+          <p className="costco-demo-note">
+            <strong>Driver Base Case</strong> - five forecast years, WACC{' '}
+            {COSTCO_SHARED_ASSUMPTIONS.wacc}% and terminal growth{' '}
+            {COSTCO_SHARED_ASSUMPTIONS.terminalGrowthRate}%. Revenue Growth, EBIT Margin, Tax
+            Rate, D&amp;A and CapEx are historical-derived starting points (badged{' '}
+            <strong>Seeded</strong>) from this same frozen history, same as Initialize Forecast
+            would produce for any company. NWC Investment is <strong>not</strong> seeded -
+            Costco's own working-capital history is classified Unstable (see that row's own
+            badge) - so it is pre-set instead to a flat, explicit, rounded demo assumption near
+            but not equal to the historical aggregate. Review every row, especially NWC, before
+            relying on the result; nothing here is Costco management guidance or a sourced
+            forecast.
+          </p>
+        ) : (
+          <p className="costco-demo-note">
+            {COSTCO_CASES[0].label} ({COSTCO_CASES[0].fcfGrowthRate}%/yr),{' '}
+            {COSTCO_CASES[1].label} ({COSTCO_CASES[1].fcfGrowthRate}%/yr), and{' '}
+            {COSTCO_CASES[2].label} ({COSTCO_CASES[2].fcfGrowthRate}%/yr) share the same WACC (
+            {COSTCO_SHARED_ASSUMPTIONS.wacc}%) and terminal growth (
+            {COSTCO_SHARED_ASSUMPTIONS.terminalGrowthRate}%) - only the explicit-period FCF
+            growth assumption differs, so the comparison isolates one variable. One click of
+            Run Valuation (in Valuation Summary below) calculates all three; all figures are
+            illustrative analyst assumptions for this demo, not Costco management guidance or a
+            sourced forecast.
+          </p>
+        )}
       </div>
     </div>
   )

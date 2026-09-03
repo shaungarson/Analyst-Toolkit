@@ -147,8 +147,10 @@ Every calculation named here is a pure, independently tested function — see
 A second forecast-entry mode alongside Quick DCF, not a replacement — both build an annual
 UFCF schedule that feeds the exact same shared valuation core (discounting, terminal value,
 enterprise/equity value, value per share; see `backend/app/calculations/dcf.py`'s
-`_compute_dcf_core`). Costco's embedded demo, its Low/Base/High tabs, and Reverse DCF all
-remain Quick DCF-only — see below.
+`_compute_dcf_core`). Costco's Low/Base/High tabs and Reverse DCF remain Quick DCF-only — see
+below. The Costco demo itself is available in both modes: activating it populates a complete
+Driver Base Case alongside the Quick-mode Low/Base/High presets, described under "Costco demo:
+a provider-independent Driver Base Case" below.
 
 - **Per-year formulas**, for forecast year *t* given Base Year Revenue (year 0) and that
   year's driver inputs:
@@ -440,6 +442,25 @@ arithmetic, and no part of it is reproduced in the frontend.
   The full text stays in the DOM and prints unconditionally via the existing `.no-screen`
   pattern, so a printed or exported analysis always carries the complete methodology regardless
   of on-screen expand state.
+
+### Costco demo: a provider-independent Driver Base Case
+
+The embedded Costco demo (`frontend/src/features/dcf/costcoDemo.js`) provides one complete,
+deterministic five-year Driver Base Case, computed from the same frozen snapshot and the exact
+same `driverHistory()`/`buildBaseForecast()` pipeline described above — never a hand-typed
+schedule that could drift from it. Revenue growth, EBIT margin, tax rate, D&A and CapEx seed
+and are badged **Seeded** exactly as they would for any live ticker; revenue growth's Fade
+target is moved from the historical median to the shared 2.5% terminal growth rate (the same
+one-time "Use terminal growth as target" action above), giving 7.46% → 6.22% → 4.98% → 3.74% →
+2.5%. NWC Investment is the one departure: Costco's own history is `unstable` and is correctly
+refused, exactly as it would be live, but a blank required cell would not be "immediately ready
+to run" — so it is force-set to an explicit **`-3.0% Flat`** demo assumption, deliberately
+close to but not asserting the reliability of the frozen history's own ~−3.26% aggregate, and
+pointedly left out of `seededFields` so it renders unbadged, directly beneath its own
+still-live Unstable badge. No live company-data request is made either way — see
+`docs/decisions.md`'s "Costco demo: a provider-independent Driver Base Case" for the full
+design record, including why leaving the demo resets the driver schedule even when the ticker
+matches.
 
 ## Shared conventions
 

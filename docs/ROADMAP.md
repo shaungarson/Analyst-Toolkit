@@ -64,6 +64,15 @@ completed items, in the dependency order they were built:
    and reduced instructional density. Engine, warnings, payload and CSV unchanged. See
    "Driver-Based DCF (v2): evidence-led forecast entry" in [`decisions.md`](decisions.md) and
    [`MODELING_CONVENTIONS.md`](MODELING_CONVENTIONS.md).
+10. ~~**Costco demo: a provider-independent Driver Base Case.**~~ **Done (2026-09-03).**
+    Reverses v1's Quick-only restriction: the demo now populates a complete, deterministic
+    five-year Driver Base Case (revenue growth Fade to the shared terminal growth rate; EBIT
+    margin, tax, D&A and CapEx Flat at their historical medians, all badged Seeded) alongside
+    the unchanged Quick-mode Low/Base/High presets, with NWC Investment force-set to an
+    explicit `-3.0% Flat` demo assumption rather than seeded, since Costco's own working-capital
+    history is refused as unstable. Live-ticker Low/Base/High case management (see Later,
+    below) is unaffected. See "Costco demo: a provider-independent Driver Base Case" in
+    [`decisions.md`](decisions.md) and [`MODELING_CONVENTIONS.md`](MODELING_CONVENTIONS.md).
 
 ## Later
 
