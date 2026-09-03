@@ -1102,3 +1102,228 @@ breakdown, sensitivity grid, warnings), scenario save/load round-tripping `forec
 `driverForm` correctly, a legacy no-`forecastMode` scenario loading as Quick DCF, mixed-mode
 comparison blocked with the exact message, and the Costco demo's Base Growth case
 reproducing its known $395.69 value unchanged.
+
+## Driver-Based DCF (v2): evidence-led forecast entry
+**Status:** Accepted — extends, and in two places corrects, "Driver-Based DCF (v1)" above.
+
+v1 shipped a correct engine behind a wall: at a ten-year forecast the panel presented sixty
+empty required cells above six "Last Actual" cells, and produced nothing at all until every
+one was filled. The engine, warnings, completeness rules and shared valuation core are
+unchanged by this milestone — every change is input-side. Reached from a written critique and
+design proposal reviewed before implementation began; the user's decisions on it are what the
+scope below reflects, and three of them narrowed the proposal rather than accepting it.
+
+**The evidence the app already held was withheld at the point of decision.** Five sourced
+fiscal years were being rendered in dollars in the history panel, while every driver row asked
+for a *ratio* and showed exactly one. The fix is per-driver evidence on the row itself — every
+usable observation plus one normalized reference statistic — which is also what makes the
+blank grid stop being the first thing the eye lands on. Deliberately no standard deviations or
+confidence intervals: at most five observations, those would assert a precision the history
+cannot support, and this is the same class of overreach as the historical price-correlation
+idea rejected below.
+
+**A finding that shaped the design: flat drivers are geometric.** Holding all six ratios flat
+makes every UFCF component proportional to revenue (ΔNWC_t = nwc% × revenue_t × g/(1+g)), so
+UFCF_t = revenue_0 × (1+g)^t × K — the same *shape* Quick DCF's single flat rate produces. v1's
+own record rejected a constant-driver engine on this reasoning; what it did not anticipate is
+that the fastest path through v1's UI (broadcast six values, run) landed the analyst in exactly
+the rejected state while charging six inputs for it. This is **not** a claim the two modes
+produce the same valuation — Driver mode derives a normalized cash-flow level from revenue and
+operating ratios, Quick DCF starts from a sourced base-year UFCF, so they differ by that level
+even where the shape coincides. The precision matters: an earlier draft of this record said
+"equivalent," which would have been wrong. Two consequences: revenue growth initializes in
+**Fade**, not Flat, and the panel's own methodology disclosure states the relationship rather
+than leaving the analyst to discover it.
+
+**Seeding is a methodology choice with a material valuation consequence, so it is disclosed
+per driver rather than defaulted.** On the Costco snapshot, Year 1 UFCF comes out $6.98B,
+$6.14B or $5.73B depending only on whether NWC investment is seeded from the latest
+observation, the median of the yearly ratios, or the aggregate ΣΔNWC ÷ ΣΔRevenue — a 22%
+spread from one row's convention, against a $6.45B actual. Aggregate was chosen for NWC (a
+ratio of two flows, where aggregating weights each year by how much revenue actually moved);
+median for the other five (robust to a single acquisition or COVID year in a five-year window).
+Full per-driver rules, exclusions and thresholds are in `MODELING_CONVENTIONS.md`.
+
+**The NWC aggregate's denominator is checked before its ratios — a correction to the first
+implementation.** The per-year 2% materiality floor screens each year individually and does not
+stop two individually material years from nearly cancelling in ΣΔRevenue, which inflates the
+aggregate without tripping the spread test, because the spread is compared against that same
+inflated figure. Worked case now locked in as a regression test: +1000 revenue with +100 of
+working capital (10.00%) then −990 with −80 (8.08%) — two ordinary same-signed ratios 1.9pp
+apart, summing to 20 over 10, a **200% aggregate that the original code accepted as seedable**.
+AT&T is the live instance: a −$13.3B year and a +$3.3B year leave $10.0B net against $16.6B
+gross (60%), and the pre-check aggregate would have been **764%**. Fixed by refusing when the
+annual revenue changes reverse direction, and separately when net cumulative change is below
+90% of gross annual movements — and by reporting **no reference at all** in those cases, since
+an inflated aggregate is not evidence and showing one invites the copy-across the refusal
+exists to prevent. The second condition is implied by the first whenever the check runs
+(same-signed deltas make |Σ| equal Σ|·|); it is enforced rather than assumed so the guarantee
+does not rest on the sign test's implementation, and a test asserts the invariant across the
+real and synthetic fixtures. A consistently falling revenue window is deliberately *not*
+refused — direction must reverse, not merely be negative.
+
+**Refusal is a first-class outcome.** Fewer than two usable observations never seeds; exactly
+two seeds but is flagged thin; NWC investment additionally refuses on a sign change or a spread
+exceeding twice its aggregate's magnitude. A refused row is left completely blank with its
+reason stated and its observations still shown — never backfilled from the latest year, never
+from zero. The existing completeness guard then blocks Run Valuation until the analyst fills
+it, so no new blocking logic was introduced. Both real companies checked live refuse working
+capital: Costco spans 14.4pp against a −3.26% aggregate, Apple −42.20 / −20.95 / **−312.39** /
++71.79. That −312% figure is what v1's "Last Actual" cell would have invited an analyst to
+copy across, and is the clearest evidence that a single observation must never become a
+forecast.
+
+**Generated values are never silent and never permanent.** Initialize Forecast is explicit,
+shows a plan naming each value and its basis before writing anything, and badges what it wrote
+as **Seeded** — historical-derived starting points, not forecasts the application produces or
+endorses. The badge clears on the first edit to that row.
+
+**A company load clears the whole driver schedule unless the same company is positively
+identified — two corrections to the first implementation.** The first pass cleared only rows still badged as
+seeded, which is unsound at cell granularity: a Fade row can hold a historically seeded Year 1
+value and an analyst-chosen final-year target at once, and editing either endpoint clears the
+row's marker, so the *other* endpoint — still the previous company's median — would survive the
+next ticker load unbadged. That is the cross-company stale-input bug recurring one level down.
+Per-cell provenance would also close it, and was rejected as materially worse: it doubles the
+state the schedule carries and must survive resizes, mode switches, fade regeneration and
+scenario round-trips, each a place a marker can desynchronize from the value it describes, with
+a stale figure presented as the analyst's own as the failure mode. A whole-schedule reset has
+one rule, no per-cell bookkeeping, and fails safe.
+
+The second correction inverted the default. The predicate initially preserved the schedule
+whenever no previous ticker was known, reasoning that a schedule with no prior company cannot
+be stale from anything. That is wrong: `loadScenario` restores a saved `driverForm` while
+setting `companyData` to null, and a failed ticker lookup clears `companyData` while leaving
+the schedule in place — so both leave a populated, unidentified schedule that the next
+successful load would adopt under whatever company arrived. Preserving is now the exception,
+requiring the company on screen to be positively the same normalized ticker; every other
+successful load resets. The cost is that driver values entered before any company was loaded
+are discarded, accepted knowingly: a figure valued against the wrong company is worse than
+re-entering assumptions, and the reset is visible where the stale value was not.
+
+Scope stays narrow — shared assumptions and saved scenarios themselves are untouched.
+Confirmed live on all three paths. The Fade case: AT&T seeded, revenue growth's fade target
+hand-set to 3% (leaving Year 1 at AT&T's 0.66% median, unbadged), then COST loaded — all 30
+cells blank, six modes back to Custom, no seed badges, WACC and terminal growth intact. The
+scenario case: a saved Driver scenario carrying distinctive values (11.11 / 22.22 / 33.33 /
+4.44 / 5.55 / 6.66) loaded with no company identified, then COST loaded — all 18 cells blank
+with no scenario value surviving, modes Custom, badges gone, the scenario itself still intact
+in `localStorage`, and the scenario's own WACC 9% / terminal growth 2.5% / 3-year period
+preserved. And the same-ticker case: a COST reload after seeding preserved the schedule, its
+Fade/Flat modes and its seed badges.
+
+**Terminal growth is not bound to revenue growth — a correction to the design proposal.** The
+proposal recommended defaulting revenue growth's fade target to the Terminal Growth Rate field.
+Rejected on review: terminal growth is perpetual *FCF* growth and is not required to equal a
+terminal-year *revenue* growth rate, and a live binding between two independent fields would
+make each mutate the other unexpectedly. What shipped instead is a clearly labeled one-time
+"Use terminal growth as target" action that copies the value once; afterwards neither field
+moves the other. Verified live: with the target copied at 2.5%, changing Terminal Growth Rate
+to 1.5% left the schedule at 2.5%.
+
+**Row modes are UI generators over the existing per-year array, not model state.** Flat, Fade
+and Custom all write into the same `driverYears` the API has always received, so the payload,
+completeness check, warnings, scenario save/load and CSV export are untouched — a seeded
+schedule and a hand-typed identical one produce byte-identical payloads, which is asserted by
+test. Fade interpolates linearly in the driver value; exponential and S-curve shapes were
+rejected as modeling surface without corresponding analyst judgement. Custom is now positioned
+as the advanced annual-schedule editor rather than the primary entry path, and is unchanged
+behaviour. Forecast-length changes regenerate Flat and Fade rows from their pre-resize
+endpoints (so a fade target survives a resize instead of flattening into a plateau) while
+Custom rows keep v1's clone-the-last-year behaviour exactly, which is what preserves manual
+overrides.
+
+**Fiscal-year labels only where they are unambiguous — narrower than proposed.** The proposal
+recommended deriving `FY<year>E` from the fiscal year-end's calendar year and disclosing the
+convention. Narrowed on review to emit labels only for year-ends in June through December,
+where the calendar year and the filer's own fiscal-year label agree essentially universally,
+and to fall back to generic `Year 1…N` for January-through-May year-ends, where two large
+retailers with near-identical January year-ends label the same fiscal year differently from one
+another. A wrong fiscal-year label is worse than a generic one. Verified live: Costco (August)
+labels FY2026E onward, Apple (September) likewise.
+
+**Data quality is surfaced, not merely computed — a correction to the first implementation.**
+Notes were gated on `reliability !== 'ok'`, which hid the tax cash-proxy caution precisely when
+it matters: that caution is company-specific and fires on histories that are otherwise
+perfectly reliable. AT&T is the live case — four usable tax observations, a reliable 19.89%
+median, and a 12% pre-tax-versus-EBIT divergence that was being suppressed. Every non-null note
+now renders, and each row additionally reports how many periods were excluded from its
+statistic and why; AT&T shows one period with an undefined effective rate, five where CapEx is
+not reported at all (so CapEx is unseedable for it), and two below the NWC materiality floor
+with their actual revenue movements quoted. Silently shrinking a sample makes a thin reference
+look better evidenced than it is.
+
+**Observations carry visible fiscal-year labels, not tooltips.** Each value sits under a
+two-digit fiscal-year-end label (’21…’25), matching the year strip the trend mini-charts
+already use. A hover-only label is unreadable on touch, unreachable by keyboard and absent from
+print, and a column of undated percentages is not evidence.
+
+**The Forecast Drivers panel carries no step number.** It was badged "2" while rendering above
+the column also badged "2" and above the column badged "1", producing a duplicated step number
+and a visible 2 → 1 → 2 → 3 reading order. Fixed by removing the badge rather than renumbering
+the workstation: the numbered sequence belongs to the three analytical columns, and this
+full-width panel is a workspace for step 2's forecast inputs rather than a step of its own.
+The smaller change also avoids making the numbering mode-conditional, since Quick DCF has no
+drivers panel.
+
+**Instructional density.** ~110 words of permanent instruction became one orientation line plus
+a disclosure control. The full methodology stays in the DOM and prints unconditionally via the
+existing `.no-screen` pattern, so nothing is lost from a printed or exported analysis — the
+reduction is screen-only. Density falls further on its own: five of six rows now show one input
+instead of N.
+
+**Explicitly rejected, and recorded so the questions stay answered:**
+
+- **Historical share-price / revenue-growth correlation, or a "revenue beta."** Four annual
+  observations give two degrees of freedom, so any R² would be noise; prices respond to
+  surprises against expectations rather than realised reported growth; "beta" already means
+  covariance with the market in the cost-of-equity sense, so the label would read as a
+  terminology error to this project's own audience; and the app holds exactly one dated price
+  with no time series anywhere, so it would require a new provider — failing `CLAUDE.md` §7's
+  bar for a statistic that is not credible in the first place. The honest version of this
+  question is already shipped: Reverse DCF reports what growth the reference price implies,
+  without asserting a statistical relationship.
+- **A live forecast preview in the frontend.** The proposal suggested rendering revenue / EBIT
+  / UFCF per year as drivers are edited, which would have required reimplementing
+  `project_driver_years` in JavaScript. Rejected: the backend stays the sole authority on the
+  projection arithmetic, and two implementations of one formula drift. The post-run forecast
+  schedule remains where per-year cash flows are read. The one on-screen preview that did ship
+  shows the *driver values* a row's mode generated — interpolated assumptions, not cash flows.
+- **Driver sensitivity / tornado chart, and a Revenue Growth × EBIT Margin grid.** Genuinely
+  valuable and a real gap (the existing grid is WACC × terminal growth only, so Driver mode's
+  own drivers get no sensitivity treatment), but deliberately out of this milestone: fix the
+  inputs before adding a sensitivity surface over assumptions the analyst did not trust
+  entering. Moved to Later in `ROADMAP.md`.
+- **AI-generated forecasts, consensus-estimate integration, segment-level forecasting, and
+  Excel import** — out of scope, and the last three each require a data source or a modeling
+  surface this project has not justified.
+
+**Verification.** Backend: all 190 tests unchanged and passing — no backend file was touched.
+Frontend: 169 tests (84 new across `driverHistory.test.js` and `driverForecastModes.test.js`,
+plus the existing suite re-verified), lint and production build clean. The new tests cover
+historical normalization and every exclusion rule, NWC reliability and refusal, Flat/Fade/Custom
+generation, fade endpoints and intermediate years, manual-override preservation, one-time
+rather than live binding, fiscal-year labels and fallbacks, forecast-length changes in both
+directions, scenario save/load with and without the new keys, and payload identity between a
+seeded and a hand-typed schedule. Live verification against the running backend and real SEC
+data found one genuine crash that fixtures had not: with a company loaded before a Forecast
+Period was set, the initialize plan was computed against a zero-length schedule and read
+`driverYears[0]` of an empty array. Fixed in `buildBaseForecast` and covered by a regression
+test. After the fix, the full workflow was verified live end-to-end: COST loaded from SEC
+EDGAR; the plan listing five seeds with their bases and the working-capital refusal; apply;
+the one-time terminal-growth target producing 7.46 → 6.22 → 4.98 → 3.74 → 2.5; a resize from
+five to eight years re-interpolating to 7.46 → … → 2.5 with both endpoints intact; a
+Driver-Based valuation returning $202.50 per share with its sensitivity grid; AAPL loaded over
+that schedule clearing only the still-seeded rows; and Quick DCF's Costco Base Growth case
+still returning **$395.69**, unchanged.
+
+Two closeout correction passes then addressed six review findings before commit: the
+whole-schedule cross-company reset and its inverted preserve-only-when-identified default,
+the NWC denominator checks, unconditional rendering of
+material notes, excluded-period disclosure, visible fiscal-year labels on observations, and
+removal of the duplicated step badge — each recorded above at the decision it corrects. Live
+re-verification after that pass used AT&T as the fixture, since it exercises four of the five
+at once (a 12% EBIT/pre-tax divergence, unreported CapEx across all five periods, two
+sub-materiality NWC years, and a direction-reversing revenue window), plus the
+AT&T → COST → COST sequence and a saved-scenario → COST sequence for the reset rules, and a
+final Quick DCF Costco Base Growth check at $395.69. Browser console clean.

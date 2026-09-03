@@ -1,24 +1,23 @@
 # Analyst Toolkit — Progress
 
-**Last verified:** 2026-09-02 (Driver-Based DCF v1 — commit `62badf0`, CI run #22 green,
-deployed to Vercel and Render and production-verified: the Costco Base Growth case still
-returns $395.69 through the Quick DCF path, and one Driver-Based valuation plus its
-sensitivity grid completed successfully against the production backend). Prior verified
-milestone: 2026-09-02, the cross-company stale-input fix (`449156d`) — see Recently Shipped
-below for that and every earlier DCF milestone.
+**Last verified:** 2026-09-03 (Driver-Based DCF v2 — evidence-led forecast entry, including a
+five-item closeout correction pass). Backend 190 tests unchanged and passing (no backend file
+touched); frontend 164 tests, lint and production build clean. Live-verified against the
+running backend and real SEC data: COST initialized, seeded and valued at $202.50/share; AT&T
+used as the data-quality fixture (12% EBIT/pre-tax divergence disclosed, CapEx unseedable
+across all five periods, direction-reversing NWC window refused where the pre-fix aggregate
+would have been 764%); a different ticker clears all driver cells while a same-ticker reload
+preserves them; a saved Driver scenario's cells do not survive a subsequent ticker load, with
+the scenario itself and the shared assumptions intact; Quick DCF's Costco Base Growth still
+$395.69; browser console clean. Not yet committed or deployed — see Next Actions.
 
 ## Current Milestone
 
-**None in progress.** Driver-Based DCF (v1) shipped as commit `62badf0` — CI run #22 green,
-deployed to Vercel and Render, and production-verified. Closeout review (including an
-independent financial-model review) surfaced three corrections, all implemented before the
-commit: an `extreme` warning when the final forecast year's UFCF is zero or negative (Gordon
-Growth otherwise produces a negative terminal value with no scrutiny at all); completeness
-validation so a blank input is never silently coerced to zero, across every field sent to the
-API; and a neutral "Tax Rate" label with copy distinguishing the book effective rate from the
-forecast cash-tax proxy. See `docs/decisions.md#driver-based-dcf-v1` for the full design,
-correction, and verification record, and Next Actions below for what was deliberately deferred
-out of v1.
+**None in progress.** Driver-Based DCF v2 (evidence-led forecast entry) is complete and
+verified locally. The engine, warning tiers, completeness rules and shared valuation core are
+untouched — every change is input-side. Full design, correction and verification record:
+[`docs/decisions.md#driver-based-dcf-v2-evidence-led-forecast-entry`](docs/decisions.md);
+methodology: [`docs/MODELING_CONVENTIONS.md`](docs/MODELING_CONVENTIONS.md).
 
 ## Blockers / Frozen Areas
 
@@ -27,114 +26,67 @@ out of v1.
 
 ## Recently Shipped
 
+- 2026-09-03 — **Driver-Based DCF v2: evidence-led forecast entry.** Per-driver historical
+  evidence (every usable observation plus one normalized reference statistic — median for five
+  drivers, aggregate ΣΔNWC ÷ ΣΔRevenue for working capital); an explicit **Initialize Forecast**
+  action that shows its plan and basis before writing anything and badges what it writes as
+  historical-derived starting points; refusal rather than a weak seed where history is thin,
+  unstable or sign-flipping; **Flat / Fade / Custom** row modes with the annual grid
+  repositioned as the advanced schedule editor; a one-time (never live) "use terminal growth as
+  target" action; real fiscal-year column labels where the fiscal period is unambiguous;
+  and instructional text reduced to one line plus a print-preserving disclosure. A closeout
+  correction pass then hardened the NWC aggregate denominator (direction-reversal and
+  net-versus-gross checks), replaced per-row seed clearing with a whole-schedule reset that
+  preserves only a positively-identified same-ticker reload, surfaced every material note plus
+  excluded-period counts and reasons, gave
+  observations visible fiscal-year labels, and removed the duplicated step badge. Rejected in
+  scope: historical price correlation / "revenue beta", and any frontend duplication of the
+  backend projection. Local verification only — [decisions.md](docs/decisions.md#driver-based-dcf-v2-evidence-led-forecast-entry)
 - 2026-09-02 — Driver-Based DCF (v1): a second forecast-entry mode alongside Quick DCF,
-  building the annual UFCF schedule year-by-year from revenue → margin → tax → D&A → CapEx →
-  ΔNWC drivers instead of one flat growth rate, with both modes feeding the same shared
-  valuation core. Includes per-year sensitivity, scenario persistence and mixed-mode
-  comparison protection, a sourced "Last Actual" reference row, driver warnings, and CSV
-  export. Quick DCF, the Costco demo, and Reverse DCF are unchanged. Committed as `62badf0`,
-  CI run #22 green, deployed and production-verified (Costco Base Growth still $395.69; one
-  Driver-Based valuation plus sensitivity completed against the production backend) —
-  [decisions.md](docs/decisions.md#driver-based-dcf-v1)
-- 2026-09-02 — Cross-company stale-input fix: `loadCompany` only set the sourced patch for
-  Base Year UFCF / Net Debt / Diluted Shares Outstanding when the newly loaded company
-  actually had a value, so a field a new company lacks (e.g. EOSE's null `unlevered_fcf`)
-  left the *previously* loaded company's figure sitting in the form, unbadged. Fixed by a new
-  pure `companyDataToSourcedFields` helper that always returns every key (the real value, or
-  `''`), so the merge always replaces; `fieldBadgeType` (also extracted to a pure
-  `sourceableFieldBadgeType` helper) now shows no badge for a blank field and "Analyst Input"
-  (never "Sourced") for a value the analyst typed in with nothing sourced this load. 11 new
-  regression tests. Analyst-only assumptions (WACC, terminal growth, FCF growth rate,
-  forecast years) were never affected. Committed `449156d`, CI green, deployed and
-  production-verified (see Last Verified above).
-- 2026-09-02 — Deployment polish sprint: DCF Valuation is now the app's default module on
-  load (was real estate); the DCF module opportunistically pings `/api/health` on mount
-  (cache-bypassing, non-blocking, silent on failure) so a cold Render instance starts waking
-  before the analyst finishes the form, with a concise status line shown only while still
-  waking and Run Valuation never gated on it; real estate now carries a brief scope note
-  ("Simplified asset-level underwriting model; further expansion is paused pending external
-  practitioner review.") near its intro; `index.html` carries a real title plus Open
-  Graph/Twitter metadata and a generated 1200x630 social-preview image; README gets two
-  optimized screenshots (DCF Costco demo results, Real Estate Underwriting). No calculation
-  or methodology change. Committed `d1659b5`/`862a9b8`, CI green, deployed and
-  production-verified (see Last Verified above).
-- 2026-09-02 — Explain This Valuation: up to three deterministic observations synthesized
-  from outputs the forward DCF, reverse DCF, sensitivity grid, and historical-CAGR helper
-  already compute — no change to the valuation engine or methodology, only presentation-level
-  differences, ratios, and ranges; no backend or schema change. Price-implied growth vs. the
-  analyst's case and historical UFCF CAGR as an exact percentage-point difference (or an
-  explicit "matches to displayed precision" when the two round to the same figure); terminal
-  value's share of enterprise value, stated only as a proportion; sensitivity range relative
-  to the base-case value per share. Frontend: 44 tests (26 new for this milestone), lint, and
-  build all pass; 153 backend tests unaffected. Committed `6d7404c`, CI green, deployed and
-  production-verified: the live bundle confirmed serving the new code, and a smoke test
-  against the Costco demo confirmed all three observations' exact numbers, case-tab
-  switching, and independent forward/reverse invalidation, all matching local verification —
+  building the annual UFCF schedule from revenue → margin → tax → D&A → CapEx → ΔNWC drivers,
+  both modes feeding one shared valuation core. Committed `62badf0`, CI run #22 green, deployed
+  and production-verified — [decisions.md](docs/decisions.md#driver-based-dcf-v1)
+- 2026-09-02 — Cross-company stale-input fix: sourced fields now always replace or clear, so a
+  field the newly loaded company lacks can never keep the previous company's figure. Committed
+  `449156d`, CI green, deployed — [decisions.md](docs/decisions.md#cross-company-stale-input-fix-base-year-ufcf-net-debt-diluted-shares-base-year-revenue)
+- 2026-09-02 — Deployment polish: DCF is the default module, opportunistic backend warm-up,
+  real page metadata and social preview, README screenshots. Committed `d1659b5`/`862a9b8`.
+- 2026-09-02 — Explain This Valuation: up to three deterministic observations synthesized from
+  figures already computed; no engine or methodology change. Committed `6d7404c` —
   [decisions.md](docs/decisions.md#explain-this-valuation)
-- 2026-09-02 — Reverse DCF (price-implied FCF growth): solves for the constant
-  explicit-period FCF growth rate that reconciles the dated reference price, shown under
-  Valuation Summary alongside historical unlevered FCF CAGR, never framed as a market
-  forecast. One shared result per Run Valuation, invalidated independently from the forward
-  valuation. Backend 153 tests / frontend 18 tests / lint / build all pass; production
-  smoke-tested (solved result reconciling within tolerance, forward valuations unchanged,
-  Costco Base Growth's 30.73% untouched, one request per run shared across tabs, zero
-  requests on tab switch, the full invalidation matrix, a simulated reverse-request failure
-  leaving forward intact, and CSV export honesty) — [decisions.md](docs/decisions.md#reverse-dcf-price-implied-fcf-growth)
-- 2026-09-01 — Costco demo-entry consolidation and one-run case tabs: removed the DCF
-  module's synthetic "Load Example"; a full-sized "Costco Demo" header button activates the
-  demo and opens/closes its disclosure, replacing the old subtle toggle + button pair; case
-  selection (renamed Low/Base/High Growth) moved to three accessible result tabs under
-  Valuation Summary; one click of Run Valuation calculates all three via parallel calls to
-  the existing endpoints, switching tabs afterward is request-free, an assumption edit
-  invalidates all three until rerun (verified stale results/exports stay hidden through the
-  rerun, not just after it), and CSV exports are case-labeled — [decisions.md](docs/decisions.md#dcf-demo-entry-consolidation-and-the-one-run-three-tab-case-model)
-- 2026-09-01 — Costco header profile fix: clean "Costco Wholesale Corporation" name (was the
-  raw SEC "/NEW" registrant string), a real classification and dated market cap in place of
-  blank fields, both disclosed with source/date.
-- 2026-09-01 — AGENTS.md: keeps Codex, used as an external product/finance/UX consultant via
-  `CHATGPT_CONSULTANT.md`, strictly read-only and advisory — no file edits, builds, or
-  state-changing Git operations, and ambiguous approval language ("let's do it," "commit it")
-  must be treated as a request to draft a Claude Code prompt, not authorization to act.
-- 2026-09-01 — Source Details inspector: the "Sources" panel is now a bounded (~340px),
-  internally-scrolling panel with a sticky header and a dynamic status summary, replacing an
-  unbounded field-by-field dump. Friendly-first provenance detail (source/period/filing link
-  prominent, raw tag/accession muted) is now shared with the 5-year history cell popover —
+- 2026-09-02 — Reverse DCF (price-implied FCF growth): solves for the constant explicit-period
+  growth rate that reconciles the dated reference price, never framed as a market forecast —
+  [decisions.md](docs/decisions.md#reverse-dcf-price-implied-fcf-growth)
+- 2026-09-01 — Costco demo-entry consolidation and one-run case tabs —
+  [decisions.md](docs/decisions.md#dcf-demo-entry-consolidation-and-the-one-run-three-tab-case-model)
+- 2026-09-01 — AGENTS.md: keeps Codex strictly read-only and advisory as an external consultant.
+- 2026-09-01 — Source Details inspector: bounded, friendly-first provenance detail —
   [decisions.md](docs/decisions.md#source-details-inspector-bounded-friendly-first-provenance-detail)
-- 2026-09-01 — Chart color and print refinements: Revenue/UFCF mini-chart bars and provenance
-  dots use more distinguishable colors; print output keeps chart bars solid black regardless.
-- 2026-08-31 — Historical trend mini-charts: two compact CSS bar charts (Revenue, Unlevered
-  FCF) in the sourced-data panel, shared fiscal-year strip, independent scales, correct
-  handling of negative/zero/missing values, no chart library — [decisions.md](docs/decisions.md#historical-trend-mini-charts)
-- 2026-08-31 — Embedded, provider-independent Costco DCF demo: a frozen real 5-year snapshot
-  and dated reference price, three Low/Base/High Growth cases (only FCF growth varies; WACC
-  and terminal growth fixed), zero network requests to load, real `/api/dcf/valuation` engine
-  to calculate — [decisions.md](docs/decisions.md#revised-dcf-sequence-data-resilience-combined-provenanceprice-milestone-and-a-validated-real-company-demo)
-- 2026-08-31 — Costco (COST) confirmed as the real-company demo candidate: validated live
-  against the deployed production API — all 5 years map with zero Alpha Vantage fallback, one
-  explicable (not disqualifying) working-capital-driven FCF dip in FY2022 — [decisions.md](docs/decisions.md#revised-dcf-sequence-data-resilience-combined-provenanceprice-milestone-and-a-validated-real-company-demo)
-- 2026-08-31 — Per-value provenance + editable, dated reference share price: historical
-  fundamentals disclose source/status/filing metadata field-by-field; `current_price`
-  replaced by an editable `reference_price`/`reference_price_as_of` pair with honest
-  Sourced/Adjusted/Analyst Input status, including correct status recovery on a saved-scenario
-  reload — [decisions.md](docs/decisions.md#per-value-provenance-and-reference-price-disclosure)
-- 2026-08-31 — DCF data resilience: Alpha Vantage fundamentals and current price are now
-  optional field-level enrichment, not a hard dependency; company periods build directly
-  from SEC's own fiscal dates — [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- 2026-08-31 — Historical trend mini-charts (Revenue, Unlevered FCF), library-free —
+  [decisions.md](docs/decisions.md#historical-trend-mini-charts)
+- 2026-08-31 — Embedded, provider-independent Costco DCF demo; Costco validated as the demo
+  candidate against the live production API —
+  [decisions.md](docs/decisions.md#revised-dcf-sequence-data-resilience-combined-provenanceprice-milestone-and-a-validated-real-company-demo)
+- 2026-08-31 — Per-value provenance and an editable, dated reference share price —
+  [decisions.md](docs/decisions.md#per-value-provenance-and-reference-price-disclosure)
+- 2026-08-31 — DCF data resilience: Alpha Vantage became optional field-level enrichment
+  rather than a hard dependency — [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
 ## Next Actions
 
-1. Driver-Based DCF follow-ups deferred out of v1, in rough priority order: a warning when a
-   forecast year's EBIT margin is negative (the no-NOL asymmetry binds silently in exactly
-   that case), guarding the "Last Actual" NWC-investment cell against a near-zero Δ Revenue
-   denominator, and rendering the full per-year build-up on screen rather than only in the
-   CSV export — Driver mode's auditability argument mostly rests on seeing why each year's
-   UFCF is what it is. See `docs/decisions.md#driver-based-dcf-v1`.
-2. Real estate: no action planned until the user has the CRE-professional conversation.
+1. **Commit and deploy Driver-Based DCF v2**, then production-verify: one Driver-Based
+   valuation with a seeded schedule against the production backend, and the Costco Base Growth
+   case still returning $395.69 through the Quick DCF path.
+2. Driver-Based follow-ups now in [`docs/ROADMAP.md`](docs/ROADMAP.md)'s Later column, in
+   rough priority order: **driver sensitivity (tornado)** — the current grid is WACC × terminal
+   growth only, so Driver mode's own drivers get no sensitivity treatment at all; then the
+   two-way Growth × Margin table.
+3. Real estate: no action planned until the user has the CRE-professional conversation.
 
 ## See Also
 
-- [docs/ROADMAP.md](docs/ROADMAP.md) — Now / Next / Later / Parked
+- [docs/ROADMAP.md](docs/ROADMAP.md) — Now / Next / Later / Rejected / Parked
 - [docs/decisions.md](docs/decisions.md) — durable decision history
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — current technical state
 - [docs/MODELING_CONVENTIONS.md](docs/MODELING_CONVENTIONS.md) — current financial methodology
-- [docs/archive/PROGRESS_HISTORY.md](docs/archive/PROGRESS_HISTORY.md) — full pre-restructuring implementation log (all 51 dated decisions, every phase, every milestone)
+- [docs/archive/PROGRESS_HISTORY.md](docs/archive/PROGRESS_HISTORY.md) — full pre-restructuring implementation log

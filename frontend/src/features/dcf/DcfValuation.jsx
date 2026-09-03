@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { compactCurrency, compactShares, currency, percent } from '../../lib/format'
 import { downloadCsv } from '../../lib/csv'
 import { friendlyErrorMessage, parseErrorResponse } from '../../lib/apiError'
@@ -19,12 +19,21 @@ import { historicalCagr } from './historicalGrowth'
 import { explainValuation } from './explainValuation'
 import DriverScheduleBuilder from './DriverScheduleBuilder'
 import {
-  broadcastDriverField,
+  applyRowMode,
+  buildBaseForecast,
   buildDriverPayload,
+  clearAllDriverRows,
+  defaultRowModes,
   driverInputsError,
-  lastActualDriverReference,
-  resizeDriverYears,
+  DRIVER_FIELD_LABELS,
+  forecastYearLabels,
+  normalizeRowModes,
+  resizeDriverYearsWithModes,
+  setFadeEndpoint,
+  setFlatValue,
+  shouldResetDriverSchedule,
 } from './driverSchedule'
+import { driverHistory, formatSeedValue, referenceBasisLabel } from './driverHistory'
 import {
   COSTCO_CASES,
   COSTCO_COMPANY_DATA,
@@ -190,7 +199,18 @@ function DcfValuation() {
   // to Driver mode. Quick DCF's own state (results/sensitivity/reverseResult/demo machinery)
   // is completely untouched by any of this - Driver mode never reads or writes it.
   const [forecastMode, setForecastModeState] = useState('quick')
-  const [driverForm, setDriverForm] = useState({ baseYearRevenue: '', driverYears: [] })
+  // driverYears stays the single source of truth for what will be valued; rowModes only
+  // records how each row is currently being edited (Flat/Fade/Custom), and seededFields which
+  // rows are still holding an untouched historical-derived starting point rather than the
+  // analyst's own number. Neither reaches the API - buildDriverPayload reads driverYears.
+  const [driverForm, setDriverForm] = useState({
+    baseYearRevenue: '',
+    driverYears: [],
+    rowModes: defaultRowModes(),
+    seededFields: {},
+  })
+  const [showInitializePlan, setShowInitializePlan] = useState(false)
+  const [showDriverMethodology, setShowDriverMethodology] = useState(false)
   // Mirrors sourcedSnapshot's role for the three SOURCEABLE_FIELDS, but only ever holds
   // baseYearRevenue - the one driver-mode field a company load can source.
   const [driverSourcedSnapshot, setDriverSourcedSnapshot] = useState(null)
@@ -256,14 +276,19 @@ function DcfValuation() {
   }
 
   // forecastYears is shared between modes, but Driver mode also needs it to resize the
-  // per-year driver schedule - grown years clone the last existing year, shrunk years
-  // truncate from the end (see resizeDriverYears), never touching earlier years' edits.
+  // per-year driver schedule. Custom rows keep the old behaviour (earlier years untouched,
+  // the last year cloned into new trailing years); Flat and Fade rows are regenerated at the
+  // new length instead, so a fade target survives a length change rather than being flattened
+  // into a plateau (see resizeDriverYearsWithModes).
   const handleForecastYearsChange = (e) => {
     const value = e.target.value
     setForm((prev) => ({ ...prev, forecastYears: value }))
     markStaleIfNeeded('forecastYears')
     const n = Math.max(0, Math.min(15, Math.floor(Number(value)) || 0))
-    setDriverForm((prev) => ({ ...prev, driverYears: resizeDriverYears(prev.driverYears, n) }))
+    setDriverForm((prev) => ({
+      ...prev,
+      driverYears: resizeDriverYearsWithModes(prev.driverYears, n, prev.rowModes),
+    }))
   }
 
   // Switching Quick<->Driver is treated like loadCompany/loadScenario - an explicit reset of
@@ -292,16 +317,71 @@ function DcfValuation() {
     if (driverResults) setDriverResultsStale(true)
   }
 
+  // Any value the analyst writes into a row is their own judgement from that point on, so the
+  // row stops being badged as a historical-derived starting point. Switching a row to Custom
+  // changes no values and is deliberately NOT treated as an edit; switching to Flat or Fade
+  // regenerates the row, which is.
+  const clearSeed = (prev, field) => {
+    if (!prev.seededFields[field]) return prev.seededFields
+    const next = { ...prev.seededFields }
+    delete next[field]
+    return next
+  }
+
   const setDriverYearField = (yearIndex, field) => (value) => {
     setDriverForm((prev) => ({
       ...prev,
+      seededFields: clearSeed(prev, field),
       driverYears: prev.driverYears.map((y, i) => (i === yearIndex ? { ...y, [field]: value } : y)),
     }))
     if (driverResults) setDriverResultsStale(true)
   }
 
-  const broadcastDriverYearField = (field) => (value) => {
-    setDriverForm((prev) => ({ ...prev, driverYears: broadcastDriverField(prev.driverYears, field, value) }))
+  const setDriverFlatValue = (field, value) => {
+    setDriverForm((prev) => ({
+      ...prev,
+      seededFields: clearSeed(prev, field),
+      driverYears: setFlatValue(prev.driverYears, field, value),
+    }))
+    if (driverResults) setDriverResultsStale(true)
+  }
+
+  const setDriverFadeEndpoint = (field, endpoint, value) => {
+    setDriverForm((prev) => ({
+      ...prev,
+      seededFields: clearSeed(prev, field),
+      driverYears: setFadeEndpoint(prev.driverYears, field, endpoint, value),
+    }))
+    if (driverResults) setDriverResultsStale(true)
+  }
+
+  const setDriverRowMode = (field, mode) => {
+    setDriverForm((prev) => {
+      if (prev.rowModes[field] === mode) return prev
+      const driverYears = applyRowMode(prev.driverYears, field, mode)
+      return {
+        ...prev,
+        rowModes: { ...prev.rowModes, [field]: mode },
+        // Custom reveals the existing values unchanged, so the row is still whatever it was;
+        // Flat and Fade rewrite it, which makes it the analyst's.
+        seededFields: mode === 'custom' ? prev.seededFields : clearSeed(prev, field),
+        driverYears,
+      }
+    })
+    if (driverResults) setDriverResultsStale(true)
+  }
+
+  // A ONE-TIME copy of the Terminal Growth Rate into revenue growth's final-year fade target -
+  // never a live binding. Terminal growth is perpetual *FCF* growth, not revenue growth, and
+  // the two are not required to be equal; after this click either field can be edited without
+  // moving the other. Offered because the two are often related in an analyst's thinking, not
+  // because the model requires them to agree.
+  const useTerminalGrowthAsTarget = () => {
+    setDriverForm((prev) => ({
+      ...prev,
+      seededFields: clearSeed(prev, 'revenueGrowthRate'),
+      driverYears: setFadeEndpoint(prev.driverYears, 'revenueGrowthRate', 'end', form.terminalGrowthRate),
+    }))
     if (driverResults) setDriverResultsStale(true)
   }
 
@@ -356,7 +436,22 @@ function DcfValuation() {
       // above: it should inform the forecast whenever it's available, not only when Driver
       // mode happens to already be selected.
       setDriverSourcedSnapshot({ baseYearRevenue: sourced.baseYearRevenue })
-      setDriverForm((prev) => ({ ...prev, baseYearRevenue: sourced.baseYearRevenue }))
+      // A driver schedule is specific to the company whose history informed it, so a load
+      // clears all six rows and resets their modes and seed markers unless the company already
+      // on screen is positively the same ticker - see shouldResetDriverSchedule for why an
+      // unidentified schedule (a loaded scenario, or a failed lookup that cleared companyData)
+      // must reset too, and clearAllDriverRows for why per-row seed tracking cannot do this
+      // selectively. Shared assumptions in `form` are analyst judgement that carries across
+      // companies and are deliberately untouched here, as are saved scenarios.
+      const resetSchedule = shouldResetDriverSchedule(companyData?.profile?.ticker, data?.profile?.ticker)
+      setDriverForm((prev) => ({
+        ...prev,
+        baseYearRevenue: sourced.baseYearRevenue,
+        driverYears: resetSchedule ? clearAllDriverRows(prev.driverYears) : prev.driverYears,
+        rowModes: resetSchedule ? defaultRowModes() : prev.rowModes,
+        seededFields: resetSchedule ? {} : prev.seededFields,
+      }))
+      setShowInitializePlan(false)
     } catch (err) {
       setCompanyError(friendlyErrorMessage(err))
       setCompanyData(null)
@@ -375,7 +470,16 @@ function DcfValuation() {
     const { forecastMode: savedMode, driverForm: savedDriverForm, ...formFields } = data
     setForm({ ...EMPTY, ...formFields })
     setForecastModeState(savedMode === 'driver' ? 'driver' : 'quick')
-    setDriverForm(savedDriverForm ?? { baseYearRevenue: '', driverYears: [] })
+    // rowModes/seededFields default safely for any scenario saved before they existed: every
+    // row loads as Custom, showing exactly the per-year values that were saved rather than
+    // letting a mode's generator rewrite them, and nothing is badged as seeded.
+    setDriverForm({
+      baseYearRevenue: savedDriverForm?.baseYearRevenue ?? '',
+      driverYears: savedDriverForm?.driverYears ?? [],
+      rowModes: normalizeRowModes(savedDriverForm?.rowModes),
+      seededFields: savedDriverForm?.seededFields ?? {},
+    })
+    setShowInitializePlan(false)
     setDriverSourcedSnapshot(null)
     setDriverResults(null)
     setDriverResultsStale(false)
@@ -502,6 +606,46 @@ function DcfValuation() {
       return sourceableFieldBadgeType(form[field], sourcedSnapshot[field])
     }
     return 'analyst'
+  }
+
+  // Historical evidence for all six drivers, recomputed only when a different company is
+  // loaded. Pure - it reads the periods already in state and never fetches or projects
+  // anything; the backend remains the only place a schedule becomes cash flows.
+  const history = useMemo(() => driverHistory(companyData), [companyData])
+
+  const yearLabels = forecastYearLabels(companyData, driverForm.driverYears.length)
+
+  // What Initialize Forecast would do, shown for review before anything is written. Computed
+  // here (not inside the panel) so the plan the analyst approves and the schedule that gets
+  // applied come from one call, never two that could disagree.
+  const initializePlan = useMemo(() => {
+    const built = buildBaseForecast(history, driverForm.driverYears.length, formatSeedValue)
+    return {
+      built,
+      seeds: Object.keys(built.seededFields).map((field) => ({
+        field,
+        label: DRIVER_FIELD_LABELS[field],
+        value: built.driverYears[0][field],
+        mode: built.rowModes[field],
+        basis: referenceBasisLabel(history.drivers[field]),
+      })),
+      refusals: built.refusals,
+    }
+  }, [history, driverForm.driverYears.length])
+
+  const initializeBlockedReason = (() => {
+    if (!companyData) return 'Load a company above to initialize the forecast from its sourced historical financials.'
+    if (history.periodCount < 2) return 'At least two sourced fiscal periods are needed to derive driver history.'
+    if (driverForm.driverYears.length === 0) return 'Set a Forecast Period (years) above first.'
+    if (initializePlan.seeds.length === 0) return 'No driver has enough usable history to seed - enter the schedule manually.'
+    return null
+  })()
+
+  const applyInitializeForecast = () => {
+    const { driverYears, rowModes, seededFields } = initializePlan.built
+    setDriverForm((prev) => ({ ...prev, driverYears, rowModes, seededFields }))
+    setShowInitializePlan(false)
+    if (driverResults) setDriverResultsStale(true)
   }
 
   // Same mechanism as fieldBadgeType above, for Driver mode's own sourceable field.
@@ -1089,9 +1233,23 @@ function DcfValuation() {
           onBaseYearRevenueChange={setDriverBaseYearRevenue}
           baseYearRevenueBadgeType={driverBaseYearRevenueBadgeType()}
           driverYears={driverForm.driverYears}
+          rowModes={driverForm.rowModes}
+          seededFields={driverForm.seededFields}
+          history={history}
+          yearLabels={yearLabels}
           onYearFieldChange={setDriverYearField}
-          onBroadcastField={broadcastDriverYearField}
-          lastActual={lastActualDriverReference(companyData)}
+          onFlatChange={setDriverFlatValue}
+          onFadeEndpointChange={setDriverFadeEndpoint}
+          onRowModeChange={setDriverRowMode}
+          initializePlan={initializePlan}
+          initializeBlockedReason={initializeBlockedReason}
+          showInitializePlan={showInitializePlan}
+          onToggleInitializePlan={() => setShowInitializePlan((v) => !v)}
+          onApplyInitialize={applyInitializeForecast}
+          canUseTerminalGrowthTarget={String(form.terminalGrowthRate).trim() !== ''}
+          onUseTerminalGrowthAsTarget={useTerminalGrowthAsTarget}
+          showMethodology={showDriverMethodology}
+          onToggleMethodology={() => setShowDriverMethodology((v) => !v)}
         />
       )}
 

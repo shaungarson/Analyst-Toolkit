@@ -56,9 +56,29 @@ completed items, in the dependency order they were built:
    unaffected. See "Driver-Based DCF (v1)" in [`decisions.md`](decisions.md) and
    [`MODELING_CONVENTIONS.md`](MODELING_CONVENTIONS.md).
 
+9. ~~**Driver-Based DCF (v2): evidence-led forecast entry.**~~ **Done (2026-09-03).**
+   Per-driver historical evidence with a normalized reference statistic, an explicit
+   Initialize Forecast action with transparent per-driver seeding and refusal rules, Flat /
+   Fade / Custom row modes (the annual grid repositioned as the advanced schedule editor), a
+   one-time terminal-growth target action, real fiscal-year column labels where unambiguous,
+   and reduced instructional density. Engine, warnings, payload and CSV unchanged. See
+   "Driver-Based DCF (v2): evidence-led forecast entry" in [`decisions.md`](decisions.md) and
+   [`MODELING_CONVENTIONS.md`](MODELING_CONVENTIONS.md).
+
 ## Later
 
 Reasonable follow-ups, not yet scheduled:
+
+- **Driver sensitivity (tornado chart)** — the existing sensitivity grid is WACC x terminal
+  growth only, so in Driver mode the drivers themselves receive no sensitivity treatment at
+  all. One endpoint reusing `run_driver_dcf` (six drivers x two directions = twelve extra
+  valuations) plus one chart; the perturbation convention (a uniform +/-1pp, transparently
+  labeled, rather than scaling to each driver's own historical dispersion) is the decision to
+  make when it is scoped. Deliberately deferred out of the v2 input milestone: fix the inputs
+  before adding a sensitivity surface over assumptions the analyst did not trust entering.
+- **Two-way Revenue Growth x EBIT Margin sensitivity table** — after the tornado settles the
+  axis-delta convention. Must inherit the documented axis-inversion handling for a
+  non-positive final-year UFCF.
 
 - **Driver-Based DCF: NOL carryforward** — v1's cash-tax convention (`max(EBIT, 0) × rate`)
   gives a loss year no tax benefit against a later profitable one; modeling actual net
@@ -89,6 +109,21 @@ Reasonable follow-ups, not yet scheduled:
 - **Contextual (currency/macro-aware) terminal-growth plausibility guidance** — needs a real
   reference-rate data source before it can be more than another hard-coded universal
   threshold; static methodology text covers this for now.
+
+## Rejected
+
+Evaluated and deliberately not built. Recorded so the question does not get re-opened without
+new evidence.
+
+- **Historical share-price vs. revenue-growth correlation / "revenue beta"** (2026-09-03) —
+  four annual observations cannot support a regression; share prices respond to surprises
+  against expectations rather than realised reported growth; "beta" already means covariance
+  with the market; and the app holds one dated price with no time series, so it would need a
+  new provider for a statistic that is not credible. Reverse DCF already answers the honest
+  version of the question. See "Driver-Based DCF (v2)" in [`decisions.md`](decisions.md).
+- **Frontend forecast preview duplicating the backend projection** (2026-09-03) — the backend
+  remains the sole implementation of `project_driver_years`; two implementations of one
+  formula drift. Per-year cash flows are read from the post-run forecast schedule.
 
 ## Parked
 

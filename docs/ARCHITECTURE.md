@@ -163,17 +163,36 @@ returns the same `DcfSensitivityResults` shape. New routes: `POST /api/dcf/drive
 (`DriverDCFInputs` → `DcfSensitivityResults`) — no `/driver-implied-growth` route exists;
 Reverse DCF stays Quick DCF-only (see `MODELING_CONVENTIONS.md`).
 
-Frontend: `frontend/src/features/dcf/driverSchedule.js` (pure helpers — resizing the per-year
-array to the shared forecast length, the "type once, override any year" broadcast, building
-the request payload, the `driverInputsError` completeness check covering every field that
-payload converts — which the Run Valuation and scenario-comparison paths must pass before any
-request is made, and which `buildDriverPayload` also enforces itself by throwing — and the
-read-only "Last Actual" historical reference row) and
-`DriverScheduleBuilder.jsx` (the full-width table itself, rendered above the three-column
-`analytical-row` grid in `DcfValuation.jsx` — the same full-width-panel slot `CostcoDemoPanel`
-already uses, not squeezed into the narrow Assumptions column). `DcfValuation.jsx` holds
-`forecastMode` (`'quick' | 'driver'`) and Driver mode's own `driverForm`/`driverResults`/
-`driverSensitivity` state, entirely separate from Quick DCF's — switching modes is an
+Frontend: two pure modules plus one component, with all state held by `DcfValuation.jsx`.
+
+`driverSchedule.js` — resizing the per-year array to the shared forecast length, building the
+request payload, the `driverInputsError` completeness check covering every field that payload
+converts (which the Run Valuation and scenario-comparison paths must pass before any request is
+made, and which `buildDriverPayload` also enforces itself by throwing), the Flat/Fade/Custom row
+mode generators (`setFlatValue`, `setFadeEndpoint`, `fadeValues`, `applyRowMode`,
+`resizeDriverYearsWithModes`), `forecastYearLabels`, and `buildBaseForecast`/`clearSeededRows`
+for the Initialize Forecast action.
+
+`driverHistory.js` — per-driver historical evidence from the already-loaded sourced periods:
+observations, exclusions with stated reasons, the normalized reference statistic (median, or
+aggregate ΣΔNWC ÷ ΣΔRevenue for working capital), and the reliability classification that
+decides whether a driver may be seeded at all. Pure and network-free; it reads
+`CompanyData.periods` and computes ratios only. **No part of the frontend reproduces
+`project_driver_years`** — the backend remains the sole implementation of the projection
+arithmetic, and per-year cash flows are read from the post-run forecast schedule rather than
+previewed client-side.
+
+Row modes are UI-level generators over the same `driverYears` array the API has always
+received, so the payload, warnings, scenario save/load and CSV export are unaffected by them; a
+seeded schedule and a hand-typed identical one produce byte-identical payloads.
+
+`DriverScheduleBuilder.jsx` — the full-width panel itself (evidence and mode columns, the
+per-year grid revealed by Custom mode, the Initialize Forecast plan, and the methodology
+disclosure), rendered above the three-column `analytical-row` grid in `DcfValuation.jsx` — the
+same full-width-panel slot `CostcoDemoPanel` already uses, not squeezed into the narrow
+Assumptions column. `DcfValuation.jsx` holds `forecastMode` (`'quick' | 'driver'`) and Driver
+mode's own `driverForm` (base-year revenue, `driverYears`, `rowModes`, `seededFields`) plus
+`driverResults`/`driverSensitivity` state, entirely separate from Quick DCF's — switching modes is an
 explicit reset of every result/sensitivity/reverse/explain-relevant piece of state (never a
 stale flag), so a Quick-mode number can never render under Driver-mode framing or vice versa.
 `activeResults`/`activeSensitivity`/`activeError`/`activeResultsStale` are mode-aware

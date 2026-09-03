@@ -2,10 +2,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   EMPTY_DRIVER_YEAR,
-  broadcastDriverField,
   buildDriverPayload,
   driverInputsError,
-  lastActualDriverReference,
   resizeDriverYears,
 } from './driverSchedule.js'
 
@@ -53,30 +51,6 @@ test('resizeDriverYears: negative or non-numeric target clamps to zero years', (
   assert.equal(resizeDriverYears([{ ...EMPTY_DRIVER_YEAR }], NaN).length, 0)
 })
 
-test('broadcastDriverField: overwrites one field on every year, leaving other fields untouched', () => {
-  const years = [
-    { ...EMPTY_DRIVER_YEAR, revenueGrowthRate: '10', ebitMargin: '20' },
-    { ...EMPTY_DRIVER_YEAR, revenueGrowthRate: '8', ebitMargin: '22' },
-  ]
-  const result = broadcastDriverField(years, 'revenueGrowthRate', '5')
-  assert.equal(result[0].revenueGrowthRate, '5')
-  assert.equal(result[1].revenueGrowthRate, '5')
-  assert.equal(result[0].ebitMargin, '20') // untouched
-  assert.equal(result[1].ebitMargin, '22') // untouched
-})
-
-test('broadcastDriverField: a later individual edit is not overwritten back by a stale broadcast', () => {
-  let years = broadcastDriverField(
-    [{ ...EMPTY_DRIVER_YEAR }, { ...EMPTY_DRIVER_YEAR }],
-    'taxRate',
-    '25',
-  )
-  // Analyst overrides year 2 only, exactly the "type once, override any year" workflow.
-  years = years.map((y, i) => (i === 1 ? { ...y, taxRate: '30' } : y))
-  assert.equal(years[0].taxRate, '25')
-  assert.equal(years[1].taxRate, '30')
-})
-
 test('buildDriverPayload: converts percent-entered strings to decimals and numbers throughout', () => {
   const payload = buildDriverPayload(
     '1000',
@@ -106,89 +80,7 @@ test('buildDriverPayload: converts percent-entered strings to decimals and numbe
   assert.equal(payload.diluted_shares_outstanding, 100)
 })
 
-// --- lastActualDriverReference: every cell independently guarded against n/a conditions ---
-
-test('lastActualDriverReference: computes all six ratios from two clean sourced periods', () => {
-  const companyData = {
-    periods: [
-      {
-        revenue: 1100,
-        ebit: 220,
-        effective_tax_rate: 0.25,
-        depreciation_and_amortization: 44,
-        capital_expenditures: 55,
-        change_in_nwc: 10,
-      },
-      { revenue: 1000 },
-    ],
-  }
-  const ref = lastActualDriverReference(companyData)
-  assert.equal(ref.revenueGrowthPct, 10) // (1100-1000)/1000
-  assert.equal(ref.marginPct, 20) // 220/1100
-  assert.equal(ref.taxRatePct, 25) // 0.25 -> 25%
-  assert.equal(ref.daPct, 4) // 44/1100
-  assert.equal(ref.capexPct, 5) // 55/1100
-  assert.equal(ref.nwcInvestmentPct, 10) // 10/(1100-1000)
-})
-
-test('lastActualDriverReference: fewer than two periods is n/a for every cell', () => {
-  const ref = lastActualDriverReference({ periods: [{ revenue: 1000 }] })
-  assert.deepEqual(ref, {
-    revenueGrowthPct: null,
-    marginPct: null,
-    taxRatePct: null,
-    daPct: null,
-    capexPct: null,
-    nwcInvestmentPct: null,
-  })
-})
-
-test('lastActualDriverReference: no companyData at all is n/a for every cell, not a crash', () => {
-  const ref = lastActualDriverReference(null)
-  assert.equal(ref.revenueGrowthPct, null)
-  assert.equal(ref.nwcInvestmentPct, null)
-})
-
-test('lastActualDriverReference: zero prior revenue makes revenue growth n/a, never Infinity', () => {
-  const companyData = { periods: [{ revenue: 1100 }, { revenue: 0 }] }
-  const ref = lastActualDriverReference(companyData)
-  assert.equal(ref.revenueGrowthPct, null)
-})
-
-test('lastActualDriverReference: zero revenue change makes NWC-investment % n/a, never divide-by-zero', () => {
-  const companyData = {
-    periods: [{ revenue: 1000, change_in_nwc: 10 }, { revenue: 1000 }],
-  }
-  const ref = lastActualDriverReference(companyData)
-  assert.equal(ref.nwcInvestmentPct, null)
-})
-
-test('lastActualDriverReference: a missing individual field only blanks that one cell', () => {
-  const companyData = {
-    periods: [
-      { revenue: 1100, ebit: null, depreciation_and_amortization: 44, capital_expenditures: 55 },
-      { revenue: 1000 },
-    ],
-  }
-  const ref = lastActualDriverReference(companyData)
-  assert.equal(ref.marginPct, null) // ebit missing
-  assert.equal(ref.revenueGrowthPct, 10) // unaffected by ebit being missing
-  assert.equal(ref.daPct, 4) // unaffected
-})
-
-test('lastActualDriverReference: missing effective_tax_rate is n/a, not zero', () => {
-  const companyData = { periods: [{ revenue: 1100, effective_tax_rate: null }, { revenue: 1000 }] }
-  const ref = lastActualDriverReference(companyData)
-  assert.equal(ref.taxRatePct, null)
-})
-
-test('lastActualDriverReference: never fabricates a value for a non-finite intermediate', () => {
-  const companyData = { periods: [{ revenue: Infinity, ebit: 1 }, { revenue: 1000 }] }
-  const ref = lastActualDriverReference(companyData)
-  assert.equal(ref.marginPct, null)
-})
-
-// --- driverInputsError: blank is a missing assumption, zero is a real one -------------------
+// --- driverInputsError: completeness is enforced separately from plausibility ---
 
 const COMPLETE_YEAR = {
   revenueGrowthRate: '8',

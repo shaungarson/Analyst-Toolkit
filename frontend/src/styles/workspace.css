@@ -1688,17 +1688,307 @@
   min-width: 11rem;
 }
 
-.driver-last-actual-col,
-.driver-broadcast-col {
-  color: var(--text);
-  background: var(--bg);
-}
-
-.driver-broadcast-col input {
-  border-style: dashed;
-}
-
 .driver-explain-note {
   font-size: 0.85rem;
   color: var(--text);
+}
+
+/* --- Forecast Drivers: evidence, seeding, and row modes --------------------------------
+   The per-year grid is now what Custom mode reveals, so the columns that matter most on
+   first read are the historical evidence and the row's mode - both sit left of the year
+   columns and stay visible while a 15-year Custom row scrolls. */
+
+.driver-fy-basis {
+  font-size: 0.72rem;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0.1rem 0.4rem;
+}
+
+.driver-schedule-actions {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+
+.driver-initialize-btn {
+  padding: 0.35rem 0.8rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--accent);
+  color: #fff;
+  white-space: nowrap;
+}
+
+.driver-initialize-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* A button that reads as inline prose - used for the methodology disclosure and the
+   one-time terminal-growth action, neither of which deserves a full button's weight. */
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.link-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
+.driver-blocked-note {
+  color: var(--text);
+  font-style: italic;
+}
+
+.driver-methodology {
+  border-left: 3px solid var(--border);
+  padding: 0.1rem 0 0.1rem 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.driver-methodology p {
+  font-size: 0.8rem;
+  color: var(--text);
+  margin: 0.5rem 0;
+}
+
+/* Initialize Forecast never writes anything until this plan has been shown and accepted. */
+.driver-initialize-plan {
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+  background: var(--bg);
+}
+
+.driver-initialize-plan h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.9rem;
+}
+
+.driver-initialize-plan h4 {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+
+.driver-initialize-plan p {
+  font-size: 0.8rem;
+  color: var(--text);
+  margin: 0 0 0.5rem;
+}
+
+.driver-plan-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+.driver-plan-list li {
+  margin-bottom: 0.2rem;
+}
+
+.driver-plan-basis {
+  color: var(--text);
+  opacity: 0.8;
+}
+
+.driver-plan-refusals strong {
+  color: var(--loss);
+}
+
+.driver-plan-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.driver-seed-banner {
+  font-size: 0.8rem;
+  color: var(--text);
+  border-left: 3px solid var(--prov-calculated);
+  padding: 0.35rem 0 0.35rem 0.6rem;
+  margin: 0 0 0.6rem;
+}
+
+/* A seeded value is historical-derived, not sourced and not the analyst's own judgement -
+   a third provenance state, deliberately not folded into the Sourced/Adjusted/Analyst Input
+   badge vocabulary, which describes something else. */
+.driver-seed-badge {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.3rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: 1px solid var(--prov-calculated);
+  border-radius: 3px;
+  color: var(--prov-calculated);
+  white-space: nowrap;
+}
+
+.driver-history-col {
+  min-width: 12rem;
+  white-space: normal;
+}
+
+.driver-observations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  font-size: 0.72rem;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Each observation carries its own visible fiscal-year-end label above the value, so the
+   series is readable without hovering - and still prints. */
+.driver-observation {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.15;
+}
+
+.driver-observation-year {
+  font-size: 0.62rem;
+  color: var(--text);
+  opacity: 0.7;
+}
+
+.driver-observation-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.driver-observations-empty {
+  font-style: italic;
+  opacity: 0.8;
+}
+
+.driver-reference {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+.driver-reliability {
+  margin-left: 0.35rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.driver-reliability--thin {
+  color: var(--flag);
+}
+
+.driver-reliability--unstable,
+.driver-reliability--insufficient {
+  color: var(--loss);
+}
+
+.driver-excluded-count {
+  margin-left: 0.35rem;
+  font-size: 0.65rem;
+  font-weight: 400;
+  color: var(--text);
+  opacity: 0.85;
+}
+
+.driver-note-row td {
+  font-size: 0.76rem;
+  color: var(--text);
+  white-space: normal;
+  padding-top: 0;
+}
+
+.driver-note-row .driver-note-text,
+.driver-note-row .driver-excluded-detail {
+  margin-left: 0.35rem;
+}
+
+.driver-excluded-detail {
+  display: inline-block;
+  opacity: 0.85;
+}
+
+.driver-mode-col {
+  min-width: 10rem;
+}
+
+.driver-mode-switch {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.driver-mode-switch button {
+  padding: 0.2rem 0.45rem;
+  font-size: 0.72rem;
+  border: none;
+  border-right: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.driver-mode-switch button:last-child {
+  border-right: none;
+}
+
+.driver-mode-switch button.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.driver-generated-cell {
+  white-space: normal;
+}
+
+.driver-generated-inputs {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.driver-generated-inputs label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  color: var(--text);
+}
+
+.driver-fade-arrow {
+  color: var(--text);
+}
+
+/* The driver values the mode generated - the assumptions themselves, not a projection.
+   Cash flows are only ever computed by the backend. */
+.driver-generated-preview {
+  font-size: 0.72rem;
+  color: var(--text);
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
 }

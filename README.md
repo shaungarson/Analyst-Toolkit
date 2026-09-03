@@ -110,12 +110,28 @@ see [`docs/decisions.md`](docs/decisions.md).*
 - **Two forecast-entry modes, one shared valuation engine:** Quick DCF projects Unlevered FCF
   from a base year at a flat annual growth rate; Driver-Based DCF builds the same annual FCF
   schedule year-by-year from revenue → margin → tax → D&A → CapEx → working-capital drivers
-  instead, with a full-width per-year table (type once to fill every year, then override any
-  individual year) and a read-only "Last Actual" row for historical context. Both modes hand
-  their schedule to the identical discounting/terminal-value/valuation core — never two
-  competing implementations. No hard-coded ceiling or floor on any driver value; economically
-  unusual assumptions (a tax rate outside 0–100%, a forecast year with zero or negative
-  revenue) surface as specific, visible warnings instead of being blocked.
+  instead. Both modes hand their schedule to the identical
+  discounting/terminal-value/valuation core — never two competing implementations. No
+  hard-coded ceiling or floor on any driver value; economically unusual assumptions (a tax
+  rate outside 0–100%, a forecast year with zero or negative revenue) surface as specific,
+  visible warnings instead of being blocked.
+- **Evidence-led driver forecasting:** each driver row shows its own annual history from the
+  sourced periods, plus a normalized reference statistic — no standard deviations or
+  confidence intervals, which five observations cannot support. An explicit **Initialize
+  Forecast** action seeds a starting schedule from that history, but only after showing
+  exactly what it will set and on what basis; generated values are badged as
+  historical-derived starting points, never as forecasts the app endorses, and revert to the
+  analyst's own the moment a row is edited, and the whole schedule clears on any company load
+  except a reload of the same identified ticker. A driver whose history is too thin, unstable, or built on a denominator
+  that nearly cancels is **refused rather than seeded**, with the reason stated and the
+  underlying observations still shown — never silently backfilled from the latest year or from
+  zero. Each row also reports which periods were excluded from its statistic and why, and
+  observations carry visible fiscal-year labels rather than tooltips.
+  Each row is then edited as **Flat** (one value), **Fade** (a straight line from a Year 1
+  value to a final-year target), or **Custom** (the full per-year grid, now an advanced
+  schedule editor rather than the primary entry path). Forecast columns carry real fiscal-year
+  labels (FY2027E) whenever the sourced fiscal period supports one unambiguously, and generic
+  Year 1…N labels when it does not.
 - Gordon Growth terminal value, with WACC and terminal growth as direct inputs
 - Enterprise value → equity value → value per share bridge, shown as a proportional value
   bridge visualization
