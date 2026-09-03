@@ -1,41 +1,36 @@
 # Analyst Toolkit — Progress
 
 **Last verified:** 2026-09-03 (Driver-Based DCF: standardized ±1pp driver sensitivity —
-tornado, after a correction pass). **Not yet committed, and not yet deployed.** Verified locally
-only: backend 216 tests (26 new), frontend 223 tests (25 new), lint and production build clean.
+tornado). Committed as `a4430ce`, CI run #28 green, **deployed to Vercel and Render and
+production-verified**. Backend 216 tests, frontend 223 tests, lint and production build clean.
 
-Local verification against the running app (Costco demo → Driver-Based → Run Valuation): the
-tornado renders above the WACC × terminal-growth grid with a base of **$263.25/share**, matching
-the previously production-verified Driver Base Case; `POST /api/dcf/driver-tornado` returns 200
-and the browser console stays clean. All six drivers rank by tested range — **D&A and CapEx tied
-at the top ($284.21)**, then EBIT Margin ($214.43), Revenue Growth ($29.29), Tax Rate ($9.75),
-NWC Investment ($8.31). D&A's **−1pp endpoint is marked `caution · Negative D&A % (yrs 1-5)`**,
-the only flagged endpoint in the run. Both sign reversals render correctly: Tax Rate and NWC
-Investment each have their −1pp endpoint *raising* value, drawn right of the zero line rather
-than forced left. The Fade row summarizes as `7.46% → 2.50% over 5 years` while flat rows show
-`base · tested x and y`, including the negative `-3.00% · tested -4.00% and -2.00%` NWC row.
-Verified in dark and light mode, at 375px (bar column drops, every value, tested path and
-warning retained, no horizontal overflow), and under the print rules (bars solid black via
-`print-color-adjust`, warning tier as an outlined black badge, all text black on white).
+Production verification against the live app: the Costco demo activated and switched to
+Driver-Based, with `performance` showing exactly three backend calls — `driver-valuation`,
+`driver-sensitivity` and **`driver-tornado` (104 ms on Render)** — and **no `/api/company/`
+request at all**, so the demo stays provider-independent. Run Valuation returned
+**$263.25/share**, matching the previously production-verified Driver Base Case, with the
+tornado rendering above the WACC × terminal-growth grid and ranking every driver by tested
+range: **D&A and CapEx tied at the top** (−$142.10 / +$142.10 each, mirrored), then EBIT Margin
+(−$107.21 / +$107.22), Revenue Growth (−$14.31 / +$14.97), Tax Rate (+$4.88 / −$4.87) and NWC
+Investment (+$4.16 / −$4.16). D&A's **−1pp endpoint is marked `caution · Negative D&A %
+(yrs 1-5)`** — the only flagged endpoint in the run, and the one that drives the top-ranked
+row. Both sign reversals render correctly: Tax Rate and NWC Investment each have their −1pp
+endpoint *raising* value, drawn right of the zero line rather than forced left. The Fade row
+summarizes as `7.46% → 2.50% over 5 years`; flat rows show `base · tested x and y`, including
+the negative `-3.00% · tested -4.00% and -2.00%` NWC row. Mode-switch lifecycle confirmed live:
+switching to Quick DCF clears the tornado, switching back does not resurrect it from stale
+state, and a fresh Run Valuation restores it with its warning mark intact. Lane labels stay
+clear of the bars and the page never scrolls horizontally. Browser console clean throughout.
 
 ## Current Milestone
 
-**Driver-Based DCF: ±1pp driver sensitivity (tornado) — built, corrected, and locally verified;
-awaiting commit and deploy.** One bounded milestone: one backend calculation, one route, one
-chart. The valuation engine, warning tiers, completeness rules and shared valuation core are
-untouched — `run_driver_dcf` is called thirteen times rather than reimplemented. Full design and
-verification record:
+**None in progress.** The Driver-Based ±1pp sensitivity tornado (see below) is complete,
+committed, deployed, and production-verified. One bounded milestone: one backend calculation,
+one route, one chart. The valuation engine, warning tiers, completeness rules and shared
+valuation core are untouched — `run_driver_dcf` is called thirteen times rather than
+reimplemented. Full design and verification record:
 [`docs/decisions.md`](docs/decisions.md#driver-based-dcf-standardized-1pp-driver-sensitivity-tornado);
 methodology: [`docs/MODELING_CONVENTIONS.md`](docs/MODELING_CONVENTIONS.md).
-
-A review pass then corrected four things before commit: the ranking metric now spans the base
-value and both endpoints (`tested_range`) rather than the two endpoints alone, which had ranked
-a same-side driver as though it moved nothing; endpoints that introduce a driver warning the
-base case does not already raise are now marked on the chart rather than deferred to the
-roadmap; copy calling any driver "single-year" was removed (all six shift in every forecast
-year — revenue growth differs by compounding the revenue base forward, not by frequency); and
-the per-row visually-hidden summary was dropped, since the native table already announces the
-same figures.
 
 ## Blockers / Frozen Areas
 
@@ -60,7 +55,8 @@ same figures.
   readable without hover, the table's own semantics carrying accessibility with no duplicated
   summary, no chart library and deliberately no shared charting layer yet). WACC and terminal
   growth excluded as non-drivers, with a neutral pointer to their own grid that claims nothing
-  about relative magnitude. **Not yet committed or deployed** —
+  about relative magnitude. Committed `a4430ce`, CI run #28 green, deployed and
+  production-verified (see Last verified above) —
   [decisions.md](docs/decisions.md#driver-based-dcf-standardized-1pp-driver-sensitivity-tornado)
 - 2026-09-03 — **Costco demo: a provider-independent Driver Base Case.** Reverses v1's
   Quick-only restriction — the demo now populates a complete, deterministic five-year Driver
@@ -130,15 +126,13 @@ same figures.
 
 ## Next Actions
 
-1. Commit and deploy the tornado milestone, then production-verify it against the live app the
-   way every prior milestone was.
-2. Driver-Based follow-ups in [`docs/ROADMAP.md`](docs/ROADMAP.md)'s Later column: the two-way
+1. Driver-Based follow-ups in [`docs/ROADMAP.md`](docs/ROADMAP.md)'s Later column: the two-way
    **Revenue Growth × EBIT Margin** table (the tornado has now settled the perturbation
    convention it was waiting on), and **Quick DCF FCF-growth sensitivity**, which no existing
    surface covers.
-3. Separately raised and deliberately not bundled into this commit: the **Seeded →
+2. Separately raised and deliberately not bundled into the tornado commit: the **Seeded →
    History-informed** terminology change on driver badges.
-4. Real estate: no action planned until the user has the CRE-professional conversation.
+3. Real estate: no action planned until the user has the CRE-professional conversation.
 
 ## See Also
 
