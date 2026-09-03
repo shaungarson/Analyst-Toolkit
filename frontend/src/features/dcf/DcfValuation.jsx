@@ -18,6 +18,7 @@ import { companyDataToSourcedFields, sourceableFieldBadgeType } from './companyD
 import { historicalCagr } from './historicalGrowth'
 import { explainValuation } from './explainValuation'
 import DriverScheduleBuilder from './DriverScheduleBuilder'
+import DriverTornadoChart from './DriverTornadoChart'
 import {
   applyRowMode,
   buildBaseForecast,
@@ -217,6 +218,10 @@ function DcfValuation() {
   const [driverSourcedSnapshot, setDriverSourcedSnapshot] = useState(null)
   const [driverResults, setDriverResults] = useState(null)
   const [driverSensitivity, setDriverSensitivity] = useState(null)
+  // Same lifecycle as driverSensitivity in every respect - supplementary, Driver-mode
+  // only, best-effort on fetch, and cleared wherever driverResults is - so the two are
+  // always reset together below rather than tracked independently.
+  const [driverTornado, setDriverTornado] = useState(null)
   const [driverResultsStale, setDriverResultsStale] = useState(false)
   const [driverError, setDriverError] = useState(null)
 
@@ -309,6 +314,7 @@ function DcfValuation() {
     setDriverResults(null)
     setDriverResultsStale(false)
     setDriverSensitivity(null)
+    setDriverTornado(null)
     setDriverError(null)
     setComparison(null)
   }
@@ -420,6 +426,7 @@ function DcfValuation() {
       setDriverResults(null)
       setDriverResultsStale(false)
       setDriverSensitivity(null)
+      setDriverTornado(null)
       setDriverError(null)
 
       // Every key companyDataToSourcedFields returns is always set - to this company's real
@@ -493,6 +500,7 @@ function DcfValuation() {
     setDriverResults(null)
     setDriverResultsStale(false)
     setDriverSensitivity(null)
+    setDriverTornado(null)
     setDriverError(null)
     setResults(null)
     setResultsStale(false)
@@ -557,6 +565,7 @@ function DcfValuation() {
     setDriverResults(null)
     setDriverResultsStale(false)
     setDriverSensitivity(null)
+    setDriverTornado(null)
     setDriverError(null)
     setShowInitializePlan(false)
     setDriverForm((prev) => ({
@@ -959,11 +968,13 @@ function DcfValuation() {
       setDriverResults(null)
       setDriverResultsStale(false)
       setDriverSensitivity(null)
+      setDriverTornado(null)
       return
     }
 
     setLoading(true)
     setDriverSensitivity(null)
+    setDriverTornado(null)
     try {
       const payload = buildDriverPayload(driverForm.baseYearRevenue, driverForm.driverYears, form)
       const res = await fetch(`${API_BASE}/api/dcf/driver-valuation`, {
@@ -993,6 +1004,23 @@ function DcfValuation() {
         }
       } catch {
         // Sensitivity grid is supplementary; leave it blank on failure.
+      }
+
+      // Same best-effort treatment again, and deliberately a separate request rather than
+      // part of the valuation call: the tornado is twelve extra valuations plus its own
+      // base, so a slow or failed run of it must never delay or invalidate the headline
+      // result that has already been installed above.
+      try {
+        const tornadoRes = await fetch(`${API_BASE}/api/dcf/driver-tornado`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        if (tornadoRes.ok) {
+          setDriverTornado(await tornadoRes.json())
+        }
+      } catch {
+        // Driver tornado is supplementary; leave it out on failure.
       }
     } finally {
       setLoading(false)
@@ -1821,6 +1849,9 @@ function DcfValuation() {
 
           <div className={analysisTab === 'sensitivity' ? 'analysis-outputs-row' : 'analysis-outputs-row no-screen'}>
             <div className="sensitivity-panel">
+              {/* Above the WACC x terminal-growth grid, and Driver mode only - the six
+                  operating drivers it measures exist only in this mode. */}
+              {forecastMode === 'driver' && <DriverTornadoChart tornado={driverTornado} />}
               {activeSensitivity ? (
                 <>
                   <h3>Sensitivity: Value per Share by WACC &amp; Terminal Growth</h3>

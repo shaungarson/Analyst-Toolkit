@@ -2109,3 +2109,228 @@
   opacity: 0.85;
   font-variant-numeric: tabular-nums;
 }
+
+/* --- Driver sensitivity tornado ------------------------------------------------- */
+/* A real data table with a bar column, not a standalone graphic - the same approach the
+   sensitivity heatmap takes. Every endpoint value and delta is text in a cell, so nothing
+   is hover-only and there is no separate "accessible copy" of the same numbers to keep in
+   sync. Bars are positioned in percentages against a track whose zero line sits at 50%,
+   so the chart is fluid at any width without a breakpoint of its own (library-free, same
+   convention as .trend-chart-* and .vb-*). */
+
+.tornado {
+  margin-bottom: 1.1rem;
+}
+
+.tornado-base {
+  color: var(--text);
+  font-size: 0.82rem;
+  margin: 0.2rem 0 0.6rem;
+}
+
+.tornado-table {
+  width: 100%;
+}
+
+/* The bar column is the one that should absorb spare width - the numeric columns are
+   fixed-content and the driver column wraps its own path summary. */
+.tornado-bars-head {
+  width: 42%;
+}
+
+.tornado-driver {
+  text-align: left;
+  font-weight: 500;
+  vertical-align: middle;
+  white-space: normal;
+}
+
+.tornado-driver-name {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-h);
+}
+
+.tornado-driver-path {
+  display: block;
+  color: var(--text);
+  font-size: 0.74rem;
+  font-weight: 400;
+  margin-top: 0.1rem;
+}
+
+.tornado-incomplete-badge {
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  color: var(--flag);
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0 0.24rem;
+  text-transform: uppercase;
+}
+
+.tornado-row--incomplete .tornado-driver-name {
+  color: var(--text);
+}
+
+/* --- Bars --- */
+
+.tornado-bars {
+  padding: 0.3rem 0.5rem;
+  vertical-align: middle;
+}
+
+.tornado-track {
+  position: relative;
+  --tornado-label-gutter: 34px;
+}
+
+/* Offset by the label gutter so the zero line lands on the centre of the plot area, not
+   the centre of the whole track. One continuous line across both lanes rather than a
+   per-lane segment, which the 2px inter-lane gap would visibly break. */
+.tornado-zero-line {
+  position: absolute;
+  left: calc(var(--tornado-label-gutter) + (100% - var(--tornado-label-gutter)) / 2);
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--border);
+}
+
+/* Two half-height lanes per driver rather than one bar spanning endpoint to endpoint: the
+   two tested endpoints can legitimately fall on the same side of base, which a single
+   spanning bar would either hide or draw on top of itself. */
+.tornado-lane {
+  display: flex;
+  align-items: stretch;
+  height: 13px;
+}
+
+.tornado-lane + .tornado-lane {
+  margin-top: 2px;
+}
+
+/* Its own fixed column, not an overlay on the plot - a bar at the far left of the scale
+   would otherwise sit on top of the label naming it. */
+.tornado-lane-label {
+  flex: 0 0 var(--tornado-label-gutter);
+  color: var(--text);
+  font-size: 0.62rem;
+  line-height: 13px;
+  opacity: 0.7;
+}
+
+.tornado-lane-plot {
+  position: relative;
+  flex: 1 1 auto;
+}
+
+.tornado-bar {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  border-radius: 1px;
+}
+
+.tornado-bar--up {
+  background: var(--gain);
+}
+
+.tornado-bar--down {
+  background: var(--loss);
+}
+
+/* --- Endpoint value columns --- */
+
+.tornado-endpoint {
+  text-align: right;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.tornado-endpoint-value {
+  display: block;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+.tornado-endpoint-delta {
+  display: block;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.tornado-endpoint--null .tornado-endpoint-value,
+.tornado-endpoint--null .tornado-endpoint-delta {
+  color: var(--text);
+  opacity: 0.75;
+}
+
+/* An endpoint whose standardized shift moved the driver into territory the engine warns
+   about. Real text, not an icon or a colour alone: tier, short name and affected years are
+   all readable without hovering, since the endpoint is shown as tested rather than clamped
+   and the reader has to be able to see why it is flagged. */
+.tornado-endpoint-warnings {
+  display: block;
+  margin-top: 0.22rem;
+}
+
+.tornado-endpoint-warning {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.22rem;
+  font-size: 0.68rem;
+  line-height: 1.25;
+  text-align: right;
+  white-space: normal;
+}
+
+.tornado-endpoint-warning + .tornado-endpoint-warning {
+  margin-top: 0.14rem;
+}
+
+.tornado-endpoint-warning-tier {
+  border-radius: 2px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0 0.24rem;
+  text-transform: uppercase;
+}
+
+.tornado-endpoint-warning-text {
+  color: var(--text);
+}
+
+/* Matches the tier vocabulary the driver warnings under the Value Bridge already use, so a
+   "caution" on the chart and a "caution" below it mean the same thing. */
+.tornado-endpoint-warning--caution .tornado-endpoint-warning-tier {
+  background: var(--panel-bg);
+  color: var(--flag);
+  border: 1px solid var(--border);
+}
+
+.tornado-endpoint-warning--high .tornado-endpoint-warning-tier,
+.tornado-endpoint-warning--extreme .tornado-endpoint-warning-tier {
+  background: var(--flag);
+  color: var(--bg);
+}
+
+.tornado-endpoint--warned .tornado-endpoint-value {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: var(--flag);
+  text-underline-offset: 2px;
+}
+
+@media (max-width: 720px) {
+  /* The bar column is the first thing worth losing on a narrow screen - it's a second
+     reading of the numbers in the columns beside it, so dropping it costs no data. */
+  .tornado-bars,
+  .tornado-bars-head {
+    display: none;
+  }
+}

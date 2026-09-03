@@ -1421,3 +1421,99 @@ the `-3` NWC cell - survived the round trip untouched; and typing COST into the 
 and clicking Load Company while the demo was active fetched the live company, cleared every
 Seeded badge, and blanked the schedule rather than inheriting it. Browser console clean
 throughout.
+
+## Driver-Based DCF: standardized ±1pp driver sensitivity (tornado)
+**Status:** Accepted
+
+The first sensitivity treatment of the Driver-Based mode's own drivers — until now the only
+sensitivity surface was the WACC × terminal-growth grid, which tests two assumptions that
+aren't drivers at all. Deliberately deferred out of the v2 input milestone on the principle of
+fixing the inputs before adding a sensitivity surface over assumptions the analyst didn't trust
+entering; scoped and built only once that had settled. Full methodology:
+`MODELING_CONVENTIONS.md`'s "Driver-Based DCF: standardized ±1pp driver sensitivity (tornado)".
+
+**Scope was bounded deliberately and held.** Sensitivity-cell adoption ("click a cell to load
+those assumptions"), scroll-to-driver interaction, the history→forecast continuity chart, the
+UFCF build-up waterfall, and the PV-composition stack were all proposed alongside this and all
+explicitly excluded. One chart, one endpoint, one milestone.
+
+**No charting library, and no shared charting layer either.** The no-library decision follows
+the existing convention (`ValueBridge`, `HistoricalTrendCharts`, the sensitivity heatmap). The
+second half is a correction to the original proposal, which had wanted a shared
+`chartScale.js` primitive layer up front: that would have designed an abstraction from a single
+instance, before knowing whether a tornado and a waterfall share any geometry — they largely
+don't (a tornado is one band scale centred on zero; a waterfall is cumulative step arithmetic).
+Geometry helpers live in `driverTornado.js`, chart-specific and unit-tested, and a common layer
+gets extracted when a second chart proves what is actually reusable.
+
+**Drawn as a real table with a bar column, not as a standalone graphic** — the same structure
+the sensitivity heatmap uses. This is what makes "exact values without hover" and "a complete
+accessible equivalent" the same artifact rather than two copies of the same numbers kept in
+sync: every endpoint value, delta and newly-triggered warning is text in a cell, only the bars
+are `aria-hidden`, and the whole thing survives print with its data intact.
+
+An earlier draft additionally gave each row a visually-hidden summary sentence. That was
+removed: the native table already exposes the row header, the tested-path summary, the column
+headers and the cell values, so the extra sentence made assistive technology announce the same
+figures twice. Semantic table structure *is* the accessible presentation here — a parallel text
+equivalent is what you add when the visual is a graphic, and this one deliberately is not.
+
+**Two half-height lanes per driver rather than one bar spanning endpoint to endpoint.** A
+single spanning bar cannot represent two endpoints that fall on the same side of base — it
+would either hide that or draw the two on top of each other. Each lane's direction comes from
+the sign of its own delta, never from which endpoint it is.
+
+**Ranked on the range across base and both endpoints, not the endpoint-to-endpoint distance.**
+The same-side case that motivated two lanes also breaks an endpoint-only ranking metric: when
+both endpoints land on the same side of base — and, at the `max(EBIT, 0)` kink, land on
+*exactly the same value* — the endpoint distance collapses to zero and ranks a driver that
+genuinely moved the valuation in both directions dead last. Including the base value in the
+range (`max(base, -1pp, +1pp) - min(...)`) fixes that while being provably identical in the
+ordinary straddling case, so it is not a silent re-ranking of normal companies; a test asserts
+that equivalence explicitly. The API field is named `tested_range` rather than `span` so the
+name describes what is actually measured.
+
+**Lane labels sit in their own gutter, not over the plot.** Caught in live verification, not in
+review: with the labels absolutely positioned at the track's left edge, any bar reaching the
+far left of the scale covered the label naming it — which on the Costco demo meant the top
+three rows. The lane is now a flex row (fixed label column + plot), and the track's zero line
+is offset by the same gutter width to stay on the plot's true centre.
+
+**The ranking's own distortion is disclosed rather than engineered away.** Live verification
+against the Costco demo put D&A and CapEx at the top, ahead of five compounding years of
+revenue growth, purely because 1pp is a ~113% relative move on a 0.88%-of-revenue driver. The
+response was to show each row's tested path (`Flat 0.88% · tested -0.12% and 1.88%`) and state
+the caveat under the chart — not to rescale the shift per driver, which would have replaced a
+legible convention with an opaque one.
+
+**A tested endpoint can be an assumption the engine itself warns about, and is marked rather
+than clamped.** That same D&A row's −1pp endpoint is −0.12%, which `driver_warnings` flags as
+`negative_da_percent` when typed in directly. Clamping it to zero would be a silent economic
+substitution for a computationally well-defined input — the exact failure mode `CLAUDE.md` §6
+names as recurring here — and would also falsify the "standardized ±1pp" claim.
+
+The first draft treated the row's tested-path text (`Flat 0.88% · tested -0.12% and 1.88%`) as
+sufficient disclosure and deferred anything more prominent to the roadmap. That was the wrong
+call on this project's own §5 materiality test: this is not a contrived input but the ordinary
+case for any company with D&A under 1% of revenue, it occurs on the flagship Costco demo, and
+the flagged endpoint drives the chart's **top-ranked row** — so the headline result of the
+visualization was being produced by an assumption the model itself would warn about, with
+nothing but a parenthetical to say so. Each endpoint now returns its own driver warnings,
+diffed against the base case's by `(year, id)` and grouped by id, and any newly introduced
+warning is marked on that endpoint with tier, short name and affected years as visible text.
+Diffing against the base matters in both directions: a warning the analyst's own inputs already
+raise is never attributed to the shift, and one that newly *extends* to further years is still
+caught.
+
+**Rejected in scope:**
+
+- **WACC and terminal growth as two more bars.** Mixing valuation assumptions with operating
+  drivers in one ranked chart conflates two different questions, and ±1pp is a much larger
+  economic move on WACC than on a driver. They keep their own grid; the chart carries a neutral
+  pointer to it ("This ranking covers operating drivers only. WACC and terminal growth are
+  tested separately in the grid below") that deliberately makes **no claim** about which moves
+  value more.
+- **Extending the tornado to Quick DCF.** Not because Quick's assumptions are covered elsewhere
+  — they are not; the existing grid covers only WACC and terminal growth, so Quick DCF's flat
+  FCF growth rate still has no sensitivity treatment of its own. The reason is narrower: this
+  chart measures the six operating drivers, which exist only in Driver mode.

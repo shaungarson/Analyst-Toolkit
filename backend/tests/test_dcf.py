@@ -9,7 +9,10 @@ from app.calculations.dcf import (
     _compute_dcf_core,
     dcf_sensitivity,
     discount_factor,
+    _shift_driver,
     driver_dcf_sensitivity,
+    driver_dcf_tornado,
+    new_endpoint_warnings,
     driver_warnings,
     gordon_growth_converges,
     implied_fcf_growth_rate,
@@ -987,3 +990,390 @@ def test_driver_dcf_inputs_rejects_more_than_fifteen_driver_years():
 def test_driver_dcf_inputs_rejects_non_convergent_wacc_terminal_growth():
     with pytest.raises(ValidationError, match="WACC must be greater than"):
         DriverDCFInputs(**{**DRIVER_VALID_INPUTS, "wacc": 0.02, "terminal_growth_rate": 0.05})
+
+
+# --- Driver sensitivity (tornado) --------------------------------------------------------
+
+TORNADO_OTHER_FIELDS = (
+    "ebit_margin",
+    "tax_rate",
+    "da_pct_of_revenue",
+    "capex_pct_of_revenue",
+    "nwc_investment_pct_of_revenue_change",
+)
+
+# One forecast year, revenue landing exactly on zero at the base case, a 100% tax rate, and
+# no D&A or CapEx. This puts the base case precisely on the max(EBIT, 0) kink, which is what
+# makes both perturbed endpoints land on the SAME side of base - the property the span metric
+# has to survive. Hand-checked: at base revenue 0, FCF is 0 - 0.10 x (0 - 1000) = +100; at
+# -1pp revenue is -10 (EBIT -2, no tax owed) giving FCF 99; at +1pp revenue is +10 (EBIT 2,
+# fully taxed to NOPAT 0) giving FCF 99 as well. Both directions reduce value identically.
+KINK_INPUTS = dict(
+    base_year_revenue=1000,
+    driver_years=[
+        dict(
+            revenue_growth_rate=-1.0,
+            ebit_margin=0.20,
+            tax_rate=1.0,
+            da_pct_of_revenue=0.0,
+            capex_pct_of_revenue=0.0,
+            nwc_investment_pct_of_revenue_change=0.10,
+        )
+    ],
+    wacc=0.10,
+    terminal_growth_rate=0.02,
+    net_debt=0,
+    diluted_shares_outstanding=100,
+)
+
+
+def test_shift_driver_moves_every_forecast_year_and_leaves_other_drivers_untouched():
+    shifted = _shift_driver(DRIVER_YEARS, "revenue_growth_rate", 0.01)
+    # Parallel shift: the fade shape (10% -> 8% -> 6%) is preserved, not flattened.
+    assert [y["revenue_growth_rate"] for y in shifted] == pytest.approx([0.11, 0.09, 0.07])
+    for original, moved in zip(DRIVER_YEARS, shifted):
+        for field in TORNADO_OTHER_FIELDS:
+            assert moved[field] == original[field]
+    # The input list is never mutated - the base case has to stay valuable as given.
+    assert [y["revenue_growth_rate"] for y in DRIVER_YEARS] == pytest.approx([0.10, 0.08, 0.06])
+
+
+def test_driver_tornado_computes_its_own_base_matching_run_driver_dcf():
+    result = driver_dcf_tornado(**DRIVER_VALID_INPUTS)
+    assert result["base_value_per_share"] == run_driver_dcf(**DRIVER_VALID_INPUTS)["value_per_share"]
+    assert result["shift"] == 0.01
+
+
+def test_driver_tornado_covers_each_of_the_six_operating_drivers_exactly_once():
+    result = driver_dcf_tornado(**DRIVER_VALID_INPUTS)
+    assert sorted(row["driver"] for row in result["rows"]) == sorted(
+        [
+            "revenue_growth_rate",
+            "ebit_margin",
+            "tax_rate",
+            "da_pct_of_revenue",
+            "capex_pct_of_revenue",
+            "nwc_investment_pct_of_revenue_change",
+        ]
+    )
+    # WACC and terminal growth are deliberately absent - they aren't operating drivers.
+    assert all(row["driver"] not in ("wacc", "terminal_growth_rate") for row in result["rows"])
+
+
+def test_driver_tornado_reports_the_per_year_path_it_actually_tested():
+    result = driver_dcf_tornado(**DRIVER_VALID_INPUTS)
+    by_driver = {row["driver"]: row for row in result["rows"]}
+    # A varying (fade) row carries its real path, which is exactly why a single
+    # "base -> perturbed" pair can't describe every row in the UI.
+    assert by_driver["revenue_growth_rate"]["base_path"] == pytest.approx([0.10, 0.08, 0.06])
+    # A flat row reads as one repeated value.
+    assert by_driver["ebit_margin"]["base_path"] == pytest.approx([0.20, 0.20, 0.20])
+
+
+def test_driver_tornado_deltas_are_measured_against_the_base_case():
+    result = driver_dcf_tornado(**DRIVER_VALID_INPUTS)
+    base = result["base_value_per_share"]
+    for row in result["rows"]:
+        if row["down_value_per_share"] is not None:
+            assert row["down_delta"] == pytest.approx(row["down_value_per_share"] - base, abs=0.01)
+        if row["up_value_per_share"] is not None:
+            assert row["up_delta"] == pytest.approx(row["up_value_per_share"] - base, abs=0.01)
+
+
+def test_driver_tornado_orders_complete_rows_by_descending_tested_range():
+    rows = driver_dcf_tornado(**DRIVER_VALID_INPUTS)["rows"]
+    assert all(row["complete"] for row in rows)
+    ranges = [row["tested_range"] for row in rows]
+    assert ranges == sorted(ranges, reverse=True)
+
+    by_driver = {row["driver"]: rows.index(row) for row in rows}
+    # A live demonstration of why every row has to disclose its own tested path: on this
+    # fixture D&A and CapEx (4% and 5% of revenue) top the ranking, ahead of three years of
+    # compounding revenue growth, because the same 1pp is a ~25% relative move for them and
+    # a much smaller one for the others. That ordering is correct *given* the standardized
+    # shift - it is not a claim that D&A is the most important assumption in the model.
+    assert rows[0]["driver"] in ("da_pct_of_revenue", "capex_pct_of_revenue")
+
+    # D&A and CapEx enter FCF with equal and opposite weight, so their ranges tie exactly.
+    # Ties resolve to the canonical driver order via a stable sort, never arbitrarily.
+    da, capex = by_driver["da_pct_of_revenue"], by_driver["capex_pct_of_revenue"]
+    assert rows[da]["tested_range"] == rows[capex]["tested_range"]
+    assert da < capex
+
+    # When the endpoints straddle base - the ordinary case - the tested range and the
+    # endpoint-to-endpoint distance agree exactly. They only diverge in the same-side case
+    # covered below, so this metric change is not a silent re-ranking of normal companies.
+    for row in rows:
+        assert row["tested_range"] == pytest.approx(
+            abs(row["up_value_per_share"] - row["down_value_per_share"]), abs=0.01
+        )
+
+
+def test_driver_tornado_tested_range_includes_the_base_when_endpoints_share_a_side():
+    """The regression this metric exists for. At the max(EBIT, 0) kink both perturbed
+    endpoints land on the same side of base and are identical to each other, so an
+    endpoint-to-endpoint measure would collapse to exactly zero and rank this driver last -
+    despite both directions genuinely moving the valuation. Including the base value in the
+    range keeps the real movement visible."""
+    result = driver_dcf_tornado(**KINK_INPUTS)
+    base = result["base_value_per_share"]
+    growth = next(row for row in result["rows"] if row["driver"] == "revenue_growth_rate")
+
+    assert growth["complete"]
+    # Both directions move value the same way - neither is an "upside".
+    assert growth["down_delta"] < 0
+    assert growth["up_delta"] < 0
+    assert growth["down_value_per_share"] == growth["up_value_per_share"]
+
+    # The endpoint-only measure would have been zero here...
+    assert growth["up_value_per_share"] - growth["down_value_per_share"] == 0
+    # ...but the driver really did move value, and the tested range says so.
+    assert growth["tested_range"] > 0
+    assert growth["tested_range"] == pytest.approx(base - growth["down_value_per_share"], abs=0.01)
+
+
+def test_driver_tornado_same_side_row_outranks_a_genuinely_flat_one():
+    """Consequence of the metric above, stated as ordering rather than arithmetic: a driver
+    whose two endpoints share a side must still rank ahead of one that moved nothing at
+    all."""
+    rows = driver_dcf_tornado(**KINK_INPUTS)["rows"]
+    positions = {row["driver"]: i for i, row in enumerate(rows)}
+    # At a base revenue of exactly zero, margin/tax/D&A/CapEx all multiply zero and cannot
+    # move value; revenue growth (via the kink) and NWC investment can.
+    assert rows[positions["revenue_growth_rate"]]["tested_range"] > 0
+    assert rows[positions["ebit_margin"]]["tested_range"] == 0.0
+    assert positions["revenue_growth_rate"] < positions["ebit_margin"]
+
+
+def test_driver_tornado_nwc_direction_reverses_when_revenue_is_declining():
+    """NWC investment is a percentage of the year-over-year *change* in revenue, so when
+    revenue is shrinking a higher percentage releases cash rather than consuming it. This is
+    a real sign reversal in the engine, not a hypothetical - it's why the chart can never
+    label its endpoints as fixed upside/downside sides."""
+    growing = dict(DRIVER_VALID_INPUTS)
+    declining = dict(
+        DRIVER_VALID_INPUTS,
+        driver_years=[dict(year, revenue_growth_rate=-0.10) for year in DRIVER_YEARS],
+    )
+
+    def nwc_up_delta(inputs):
+        rows = driver_dcf_tornado(**inputs)["rows"]
+        row = next(r for r in rows if r["driver"] == "nwc_investment_pct_of_revenue_change")
+        return row["up_delta"]
+
+    # Growing revenue: more NWC investment consumes cash, so +1pp lowers value.
+    assert nwc_up_delta(growing) < 0
+    # Declining revenue: the same +1pp releases cash, raising value.
+    assert nwc_up_delta(declining) > 0
+
+
+def test_driver_tornado_marks_a_one_sided_row_incomplete_and_sorts_it_after_complete_rows():
+    """A perturbed side that overflows must go null without taking the other five drivers -
+    or its own opposite direction - down with it. Tuned so the base case and the -1pp side
+    both compute while +1pp on revenue growth tips into overflow."""
+    inputs = dict(
+        base_year_revenue=2.3e305,
+        driver_years=[
+            dict(
+                revenue_growth_rate=0.5,
+                ebit_margin=0.20,
+                tax_rate=0.25,
+                da_pct_of_revenue=0.04,
+                capex_pct_of_revenue=0.05,
+                nwc_investment_pct_of_revenue_change=0.10,
+            )
+            for _ in range(15)
+        ],
+        wacc=0.09,
+        terminal_growth_rate=0.025,
+        net_debt=0,
+        diluted_shares_outstanding=100,
+    )
+    result = driver_dcf_tornado(**inputs)
+    rows = result["rows"]
+    by_driver = {row["driver"]: row for row in rows}
+    growth = by_driver["revenue_growth_rate"]
+
+    assert growth["complete"] is False
+    assert growth["up_value_per_share"] is None
+    assert growth["up_delta"] is None
+    assert growth["tested_range"] is None
+    # The computable direction is still reported rather than discarded.
+    assert growth["down_value_per_share"] is not None
+
+    # At this scale several drivers go one-sided and others stay complete, which is the
+    # mix the ordering rule exists for - a partly-failed chart still renders in full.
+    complete = [i for i, row in enumerate(rows) if row["complete"]]
+    incomplete = [i for i, row in enumerate(rows) if not row["complete"]]
+    assert complete and incomplete
+    # Nulling is not direction-specific: one row loses its up side, another its down side.
+    assert by_driver["da_pct_of_revenue"]["up_delta"] is None
+    assert by_driver["capex_pct_of_revenue"]["down_delta"] is None
+
+    # Every complete row sorts ahead of every incomplete one, however large the incomplete
+    # row's one available delta happens to be...
+    assert max(complete) < min(incomplete)
+    # ...and incomplete rows are then ordered by that available absolute delta, descending.
+    available = [
+        abs(next(d for d in (rows[i]["down_delta"], rows[i]["up_delta"]) if d is not None))
+        for i in incomplete
+    ]
+    assert available == sorted(available, reverse=True)
+
+
+def test_driver_tornado_raises_when_the_base_case_itself_overflows():
+    """Same rule the sensitivity grids apply to their own base cell: if the analyst's own
+    unperturbed inputs can't be computed, fail cleanly rather than return a chart measured
+    against a base that doesn't exist."""
+    with pytest.raises(NonFiniteResultError):
+        driver_dcf_tornado(
+            base_year_revenue=1e308,
+            driver_years=[dict(DRIVER_YEARS[0], revenue_growth_rate=5.0) for _ in range(15)],
+            wacc=0.09,
+            terminal_growth_rate=0.025,
+            net_debt=0,
+            diluted_shares_outstanding=100,
+        )
+
+
+# --- Tornado endpoint warnings -----------------------------------------------------------
+
+# A low-D&A company, which is the ordinary case that makes a -1pp shift produce a negative
+# D&A percentage: 0.88% of revenue is Costco's real figure, and -1pp takes it to -0.12%.
+LOW_DA_INPUTS = dict(
+    base_year_revenue=1000,
+    driver_years=[
+        dict(
+            revenue_growth_rate=0.05,
+            ebit_margin=0.0343,
+            tax_rate=0.2455,
+            da_pct_of_revenue=0.0088,
+            capex_pct_of_revenue=0.0183,
+            nwc_investment_pct_of_revenue_change=-0.03,
+        )
+        for _ in range(3)
+    ],
+    wacc=0.075,
+    terminal_growth_rate=0.025,
+    net_debt=0,
+    diluted_shares_outstanding=100,
+)
+
+
+def test_new_endpoint_warnings_reports_only_what_the_perturbation_introduced():
+    base = [{"year": 1, "id": "negative_capex_percent", "tier": "caution", "explanation": "x"}]
+    endpoint = [
+        {"year": 1, "id": "negative_capex_percent", "tier": "caution", "explanation": "x"},
+        {"year": 2, "id": "negative_da_percent", "tier": "caution", "explanation": "y"},
+    ]
+    result = new_endpoint_warnings(base, endpoint)
+    # The pre-existing warning is the analyst's own, not something this shift caused.
+    assert [w["id"] for w in result] == ["negative_da_percent"]
+    assert result[0]["years"] == [2]
+
+
+def test_new_endpoint_warnings_groups_one_id_across_every_year_it_newly_affects():
+    endpoint = [
+        {"year": y, "id": "negative_da_percent", "tier": "caution", "explanation": "y"}
+        for y in (3, 1, 2)
+    ]
+    result = new_endpoint_warnings([], endpoint)
+    # One entry, not three - a flat driver row trips the same warning in every year.
+    assert len(result) == 1
+    assert result[0]["years"] == [1, 2, 3]
+
+
+def test_new_endpoint_warnings_catches_an_existing_warning_extending_to_new_years():
+    base = [{"year": 1, "id": "negative_revenue", "tier": "high", "explanation": "z"}]
+    endpoint = [
+        {"year": 1, "id": "negative_revenue", "tier": "high", "explanation": "z"},
+        {"year": 2, "id": "negative_revenue", "tier": "high", "explanation": "z"},
+    ]
+    result = new_endpoint_warnings(base, endpoint)
+    # Compared by (year, id), so year 2 is newly affected even though the id already existed.
+    assert result[0]["years"] == [2]
+
+
+def test_new_endpoint_warnings_reports_the_most_severe_tier_for_a_grouped_id():
+    endpoint = [
+        {"year": 1, "id": "negative_revenue", "tier": "caution", "explanation": "mild"},
+        {"year": 2, "id": "negative_revenue", "tier": "extreme", "explanation": "severe"},
+    ]
+    result = new_endpoint_warnings([], endpoint)
+    assert result[0]["tier"] == "extreme"
+    assert result[0]["explanation"] == "severe"
+
+
+def test_new_endpoint_warnings_orders_most_severe_first():
+    endpoint = [
+        {"year": 1, "id": "negative_da_percent", "tier": "caution", "explanation": "a"},
+        {"year": 1, "id": "negative_revenue", "tier": "extreme", "explanation": "b"},
+    ]
+    assert [w["tier"] for w in new_endpoint_warnings([], endpoint)] == ["extreme", "caution"]
+
+
+def test_driver_tornado_flags_the_negative_da_endpoint_an_ordinary_company_produces():
+    """The finding this feature exists for: a company whose D&A is under 1% of revenue has
+    its -1pp endpoint land on a negative D&A percentage, which the engine warns about when
+    entered directly - and on real inputs that endpoint drives a top-ranked row. It is
+    neither clamped nor skipped, so it has to be visibly marked."""
+    rows = driver_dcf_tornado(**LOW_DA_INPUTS)["rows"]
+    da = next(row for row in rows if row["driver"] == "da_pct_of_revenue")
+
+    assert [w["id"] for w in da["down_new_warnings"]] == ["negative_da_percent"]
+    # Flat row, so every forecast year is affected, reported as one grouped entry.
+    assert da["down_new_warnings"][0]["years"] == [1, 2, 3]
+    assert da["down_new_warnings"][0]["explanation"]
+    # The perturbation is still valued, not refused.
+    assert da["down_value_per_share"] is not None
+    # The opposite direction introduces nothing.
+    assert da["up_new_warnings"] == []
+
+
+def test_driver_tornado_leaves_unaffected_endpoints_unflagged():
+    rows = driver_dcf_tornado(**LOW_DA_INPUTS)["rows"]
+    for row in rows:
+        if row["driver"] == "da_pct_of_revenue":
+            continue
+        assert row["down_new_warnings"] == []
+        assert row["up_new_warnings"] == []
+
+
+def test_driver_tornado_does_not_re_report_a_warning_the_base_case_already_raises():
+    """A base case that already warns must not have that warning attributed to the shift."""
+    already_negative_da = dict(
+        LOW_DA_INPUTS,
+        driver_years=[dict(y, da_pct_of_revenue=-0.02) for y in LOW_DA_INPUTS["driver_years"]],
+    )
+    rows = driver_dcf_tornado(**already_negative_da)["rows"]
+    da = next(row for row in rows if row["driver"] == "da_pct_of_revenue")
+    # Both endpoints are still negative D&A, but the base already was, so neither direction
+    # introduced anything.
+    assert da["down_new_warnings"] == []
+    assert da["up_new_warnings"] == []
+
+
+def test_driver_tornado_reports_no_warnings_for_an_uncomputable_endpoint():
+    inputs = dict(
+        base_year_revenue=2.3e305,
+        driver_years=[
+            dict(
+                revenue_growth_rate=0.5,
+                ebit_margin=0.20,
+                tax_rate=0.25,
+                da_pct_of_revenue=0.04,
+                capex_pct_of_revenue=0.05,
+                nwc_investment_pct_of_revenue_change=0.10,
+            )
+            for _ in range(15)
+        ],
+        wacc=0.09,
+        terminal_growth_rate=0.025,
+        net_debt=0,
+        diluted_shares_outstanding=100,
+    )
+    rows = driver_dcf_tornado(**inputs)["rows"]
+    growth = next(row for row in rows if row["driver"] == "revenue_growth_rate")
+    assert growth["up_value_per_share"] is None
+    # No valuation means no warnings to compare - empty, never a fabricated entry.
+    assert growth["up_new_warnings"] == []

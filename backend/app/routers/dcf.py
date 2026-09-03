@@ -4,6 +4,7 @@ from app.calculations.dcf import (
     NonFiniteResultError,
     dcf_sensitivity,
     driver_dcf_sensitivity,
+    driver_dcf_tornado,
     implied_fcf_growth_rate,
     run_dcf,
     run_driver_dcf,
@@ -14,6 +15,7 @@ from app.schemas.dcf import (
     DcfSensitivityResults,
     DriverDCFInputs,
     DriverDCFResults,
+    DriverTornadoResults,
     ReverseDCFInputs,
     ReverseDCFResult,
 )
@@ -57,5 +59,17 @@ def driver_valuation(inputs: DriverDCFInputs):
 def driver_sensitivity(inputs: DriverDCFInputs):
     try:
         return driver_dcf_sensitivity(**inputs.model_dump())
+    except NonFiniteResultError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/driver-tornado", response_model=DriverTornadoResults)
+def driver_tornado(inputs: DriverDCFInputs):
+    """Takes the same DriverDCFInputs payload as /driver-valuation - the base case is
+    recomputed here alongside the twelve perturbations rather than being passed in, so a
+    tornado can never be drawn against a base the client assembled separately.
+    """
+    try:
+        return driver_dcf_tornado(**inputs.model_dump())
     except NonFiniteResultError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

@@ -359,4 +359,72 @@
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
   }
+
+  /* Driver tornado. Unlike the trend charts above, these bars are NOT the data - every
+     endpoint value and delta is already printed as text in the two columns beside them, so
+     losing a bar costs nothing analytically. They still print, because a ranked chart with
+     no bars reads as broken rather than as reduced; the same print-color-adjust + solid
+     black treatment applies, with the zero line (not colour) distinguishing a bar that
+     lowered value from one that raised it, exactly as it does on screen. !important for the
+     same cross-file specificity tie as the trend-chart bars: .tornado-bar--up/--down carry
+     one class each, identical to this selector. */
+  .tornado-bar,
+  .tornado-bar--up,
+  .tornado-bar--down {
+    background: #000 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .tornado-zero-line {
+    border-left-color: #444 !important;
+  }
+
+  /* Dark-mode-aware tokens (--text, --text-h, --border, --flag) all go near-invisible when
+     printing from dark mode - the recurring issue already fixed this way for the company
+     bar, kv-list, sensitivity legend and trend charts. */
+  .tornado-driver-name,
+  .tornado-endpoint-value {
+    color: #000 !important;
+  }
+
+  .tornado-base,
+  .tornado-driver-path,
+  .tornado-lane-label {
+    color: #444 !important;
+  }
+
+  .tornado-incomplete-badge {
+    border-color: #ccc !important;
+    color: #000 !important;
+  }
+
+  /* Opacity, unlike colour, would survive into print and grey out a real reported value. */
+  .tornado-endpoint--null .tornado-endpoint-value,
+  .tornado-endpoint--null .tornado-endpoint-delta {
+    color: #444 !important;
+    opacity: 1;
+  }
+
+  .tornado-lane-label {
+    opacity: 1;
+  }
+
+  /* A warned endpoint must stay identifiable on paper, where the tier's --flag tint is
+     exactly the kind of colour this stylesheet already forces to black elsewhere. The
+     border and the tier word carry it instead of the fill. */
+  .tornado-endpoint-warning-tier {
+    background: transparent !important;
+    border: 1px solid #000 !important;
+    color: #000 !important;
+  }
+
+  .tornado-endpoint-warning-text {
+    color: #000 !important;
+  }
+
+  .tornado-endpoint--warned .tornado-endpoint-value {
+    text-decoration-color: #000 !important;
+  }
+
 }

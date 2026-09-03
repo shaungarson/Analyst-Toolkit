@@ -73,21 +73,35 @@ completed items, in the dependency order they were built:
     history is refused as unstable. Live-ticker Low/Base/High case management (see Later,
     below) is unaffected. See "Costco demo: a provider-independent Driver Base Case" in
     [`decisions.md`](decisions.md) and [`MODELING_CONVENTIONS.md`](MODELING_CONVENTIONS.md).
+11. ~~**Driver-Based DCF: standardized ±1pp driver sensitivity (tornado).**~~ **Done
+    (2026-09-03).** The first sensitivity treatment of Driver mode's own drivers: a ranked,
+    one-driver-at-a-time ±1pp parallel shift across every forecast year, six operating drivers,
+    thirteen `run_driver_dcf` calls (one base plus six x two directions) behind `POST
+    /api/dcf/driver-tornado`. Rows are ranked by the spread across the base value and both
+    tested endpoints (`tested_range`) — not by the distance between the endpoints alone —
+    because the two endpoints of one driver can legitimately fall on the same side of base,
+    where an endpoint-only measure would rank a driver as having moved nothing. WACC and
+    terminal growth are excluded as non-drivers and keep their own grid; sensitivity-cell
+    adoption, scroll-to-driver, and the continuity/waterfall/PV-composition charts were all
+    deliberately excluded from this milestone. Endpoints whose standardized
+    shift introduces a driver warning the base case does not already raise are marked on the
+    chart with tier, short name and affected years — never clamped or skipped. See
+    "Driver-Based DCF: standardized ±1pp driver sensitivity (tornado)" in
+    [`decisions.md`](decisions.md) and [`MODELING_CONVENTIONS.md`](MODELING_CONVENTIONS.md).
 
 ## Later
 
 Reasonable follow-ups, not yet scheduled:
 
-- **Driver sensitivity (tornado chart)** — the existing sensitivity grid is WACC x terminal
-  growth only, so in Driver mode the drivers themselves receive no sensitivity treatment at
-  all. One endpoint reusing `run_driver_dcf` (six drivers x two directions = twelve extra
-  valuations) plus one chart; the perturbation convention (a uniform +/-1pp, transparently
-  labeled, rather than scaling to each driver's own historical dispersion) is the decision to
-  make when it is scoped. Deliberately deferred out of the v2 input milestone: fix the inputs
-  before adding a sensitivity surface over assumptions the analyst did not trust entering.
-- **Two-way Revenue Growth x EBIT Margin sensitivity table** — after the tornado settles the
-  axis-delta convention. Must inherit the documented axis-inversion handling for a
-  non-positive final-year UFCF.
+- **Two-way Revenue Growth x EBIT Margin sensitivity table** — the tornado (item 11 above) has
+  now settled the perturbation convention: a fixed, stated shift, transparently labeled, rather
+  than one scaled to each driver's own historical dispersion. Must inherit the documented
+  axis-inversion handling for a non-positive final-year UFCF.
+- **Quick DCF FCF-growth sensitivity** — Quick mode's flat FCF growth rate still has no
+  sensitivity treatment of its own. The WACC x terminal-growth grid does not cover it, and the
+  Driver tornado does not apply (it measures the six operating drivers, which exist only in
+  Driver mode). Reverse DCF answers a different question — what growth reconciles a price — not
+  how much value moves per unit of growth.
 
 - **Driver-Based DCF: NOL carryforward** — v1's cash-tax convention (`max(EBIT, 0) × rate`)
   gives a loss year no tax benefit against a later profitable one; modeling actual net

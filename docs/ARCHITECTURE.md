@@ -166,12 +166,38 @@ plain Python values, never pydantic model instances directly); `run_driver_dcf` 
 year's UFCF for `_compute_dcf_core` and re-attaches every other field to the rounded result
 rows, so the two can never drift out of sync. `driver_dcf_sensitivity` is the structural
 sibling of `dcf_sensitivity`, calling `run_driver_dcf` per grid cell instead of `run_dcf`, and
-returns the same `DcfSensitivityResults` shape. New routes: `POST /api/dcf/driver-valuation`
-(`DriverDCFInputs` → `DriverDCFResults`) and `POST /api/dcf/driver-sensitivity`
-(`DriverDCFInputs` → `DcfSensitivityResults`) — no `/driver-implied-growth` route exists;
-Reverse DCF stays Quick DCF-only (see `MODELING_CONVENTIONS.md`).
+returns the same `DcfSensitivityResults` shape. `driver_dcf_tornado` runs thirteen
+`run_driver_dcf` calls — one base plus a ±1pp parallel shift on each of the six operating
+drivers, one driver at a time — and returns rows already ordered (complete rows by descending
+`tested_range`, the spread across the base value and both endpoints, then one-sided rows by
+their available absolute delta, then neither), so the ordering rule is tested server-side
+rather than re-derived in the client. Each endpoint's warnings are diffed against the base
+case's by `(year, id)` via `new_endpoint_warnings` and returned grouped by id, so an endpoint
+whose standardized shift introduces a warning the analyst's own inputs don't raise can be
+marked without re-reporting pre-existing ones. A
+perturbed side that raises `NonFiniteResultError` becomes `null` for that direction only; the
+base case re-raises, matching both grids' base-cell rule. Routes: `POST
+/api/dcf/driver-valuation` (`DriverDCFInputs` → `DriverDCFResults`), `POST
+/api/dcf/driver-sensitivity` (`DriverDCFInputs` → `DcfSensitivityResults`), and `POST
+/api/dcf/driver-tornado` (`DriverDCFInputs` → `DriverTornadoResults`) — the tornado takes the
+same input shape as the valuation and carries no client-supplied base value, so its base can
+only have come from its own run. No `/driver-implied-growth` route exists; Reverse DCF stays
+Quick DCF-only (see `MODELING_CONVENTIONS.md`).
 
-Frontend: two pure modules plus one component, with all state held by `DcfValuation.jsx`.
+Frontend: three pure modules plus two components, with all state held by `DcfValuation.jsx`.
+
+`driverTornado.js` / `DriverTornadoChart.jsx` — the ±1pp sensitivity chart. The module holds
+chart-specific pure helpers (driver labels, tested-path summarization across Flat/Fade/Custom
+schedules, the shared bar scale, bar geometry, warning labels and affected-year formatting);
+the component renders a real `<table>` with a bar column, so every endpoint value, delta and
+newly-triggered warning is text in a cell rather than a hover-only readout, and only the bars
+carry `aria-hidden` — the table's own semantics are the accessible presentation, with no
+parallel visually-hidden summary duplicating them. Bars are CSS
+percentages against a track whose zero line sits on the plot's centre — no SVG, no chart
+library, and deliberately no shared charting layer until a second chart establishes what would
+actually be reused. `driverTornado` state has the same lifecycle as `driverSensitivity`
+throughout: fetched best-effort after the valuation lands, and cleared everywhere driver
+results are.
 
 `driverSchedule.js` — resizing the per-year array to the shared forecast length, building the
 request payload, the `driverInputsError` completeness check covering every field that payload

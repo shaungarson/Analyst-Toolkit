@@ -161,6 +161,16 @@ see [`docs/decisions.md`](docs/decisions.md).*
   observation appears only when its own inputs are current and meaningful — never merely
   repeating an existing output without synthesis.
 - **Sensitivity analysis:** value per share across a grid of WACC × terminal growth rate
+- **Driver sensitivity (tornado), Driver-Based mode:** the six operating drivers ranked by how
+  much value moves when each one is shifted by a standardized ±1 percentage point in every
+  forecast year, one driver at a time, everything else held constant. Endpoints are labeled by
+  assumption direction (−1pp / +1pp), never as upside/downside — the two directions of a single
+  driver can genuinely move value the same way, so each row also shows the assumption path it
+  actually tested. Where a standardized shift pushes a driver into territory the model itself
+  flags (a company with D&A under 1% of revenue goes negative at −1pp), that endpoint is still
+  valued and shown — marked with the warning it introduces rather than quietly clamped to a
+  more comfortable number. A mechanical sensitivity, explicitly not a probability or a
+  confidence interval.
 - Save, load, **duplicate**, and **compare named scenarios** side by side
 - CSV export and print-friendly output
 
@@ -259,7 +269,8 @@ workstation redesign → hardened DCF validation → SEC EDGAR as the primary DC
 source → SEC-independent DCF data resilience (Alpha Vantage optional, never a hard
 dependency) → per-value provenance and an editable, dated reference price → an embedded,
 provider-independent Costco DCF demo → compact historical Revenue/Unlevered FCF trend
-mini-charts → reverse DCF (price-implied FCF growth). Detail:
+mini-charts → reverse DCF (price-implied FCF growth) → Driver-Based DCF (evidence-led
+forecast entry) → standardized ±1pp driver sensitivity (tornado). Detail:
 [`PROGRESS.md`](PROGRESS.md), [`docs/decisions.md`](docs/decisions.md).
 What's next: [`docs/ROADMAP.md`](docs/ROADMAP.md).
 

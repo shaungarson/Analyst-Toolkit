@@ -462,6 +462,94 @@ still-live Unstable badge. No live company-data request is made either way — s
 design record, including why leaving the demo resets the driver schedule even when the ticker
 matches.
 
+### Driver-Based DCF: standardized ±1pp driver sensitivity (tornado)
+
+A ranked, one-driver-at-a-time sensitivity over the six operating drivers, available in
+Driver-Based mode only. Each row shifts one driver by **±1 percentage point in every forecast
+year** (a parallel shift, so a Fade row keeps its fade and a Custom row keeps its per-year
+pattern), holding every other driver — and WACC, terminal growth, net debt and share count —
+at the base case. Thirteen valuations in total: one base plus six drivers × two directions,
+every one of them a full `run_driver_dcf` call, so the tornado can never disagree with the
+valuation it sits under.
+
+**The base case is recomputed inside the endpoint**, never supplied by the client or
+reconstructed from a separately-rounded figure, so every delta is measured against a base that
+provably came from the same run.
+
+**Why a fixed ±1pp rather than each driver's own historical dispersion.** With four usable
+observations per driver — and the v2 seeding rules already refusing several of them as
+unstable — a dispersion-scaled shift would silently blend *how uncertain* an assumption is
+with *how much it matters*, producing exactly the kind of opaque composite score this project
+rejects elsewhere (see "Deterministic risk analysis" in `decisions.md`). A fixed, stated shift
+is reproducible and legible straight off the chart.
+
+**±1pp is not the same proportional move for every driver, and the ranking reflects that.**
+On the Costco base case a 1pp shift is a ~113% relative move for D&A (0.88% of revenue) and a
+~4% relative move for the tax rate (24.55%) — so D&A and CapEx top the ranking ahead of revenue
+growth. That ordering is correct *given* the convention; it is not a claim that D&A is the most
+important assumption in the model. Every row therefore displays the path it actually tested
+rather than only its rank.
+
+**Endpoints are labeled by assumption direction (−1pp / +1pp), never as upside/downside**, and
+the two endpoints of one driver may legitimately fall on the **same side** of the base value.
+Three real mechanisms in this engine produce that, none of them hypothetical:
+
+- **NWC investment is a percentage of the year-over-year *change* in revenue**, not a
+  balance-sheet ratio, so in a declining-revenue year the change is negative and a higher
+  percentage *releases* cash rather than consuming it — reversing the driver's sign entirely.
+- **Revenue growth applied to a negative-revenue year** (permitted and warned on, never
+  blocked) makes revenue more negative as the rate rises.
+- **`max(EBIT, 0) × tax_rate` puts a kink at EBIT = 0**, so a driver sitting near that boundary
+  is asymmetric across the two directions.
+
+Because of this, rows are ranked by the **spread across the base value and both tested
+endpoints** (`max(base, −1pp, +1pp) − min(base, −1pp, +1pp)`), not by the distance between the
+two endpoints alone. The two measures agree exactly whenever the endpoints straddle the base
+case — the ordinary situation — but when both land on the same side, an endpoint-only measure
+collapses toward zero and would rank a driver that genuinely moved the valuation in both
+directions as though it had moved nothing at all.
+
+**Every driver is shifted in every forecast year; only revenue growth compounds.** The ±1pp
+applies to all N years for all six drivers alike — none of them is a single-year perturbation.
+Revenue growth is structurally different not because it is applied more often but because it
+compounds the revenue base into each subsequent year, and therefore into the final year that
+terminal value is built from, while the other rate drivers act on each year's own revenue
+without carrying forward. That difference is economically real and is what the chart exists to
+show — not a scaling artifact to normalize away.
+
+**WACC and terminal growth are deliberately excluded.** They are not operating drivers, and
+ranking "what do I believe about the business" against "what discount rate do I use" in one
+ordered chart conflates two different questions. They keep their own WACC × terminal-growth
+grid, which the chart points to without claiming either is larger.
+
+**Uncomputable sides go null, one side at a time.** A perturbation that overflows returns
+`null` for that direction only — the opposite direction and the other five drivers still
+report normally, and the row is marked incomplete and sorted after every complete row (then by
+its one available absolute delta). Only the **base** case re-raises rather than nulling: if the
+analyst's own unperturbed inputs cannot be computed, the request fails cleanly rather than
+returning a chart measured against a base that doesn't exist — the same rule both sensitivity
+grids already apply to their own base cell.
+
+**A tested endpoint can be an assumption the engine itself warns about, and is marked rather
+than corrected.** This is the ordinary case, not an edge case: any company whose D&A runs below
+1% of revenue has a negative D&A percentage at −1pp. Costco's is 0.88%, so its −1pp endpoint is
+−0.12% — which `driver_warnings` flags as `negative_da_percent` when entered directly — and on
+the real demo inputs that endpoint drives the **top-ranked row**.
+
+The perturbation is neither clamped to zero nor skipped: silently substituting a different
+assumption than the one the convention states would break both the "standardized ±1pp" claim
+and this project's rule against quiet economic substitution (see `CLAUDE.md` §6). Instead, each
+endpoint's own valuation returns its driver warnings, those are compared against the base
+case's by `(year, id)`, and any **newly introduced** warning is grouped by id and marked on
+that endpoint with its tier, short name, and affected years — all as visible text, not a
+hover-only tooltip. Warnings the analyst's own base-case inputs already raise are never
+re-reported as something the shift caused, and a warning that already existed in some years but
+newly extends to others is still caught, since the comparison is per `(year, id)` rather than
+per id.
+
+This is a **standardized mechanical sensitivity**: not a probability, not a confidence
+interval, and not an estimate of how uncertain any assumption actually is.
+
 ## Shared conventions
 
 - **Scenario comparison** recalculates every scenario from its saved *inputs* at view time,

@@ -191,3 +191,67 @@ class DriverDCFResults(BaseModel):
     value_per_share: float
     terminal_growth_warnings: list[TerminalGrowthWarning] = []
     driver_warnings: list[DriverWarning] = []
+
+
+class EndpointWarning(BaseModel):
+    id: Literal[
+        "non_positive_base_year_revenue",
+        "tax_rate_outside_0_100_percent",
+        "negative_da_percent",
+        "negative_capex_percent",
+        "zero_revenue_lock",
+        "negative_revenue",
+        "non_positive_terminal_year_fcf",
+    ]
+    tier: Literal["caution", "high", "extreme"]
+    # Every forecast year this warning is newly raised in (0 denotes the base year), so a
+    # flat driver row that trips the same warning in all N years reports one entry rather
+    # than N identical ones.
+    years: list[int]
+    explanation: str
+
+
+class DriverTornadoRow(BaseModel):
+    driver: Literal[
+        "revenue_growth_rate",
+        "ebit_margin",
+        "tax_rate",
+        "da_pct_of_revenue",
+        "capex_pct_of_revenue",
+        "nwc_investment_pct_of_revenue_change",
+    ]
+    # The driver's actual per-year values as tested, one entry per forecast year - returned
+    # rather than reconstructed client-side so the assumption shown on the chart is provably
+    # the one that was valued. A Flat row reads as one repeated value; Fade and Custom rows
+    # carry their real path, which is why a single "base -> perturbed" pair can't describe
+    # every row.
+    base_path: list[float]
+    # None on a side whose perturbed valuation isn't computable; the other side and every
+    # other driver still return normally.
+    down_value_per_share: float | None
+    up_value_per_share: float | None
+    down_delta: float | None
+    up_delta: float | None
+    # The spread across the base value AND both endpoints, not the endpoint-to-endpoint
+    # distance: the two endpoints can legitimately land on the same side of base, where an
+    # endpoint-only measure collapses toward zero and understates a driver that really did
+    # move the valuation in both directions. Identical to the endpoint distance whenever the
+    # endpoints straddle base. None unless both sides computed.
+    tested_range: float | None
+    # Driver warnings each perturbed endpoint introduces that the base case does not already
+    # raise, grouped by warning id. Empty for an endpoint that introduces none, and for one
+    # that could not be computed at all.
+    down_new_warnings: list[EndpointWarning]
+    up_new_warnings: list[EndpointWarning]
+    complete: bool
+
+
+class DriverTornadoResults(BaseModel):
+    # Computed by the same endpoint as the perturbations, never supplied by the client.
+    base_value_per_share: float
+    # The parallel shift applied to every forecast year of one driver at a time, as a
+    # decimal fraction (0.01 = 1 percentage point).
+    shift: float
+    # Pre-ordered: complete rows by descending tested_range, then one-sided rows by
+    # descending absolute delta, then rows with neither side computable.
+    rows: list[DriverTornadoRow]

@@ -353,3 +353,78 @@ def test_driver_sensitivity_route_returns_422_when_base_case_overflows():
     payload = {**DRIVER_PAYLOAD, "base_year_revenue": 1.7e308}
     res = client.post("/api/dcf/driver-sensitivity", json=payload)
     assert res.status_code == 422
+
+
+def test_driver_tornado_route_returns_200_with_expected_shape():
+    res = client.post("/api/dcf/driver-tornado", json=DRIVER_PAYLOAD)
+    assert res.status_code == 200
+    body = res.json()
+    assert set(body.keys()) == {"base_value_per_share", "shift", "rows"}
+    assert body["shift"] == 0.01
+    assert len(body["rows"]) == 6
+    assert set(body["rows"][0].keys()) == {
+        "driver",
+        "base_path",
+        "down_value_per_share",
+        "up_value_per_share",
+        "down_delta",
+        "up_delta",
+        "tested_range",
+        "down_new_warnings",
+        "up_new_warnings",
+        "complete",
+    }
+    # One path entry per forecast year, so the client never has to infer the tested path.
+    assert all(len(row["base_path"]) == len(DRIVER_PAYLOAD["driver_years"]) for row in body["rows"])
+
+
+def test_driver_tornado_route_computes_its_own_base_rather_than_trusting_the_client():
+    """The payload carries no base value per share at all - the same DriverDCFInputs shape
+    /driver-valuation takes - so the tornado's base can only have come from its own run."""
+    assert "base_value_per_share" not in DRIVER_PAYLOAD
+    tornado = client.post("/api/dcf/driver-tornado", json=DRIVER_PAYLOAD).json()
+    valuation = client.post("/api/dcf/driver-valuation", json=DRIVER_PAYLOAD).json()
+    assert tornado["base_value_per_share"] == valuation["value_per_share"]
+
+
+def test_driver_tornado_route_rejects_wacc_at_or_below_terminal_growth():
+    res = client.post(
+        "/api/dcf/driver-tornado", json={**DRIVER_PAYLOAD, "wacc": 0.02, "terminal_growth_rate": 0.02}
+    )
+    assert res.status_code == 422
+
+
+def test_driver_tornado_route_returns_422_not_500_when_the_base_case_overflows():
+    res = client.post(
+        "/api/dcf/driver-tornado",
+        json={
+            **DRIVER_PAYLOAD,
+            "base_year_revenue": 1e308,
+            "driver_years": [{**DRIVER_PAYLOAD["driver_years"][0], "revenue_growth_rate": 5.0}] * 15,
+        },
+    )
+    assert res.status_code == 422
+
+
+def test_driver_tornado_route_only_accepts_post():
+    assert client.get("/api/dcf/driver-tornado").status_code == 405
+
+
+def test_driver_tornado_route_serializes_newly_introduced_endpoint_warnings():
+    """A D&A percentage under 1% is an ordinary real-company figure, and -1pp takes it
+    negative - which the engine warns about. The route has to carry that through."""
+    low_da = {
+        **DRIVER_PAYLOAD,
+        "driver_years": [
+            {**year, "da_pct_of_revenue": 0.0088} for year in DRIVER_PAYLOAD["driver_years"]
+        ],
+    }
+    res = client.post("/api/dcf/driver-tornado", json=low_da)
+    assert res.status_code == 200
+    da = next(r for r in res.json()["rows"] if r["driver"] == "da_pct_of_revenue")
+    assert len(da["down_new_warnings"]) == 1
+    warning = da["down_new_warnings"][0]
+    assert set(warning.keys()) == {"id", "tier", "years", "explanation"}
+    assert warning["id"] == "negative_da_percent"
+    assert warning["years"] == [1, 2, 3]
+    assert da["up_new_warnings"] == []

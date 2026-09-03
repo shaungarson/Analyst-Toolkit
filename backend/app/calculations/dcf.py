@@ -826,3 +826,214 @@ def driver_dcf_sensitivity(
         result_rows.append({"wacc": w, "value_per_share_by_growth": value_per_share_by_growth})
 
     return {"terminal_growth_rates": growth_values, "rows": result_rows}
+
+
+# --- Driver sensitivity (tornado): one standardized parallel shift per operating driver ---
+
+# A uniform +/-1 percentage point, applied to every forecast year of one driver at a time.
+# Deliberately NOT scaled to each driver's own historical dispersion: with four usable
+# observations per driver (and the v2 seeding rules already refusing several as unstable),
+# a dispersion-scaled shift would silently blend "how uncertain is this assumption" with
+# "how much does it matter," which is exactly the opaque composite scoring this project
+# rejects elsewhere. A fixed, stated shift is reproducible and can be read off the chart.
+#
+# The consequence to be honest about, rather than to correct for: 1pp is not dimensionally
+# uniform across these six drivers. On a company whose D&A runs 0.88% of revenue and whose
+# tax rate is 24.55%, the same 1pp is a 113% relative move for one and a 4% relative move
+# for the other, so the ranking is partly an artifact of each driver's own base magnitude.
+# That is why every row carries its actual tested path (`base_path`) - the distortion is
+# disclosed on the chart rather than hidden inside the ordering.
+DRIVER_TORNADO_SHIFT = 0.01
+
+# Canonical order - also the deterministic tie-break for equal ranges, since the sort below
+# is stable and rows are built in this order.
+TORNADO_DRIVER_FIELDS = (
+    "revenue_growth_rate",
+    "ebit_margin",
+    "tax_rate",
+    "da_pct_of_revenue",
+    "capex_pct_of_revenue",
+    "nwc_investment_pct_of_revenue_change",
+)
+
+_TIER_SEVERITY = {"caution": 0, "high": 1, "extreme": 2}
+
+
+def _shift_driver(driver_years, field, delta):
+    """One driver shifted by `delta` in every forecast year (a parallel shift), every other
+    driver in every year left exactly as given. A Fade row keeps its fade shape and a Custom
+    row keeps its per-year pattern - the whole path moves together rather than being
+    flattened to a single value.
+    """
+    return [{**year, field: year[field] + delta} for year in driver_years]
+
+
+def _tornado_endpoint(base_year_revenue, driver_years, field, delta, **shared):
+    """One perturbed valuation, or None if it can't be computed. A perturbed side going
+    non-finite must not take the rest of the chart down with it - the other five drivers
+    (and this driver's other direction) are still perfectly valid results.
+    """
+    try:
+        return run_driver_dcf(
+            base_year_revenue=base_year_revenue,
+            driver_years=_shift_driver(driver_years, field, delta),
+            **shared,
+        )
+    except NonFiniteResultError:
+        return None
+
+
+def new_endpoint_warnings(base_warnings, endpoint_warnings):
+    """Driver warnings this perturbation *introduces*, grouped by warning id.
+
+    A standardized shift can move a driver into territory the engine itself warns about -
+    the real and unavoidable case being a company whose D&A runs below 1% of revenue, where
+    -1pp produces a negative D&A percentage. That endpoint is neither clamped nor skipped
+    (silently substituting a different assumption than the stated convention would both
+    falsify the "standardized +/-1pp" claim and repeat this project's recurring quiet-
+    economic-substitution failure), so the honest alternative is to surface it.
+
+    Compared against the base case by (year, id) so a warning the analyst's own inputs
+    already raise is never re-reported as something the perturbation caused - only genuinely
+    new (year, id) pairs survive, including the case where a warning already present in some
+    years newly extends to others. Grouped by id afterwards because a flat driver row
+    typically trips the same warning in every forecast year at once, and six identical
+    entries would be noise rather than detail.
+    """
+    already = {(w["year"], w["id"]) for w in base_warnings}
+    grouped = {}
+    for warning in endpoint_warnings:
+        if (warning["year"], warning["id"]) in already:
+            continue
+        entry = grouped.get(warning["id"])
+        if entry is None:
+            grouped[warning["id"]] = {
+                "id": warning["id"],
+                "tier": warning["tier"],
+                "years": [warning["year"]],
+                "explanation": warning["explanation"],
+            }
+            continue
+        entry["years"].append(warning["year"])
+        # Same id can carry different tiers across years; report the most severe, with the
+        # explanation that belongs to it.
+        if _TIER_SEVERITY[warning["tier"]] > _TIER_SEVERITY[entry["tier"]]:
+            entry["tier"] = warning["tier"]
+            entry["explanation"] = warning["explanation"]
+
+    for entry in grouped.values():
+        entry["years"].sort()
+    return sorted(grouped.values(), key=lambda e: (-_TIER_SEVERITY[e["tier"]], e["id"]))
+
+
+def driver_dcf_tornado(
+    base_year_revenue, driver_years, wacc, terminal_growth_rate, net_debt, diluted_shares_outstanding
+):
+    """Value-per-share impact of a standardized +/-1pp parallel shift in each of the six
+    operating drivers, one driver at a time, with every other driver and every valuation
+    assumption (WACC, terminal growth, net debt, share count) held at the base case.
+
+    Thirteen `run_driver_dcf` calls: one base plus six drivers x two directions. The base is
+    computed here rather than accepted from or reconstructed by the caller, so the deltas can
+    never be measured against a stale or separately-rounded base figure.
+
+    This is a mechanical sensitivity, not a probability, a confidence interval, or an
+    estimate of how uncertain any assumption actually is. Three properties follow from the
+    engine and are load-bearing for how the result must be read and drawn:
+
+    - **Endpoints can land on the same side of base.** Nothing here assumes "down is left,
+      up is right." NWC investment is a percentage of the year-over-year *change* in
+      revenue, so in a declining-revenue year a higher percentage releases cash instead of
+      consuming it, reversing that driver's sign entirely; revenue growth applied to a
+      negative-revenue year (permitted and warned on, never blocked) makes revenue more
+      negative as the rate rises; and `max(EBIT, 0) x tax_rate` puts a kink at EBIT = 0 that
+      makes a driver sitting near that boundary asymmetric across the two directions.
+
+      This is why rows rank on `tested_range` - the spread across the base value AND both
+      endpoints - rather than the endpoint-to-endpoint distance alone. The two are identical
+      whenever the endpoints straddle base, but when both land on the same side the
+      endpoint-only measure collapses toward zero and understates a driver that genuinely
+      moved the valuation in both directions.
+
+    - **Every driver is shifted in every forecast year; only revenue growth compounds.** The
+      +/-1pp applies to all N years for all six drivers alike. Revenue growth is
+      structurally different not because it is applied more often but because it compounds
+      the revenue base into each subsequent year - and therefore into the final year that
+      terminal value is built from - while the other rate drivers act on each year's own
+      revenue without carrying forward. That difference is economically real and is what the
+      chart exists to show, not a scaling artifact to normalize away.
+
+    - **WACC and terminal growth are deliberately absent.** They aren't operating drivers,
+      and ranking "what do I believe about the business" against "what discount rate do I
+      use" in one ordered chart conflates two different questions. They have their own grid.
+
+    Rows are returned already ordered, so the ordering rule is tested here rather than
+    re-derived in the client: complete rows first by descending tested range, then rows with
+    only one computable side by descending absolute delta, then rows with neither.
+    """
+    shared = {
+        "wacc": wacc,
+        "terminal_growth_rate": terminal_growth_rate,
+        "net_debt": net_debt,
+        "diluted_shares_outstanding": diluted_shares_outstanding,
+    }
+
+    # No try/except: if the analyst's own unperturbed inputs can't be computed, the whole
+    # request fails cleanly rather than returning an ostensibly-successful chart measured
+    # against a base that doesn't exist. Same rule the sensitivity grids apply to their own
+    # base cell.
+    base_result = run_driver_dcf(
+        base_year_revenue=base_year_revenue, driver_years=driver_years, **shared
+    )
+    base_value = base_result["value_per_share"]
+    base_warnings = base_result["driver_warnings"]
+
+    rows = []
+    for field in TORNADO_DRIVER_FIELDS:
+        down_result = _tornado_endpoint(
+            base_year_revenue, driver_years, field, -DRIVER_TORNADO_SHIFT, **shared
+        )
+        up_result = _tornado_endpoint(
+            base_year_revenue, driver_years, field, DRIVER_TORNADO_SHIFT, **shared
+        )
+        down = None if down_result is None else down_result["value_per_share"]
+        up = None if up_result is None else up_result["value_per_share"]
+        complete = down is not None and up is not None
+        tested = [base_value] + [v for v in (down, up) if v is not None]
+        rows.append(
+            {
+                "driver": field,
+                "base_path": [year[field] for year in driver_years],
+                "down_value_per_share": down,
+                "up_value_per_share": up,
+                "down_delta": None if down is None else round(down - base_value, 2),
+                "up_delta": None if up is None else round(up - base_value, 2),
+                # Null unless both directions computed - a half-tested row has no fully
+                # tested range to report, and its ordering falls back to the one delta it
+                # does have.
+                "tested_range": round(max(tested) - min(tested), 2) if complete else None,
+                "down_new_warnings": (
+                    [] if down_result is None else new_endpoint_warnings(base_warnings, down_result["driver_warnings"])
+                ),
+                "up_new_warnings": (
+                    [] if up_result is None else new_endpoint_warnings(base_warnings, up_result["driver_warnings"])
+                ),
+                "complete": complete,
+            }
+        )
+
+    def order(row):
+        if row["complete"]:
+            return (0, -row["tested_range"])
+        available = [d for d in (row["down_delta"], row["up_delta"]) if d is not None]
+        if available:
+            return (1, -abs(available[0]))
+        return (2, 0.0)
+
+    rows.sort(key=order)
+
+    return {
+        "base_value_per_share": base_value,
+        "shift": DRIVER_TORNADO_SHIFT,
+        "rows": rows,
+    }
