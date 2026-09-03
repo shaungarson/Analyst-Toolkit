@@ -2,6 +2,7 @@ import { Fragment } from 'react'
 import { compactCurrency } from '../../lib/format'
 import SourceBadge from '../../components/SourceBadge'
 import FormattedNumberInput from '../../components/FormattedNumberInput'
+import ReliabilityBadge from './ReliabilityBadge'
 import { ROW_MODES } from './driverSchedule'
 
 const pct = (v) => (v == null || !Number.isFinite(v) ? 'n/a' : `${v.toFixed(2)}%`)
@@ -48,7 +49,7 @@ const MAX_LISTED_EXCLUSIONS = 4
 // reference statistic that seeding would use. Deliberately no standard deviation or confidence
 // interval - at most five observations those would imply a precision the history cannot
 // support.
-function DriverEvidence({ driver }) {
+function DriverEvidence({ driver, field }) {
   const reliabilityLabel = RELIABILITY_LABELS[driver.reliability]
   const excludedCount = driver.excluded.length
   return (
@@ -69,7 +70,7 @@ function DriverEvidence({ driver }) {
         {driver.reference == null
           ? '—'
           : `${driver.referenceStatistic === 'aggregate' ? 'agg' : 'med'} ${pct(driver.reference)}`}
-        {reliabilityLabel && <span className={`driver-reliability driver-reliability--${driver.reliability}`}>{reliabilityLabel}</span>}
+        <ReliabilityBadge field={field} reliability={driver.reliability} label={reliabilityLabel} />
         {excludedCount > 0 && (
           <span className="driver-excluded-count">
             {excludedCount} period{excludedCount === 1 ? '' : 's'} excluded
@@ -316,7 +317,7 @@ function DriverScheduleBuilder({
                         )}
                       </td>
                       <td className="driver-history-col">
-                        <DriverEvidence driver={driver} />
+                        <DriverEvidence driver={driver} field={field} />
                       </td>
                       <td className="driver-mode-col">
                         <RowModeSwitch field={field} label={label} mode={mode} onChange={onRowModeChange} />
