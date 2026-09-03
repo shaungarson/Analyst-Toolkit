@@ -17,6 +17,14 @@ import { nextDemoTabIndex, reconcileDemoResults } from './demoCaseLogic'
 import { companyDataToSourcedFields, sourceableFieldBadgeType } from './companyDataToForm'
 import { historicalCagr } from './historicalGrowth'
 import { explainValuation } from './explainValuation'
+import DriverScheduleBuilder from './DriverScheduleBuilder'
+import {
+  broadcastDriverField,
+  buildDriverPayload,
+  driverInputsError,
+  lastActualDriverReference,
+  resizeDriverYears,
+} from './driverSchedule'
 import {
   COSTCO_CASES,
   COSTCO_COMPANY_DATA,
@@ -87,6 +95,11 @@ const REVERSE_STALE_FIELDS = [
   'dilutedSharesOutstanding',
   'referencePrice',
 ]
+// The shared-assumption fields Driver-Based DCF's forward calculation reads (baseYearFcf/
+// fcfGrowthRate are Quick-only; referencePrice affects nothing in Driver mode, which has no
+// reverse solver - see design delta 5/guardrail 5). driverResults is only ever populated in
+// Driver mode, so marking it stale here is a no-op whenever Quick mode is active.
+const DRIVER_STALE_FIELDS = ['forecastYears', 'wacc', 'terminalGrowthRate', 'netDebt', 'dilutedSharesOutstanding']
 
 // Only the fields the calculation engine actually needs - referencePrice/referencePriceDate
 // live in the same form object (so they save/reload with a scenario, see loadScenario) but
@@ -120,6 +133,7 @@ function DcfValuation() {
   // not cosmetic, so this applies here exactly the same way it already does in demo mode.
   const [resultsStale, setResultsStale] = useState(false)
   const [comparison, setComparison] = useState(null)
+  const [comparisonModeError, setComparisonModeError] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
   const [analysisTab, setAnalysisTab] = useState('sensitivity')
@@ -169,6 +183,22 @@ function DcfValuation() {
   const [reverseResult, setReverseResult] = useState(null)
   const [reverseResultStale, setReverseResultStale] = useState(false)
 
+  // Driver-Based DCF (v1). 'quick' (flat FCF growth, everything above) or 'driver'
+  // (revenue -> margin -> tax -> D&A -> CapEx -> NWC, per forecast year). Shared assumptions
+  // (WACC, terminal growth, net debt, diluted shares, forecast years, reference price) stay
+  // in `form` above and apply to both modes unchanged; driverForm holds only what's specific
+  // to Driver mode. Quick DCF's own state (results/sensitivity/reverseResult/demo machinery)
+  // is completely untouched by any of this - Driver mode never reads or writes it.
+  const [forecastMode, setForecastModeState] = useState('quick')
+  const [driverForm, setDriverForm] = useState({ baseYearRevenue: '', driverYears: [] })
+  // Mirrors sourcedSnapshot's role for the three SOURCEABLE_FIELDS, but only ever holds
+  // baseYearRevenue - the one driver-mode field a company load can source.
+  const [driverSourcedSnapshot, setDriverSourcedSnapshot] = useState(null)
+  const [driverResults, setDriverResults] = useState(null)
+  const [driverSensitivity, setDriverSensitivity] = useState(null)
+  const [driverResultsStale, setDriverResultsStale] = useState(false)
+  const [driverError, setDriverError] = useState(null)
+
   // Opportunistic backend warm-up: pings the health endpoint on mount so a cold Render
   // instance starts spinning up before the analyst finishes filling in the form. Never gates
   // Run Valuation - a failed or slow ping just leaves backendAwake false and this component
@@ -204,6 +234,9 @@ function DcfValuation() {
     if (REVERSE_STALE_FIELDS.includes(field) && reverseResult) {
       setReverseResultStale(true)
     }
+    if (DRIVER_STALE_FIELDS.includes(field) && driverResults) {
+      setDriverResultsStale(true)
+    }
   }
 
   const handleChange = (field) => (e) => {
@@ -220,6 +253,56 @@ function DcfValuation() {
   const setFieldValue = (field) => (value) => {
     setForm((prev) => ({ ...prev, [field]: value }))
     markStaleIfNeeded(field)
+  }
+
+  // forecastYears is shared between modes, but Driver mode also needs it to resize the
+  // per-year driver schedule - grown years clone the last existing year, shrunk years
+  // truncate from the end (see resizeDriverYears), never touching earlier years' edits.
+  const handleForecastYearsChange = (e) => {
+    const value = e.target.value
+    setForm((prev) => ({ ...prev, forecastYears: value }))
+    markStaleIfNeeded('forecastYears')
+    const n = Math.max(0, Math.min(15, Math.floor(Number(value)) || 0))
+    setDriverForm((prev) => ({ ...prev, driverYears: resizeDriverYears(prev.driverYears, n) }))
+  }
+
+  // Switching Quick<->Driver is treated like loadCompany/loadScenario - an explicit reset of
+  // every result/sensitivity/reverse/explain-relevant piece of state, never a stale flag -
+  // so a Quick-mode number can never render under Driver-mode framing (or vice versa) even
+  // for an instant (design delta 5 / guardrail 5). Input values themselves (form, driverForm)
+  // are untouched - only which mode's results are currently trusted changes.
+  const setForecastMode = (mode) => {
+    if (mode === forecastMode) return
+    setForecastModeState(mode)
+    setResults(null)
+    setResultsStale(false)
+    setSensitivity(null)
+    setError(null)
+    setReverseResult(null)
+    setReverseResultStale(false)
+    setDriverResults(null)
+    setDriverResultsStale(false)
+    setDriverSensitivity(null)
+    setDriverError(null)
+    setComparison(null)
+  }
+
+  const setDriverBaseYearRevenue = (value) => {
+    setDriverForm((prev) => ({ ...prev, baseYearRevenue: value }))
+    if (driverResults) setDriverResultsStale(true)
+  }
+
+  const setDriverYearField = (yearIndex, field) => (value) => {
+    setDriverForm((prev) => ({
+      ...prev,
+      driverYears: prev.driverYears.map((y, i) => (i === yearIndex ? { ...y, [field]: value } : y)),
+    }))
+    if (driverResults) setDriverResultsStale(true)
+  }
+
+  const broadcastDriverYearField = (field) => (value) => {
+    setDriverForm((prev) => ({ ...prev, driverYears: broadcastDriverField(prev.driverYears, field, value) }))
+    if (driverResults) setDriverResultsStale(true)
   }
 
   // Populates the existing assumption fields from sourced company data - it does not run
@@ -251,6 +334,12 @@ function DcfValuation() {
       setReverseResult(null)
       setReverseResultStale(false)
       setShowHistory(false)
+      // Driver mode's own results, independent of which mode is currently active - a
+      // company load invalidates whichever mode's results were showing, not just Quick's.
+      setDriverResults(null)
+      setDriverResultsStale(false)
+      setDriverSensitivity(null)
+      setDriverError(null)
 
       // Every key companyDataToSourcedFields returns is always set - to this company's real
       // value, or '' when it doesn't have one - so a value from a previously loaded company
@@ -262,6 +351,12 @@ function DcfValuation() {
       const sourced = companyDataToSourcedFields(data)
       setSourcedSnapshot(sourced)
       setForm((prev) => ({ ...prev, ...sourced }))
+      // Sourced regardless of which mode is currently active, so switching to Driver mode
+      // later already has the right figure - same reasoning as loading historical data
+      // above: it should inform the forecast whenever it's available, not only when Driver
+      // mode happens to already be selected.
+      setDriverSourcedSnapshot({ baseYearRevenue: sourced.baseYearRevenue })
+      setDriverForm((prev) => ({ ...prev, baseYearRevenue: sourced.baseYearRevenue }))
     } catch (err) {
       setCompanyError(friendlyErrorMessage(err))
       setCompanyData(null)
@@ -273,8 +368,19 @@ function DcfValuation() {
   const loadScenario = (data) => {
     // Backfill so scenarios saved before referencePrice/referencePriceDate existed don't
     // leave those inputs undefined (React would warn about an uncontrolled->controlled
-    // input switch the moment the analyst typed into one).
-    setForm({ ...EMPTY, ...data })
+    // input switch the moment the analyst typed into one). forecastMode/driverForm are
+    // saved alongside the rest (see the ScenarioManager currentData prop below) but pulled
+    // out here rather than spread into `form` itself - a scenario saved before Driver mode
+    // existed has neither key, which is exactly what makes it load as Quick DCF.
+    const { forecastMode: savedMode, driverForm: savedDriverForm, ...formFields } = data
+    setForm({ ...EMPTY, ...formFields })
+    setForecastModeState(savedMode === 'driver' ? 'driver' : 'quick')
+    setDriverForm(savedDriverForm ?? { baseYearRevenue: '', driverYears: [] })
+    setDriverSourcedSnapshot(null)
+    setDriverResults(null)
+    setDriverResultsStale(false)
+    setDriverSensitivity(null)
+    setDriverError(null)
     setResults(null)
     setResultsStale(false)
     setSensitivity(null)
@@ -321,6 +427,15 @@ function DcfValuation() {
     setTicker('COST')
     setShowHistory(false)
     setShowCostcoDemo(true)
+    // The Costco demo is Quick DCF only (guardrail: keep its predetermined tabs unchanged,
+    // no Driver-mode case management this milestone) - forced back to Quick even if the
+    // analyst had Driver mode selected, with Driver's own results cleared the same way any
+    // other mode switch clears them.
+    setForecastModeState('quick')
+    setDriverResults(null)
+    setDriverResultsStale(false)
+    setDriverSensitivity(null)
+    setDriverError(null)
 
     const latest = COSTCO_COMPANY_DATA.periods[0]
     const baseCase = COSTCO_CASES.find((c) => c.id === 'base')
@@ -348,6 +463,7 @@ function DcfValuation() {
   // company, it only opens/closes the disclosure - never re-triggered by, or resetting,
   // whatever's already loaded or calculated.
   const handleToggleCostcoDemo = () => {
+    if (forecastMode === 'driver') return // see costcoDemoDisabled below - kept as a guard
     if (!isDemoSnapshot) {
       activateCostcoDemo()
     } else {
@@ -388,6 +504,12 @@ function DcfValuation() {
     return 'analyst'
   }
 
+  // Same mechanism as fieldBadgeType above, for Driver mode's own sourceable field.
+  const driverBaseYearRevenueBadgeType = () => {
+    if (!companyData || !driverSourcedSnapshot) return null
+    return sourceableFieldBadgeType(driverForm.baseYearRevenue, driverSourcedSnapshot.baseYearRevenue)
+  }
+
   // Reference price has its own status logic rather than joining SOURCEABLE_FIELDS, and
   // deliberately reads persisted form fields (referencePriceSourced*) rather than the
   // ephemeral sourcedSnapshot the other three sourceable fields use: sourcedSnapshot is
@@ -409,14 +531,51 @@ function DcfValuation() {
     return unchanged ? 'sourced' : 'adjusted'
   }
 
+  // A saved scenario's forecast mode is whatever it was saved with, defaulting to 'quick'
+  // for one saved before Driver mode existed (see loadScenario) - the same default applied
+  // here so a pre-Driver scenario and a Quick scenario mix identically (never flagged as
+  // "mixed" against each other).
+  const scenarioMode = (s) => s.data.forecastMode ?? 'quick'
+
   const handleCompare = async (selectedScenarios) => {
     setError(null)
+    setComparisonModeError(null)
+    const modes = new Set(selectedScenarios.map(scenarioMode))
+    if (modes.size > 1) {
+      setComparison(null)
+      setComparisonModeError(
+        'Comparison is limited to scenarios using the same forecast mode. Your selection ' +
+          'mixes Quick and Driver-Based scenarios - narrow it to one mode and try again.',
+      )
+      return
+    }
+    const mode = selectedScenarios[0] ? scenarioMode(selectedScenarios[0]) : 'quick'
+    const endpoint = mode === 'driver' ? '/api/dcf/driver-valuation' : '/api/dcf/valuation'
+    const buildBody = (s) =>
+      mode === 'driver'
+        ? buildDriverPayload(s.data.driverForm?.baseYearRevenue ?? '', s.data.driverForm?.driverYears ?? [], s.data)
+        : buildPayload(s.data)
+
     const settled = await Promise.allSettled(
       selectedScenarios.map(async (s) => {
-        const res = await fetch(`${API_BASE}/api/dcf/valuation`, {
+        // A scenario may be saved as an incomplete draft (ScenarioManager saves whatever is
+        // on screen, deliberately - a half-built idea is worth keeping). Valuing one is a
+        // different matter: without this check its blank cells would reach the API as 0% and
+        // come back as a legitimate-looking result, in the one view where there's no
+        // schedule on screen to eyeball it against. Rejected per scenario, before its own
+        // request is made, so the valid scenarios in the selection still compare normally.
+        if (mode === 'driver') {
+          const incomplete = driverInputsError(
+            s.data.driverForm?.baseYearRevenue ?? '',
+            s.data.driverForm?.driverYears ?? [],
+            s.data,
+          )
+          if (incomplete) throw new Error(incomplete)
+        }
+        const res = await fetch(`${API_BASE}${endpoint}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(buildPayload(s.data)),
+          body: JSON.stringify(buildBody(s)),
         })
         if (!res.ok) {
           throw new Error(await parseErrorResponse(res))
@@ -440,7 +599,76 @@ function DcfValuation() {
   // also names which case this is (both in the file's own content and its filename) - the
   // numbers alone don't say whether they're Low, Base, or High Growth, and a CSV or its
   // filename is exactly the kind of thing that outlives the screen it was exported from.
+  const exportDriverCsv = () => {
+    const rows = [
+      ['Driver-Based DCF Valuation Results'],
+      [],
+      ['Metric', 'Value'],
+      ['Enterprise Value', activeResults.enterprise_value],
+      ['Equity Value', activeResults.equity_value],
+      ['Value per Share', activeResults.value_per_share],
+      ['Terminal Value', activeResults.terminal_value],
+      ['PV of Terminal Value', activeResults.pv_terminal_value],
+      [],
+      ['Forecast Schedule'],
+      [
+        'Year',
+        'Revenue',
+        'EBIT',
+        'Cash Taxes',
+        'NOPAT',
+        'D&A',
+        'CapEx',
+        'Delta NWC',
+        'Unlevered FCF',
+        'Discount Factor',
+        'Present Value',
+      ],
+      ...activeResults.forecast.map((row) => [
+        row.year,
+        row.revenue,
+        row.ebit,
+        row.cash_taxes,
+        row.nopat,
+        row.da,
+        row.capex,
+        row.delta_nwc,
+        row.fcf,
+        row.discount_factor,
+        row.present_value,
+      ]),
+    ]
+
+    if (activeSensitivity) {
+      rows.push(
+        [],
+        ['Sensitivity: Value per Share by WACC & Terminal Growth'],
+        ['WACC', ...activeSensitivity.terminal_growth_rates.map((g) => percent(g))],
+        ...activeSensitivity.rows.map((row) => [
+          percent(row.wacc),
+          ...row.value_per_share_by_growth.map((v) => (v === null ? 'n/a' : v)),
+        ]),
+      )
+    }
+
+    const warnings = [...(activeResults.terminal_growth_warnings ?? []), ...(activeResults.driver_warnings ?? [])]
+    if (warnings.length > 0) {
+      rows.push(
+        [],
+        ['Warnings'],
+        ['Year', 'Tier', 'Explanation'],
+        ...warnings.map((w) => [w.year ?? '', w.tier, w.explanation]),
+      )
+    }
+
+    downloadCsv('driver-dcf-valuation.csv', rows)
+  }
+
   const exportCsv = () => {
+    if (forecastMode === 'driver') {
+      exportDriverCsv()
+      return
+    }
     const activeCase = isDemoSnapshot ? COSTCO_CASES.find((c) => c.id === activeDemoCaseId) : null
     const rows = [
       ['DCF Valuation Results'],
@@ -500,7 +728,9 @@ function DcfValuation() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (isDemoSnapshot) {
+    if (forecastMode === 'driver') {
+      await runDriverValuation()
+    } else if (isDemoSnapshot) {
       await runDemoValuation()
     } else {
       await runSingleValuation()
@@ -535,6 +765,66 @@ function DcfValuation() {
       return res.ok ? await res.json() : { status: 'request_failed' }
     } catch {
       return { status: 'request_failed' }
+    }
+  }
+
+  // Driver-Based DCF's own run - no reverse solve (Quick-only, see guardrail 5) and no demo
+  // case fan-out (Costco is Quick-only, see activateCostcoDemo). Deliberately NOT clearing
+  // driverResultsStale until the fresh outcome replaces it, same reasoning as
+  // runSingleValuation below: the previous result stays visible (correctly flagged stale by
+  // the caller having already set it, or just re-shown as current on a non-stale rerun)
+  // until its replacement actually lands, never blanked mid-fetch.
+  const runDriverValuation = async () => {
+    setDriverError(null)
+
+    // Completeness is checked before anything else, and no request is made if it fails. The
+    // per-cell `required` attributes already block the ordinary path, but they can't cover a
+    // schedule loaded from a partially-filled saved scenario, so this is the check that
+    // actually can't be bypassed - and it exists because a blank cell would otherwise be
+    // valued as a deliberate 0%, never as the missing assumption it is.
+    const incomplete = driverInputsError(driverForm.baseYearRevenue, driverForm.driverYears, form)
+    if (incomplete) {
+      setDriverError(incomplete)
+      setDriverResults(null)
+      setDriverResultsStale(false)
+      setDriverSensitivity(null)
+      return
+    }
+
+    setLoading(true)
+    setDriverSensitivity(null)
+    try {
+      const payload = buildDriverPayload(driverForm.baseYearRevenue, driverForm.driverYears, form)
+      const res = await fetch(`${API_BASE}/api/dcf/driver-valuation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) {
+        setDriverError(friendlyErrorMessage(new Error(await parseErrorResponse(res))))
+        setDriverResults(null)
+        setDriverResultsStale(false)
+        return
+      }
+      setDriverResults(await res.json())
+      setDriverResultsStale(false)
+
+      // Best-effort, same as Quick's sensitivity fetch: supplementary, so a failure here
+      // never blocks or overwrites the main valuation result just calculated.
+      try {
+        const sensRes = await fetch(`${API_BASE}/api/dcf/driver-sensitivity`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        if (sensRes.ok) {
+          setDriverSensitivity(await sensRes.json())
+        }
+      } catch {
+        // Sensitivity grid is supplementary; leave it blank on failure.
+      }
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -671,14 +961,25 @@ function DcfValuation() {
   }
 
   // The single source every result-rendering, CSV, and print consumer below reads instead
-  // of the raw results/sensitivity/error state - in demo mode, "the active tab's own
-  // outcome" (which may be a result, an error, or neither pre-run); otherwise, exactly the
-  // single-run state, unchanged. This is what makes every consumer already written against
-  // results/sensitivity/error automatically become tab-correct without being rewritten.
+  // of the raw results/sensitivity/error state - Driver mode's own results when that mode is
+  // active (Driver mode never has demo cases - Costco is Quick-only, see
+  // activateCostcoDemo); in demo mode, "the active tab's own outcome" (which may be a
+  // result, an error, or neither pre-run); otherwise, exactly the single-run state,
+  // unchanged. This is what makes every consumer already written against
+  // results/sensitivity/error automatically become mode- and tab-correct without being
+  // rewritten - including explainValuation and the Analysis Outputs card below, neither of
+  // which needed a single Driver-specific line added to them.
   const activeDemoCase = isDemoSnapshot ? demoResults?.[activeDemoCaseId] : null
-  const activeResults = isDemoSnapshot ? (activeDemoCase?.results ?? null) : results
-  const activeSensitivity = isDemoSnapshot ? (activeDemoCase?.sensitivity ?? null) : sensitivity
-  const activeError = isDemoSnapshot ? (activeDemoCase?.error ?? null) : error
+  const activeResults =
+    forecastMode === 'driver' ? driverResults : isDemoSnapshot ? (activeDemoCase?.results ?? null) : results
+  const activeSensitivity =
+    forecastMode === 'driver'
+      ? driverSensitivity
+      : isDemoSnapshot
+        ? (activeDemoCase?.sensitivity ?? null)
+        : sensitivity
+  const activeError =
+    forecastMode === 'driver' ? driverError : isDemoSnapshot ? (activeDemoCase?.error ?? null) : error
 
   // Sensitivity cells are tinted in five discrete tiers (low->high implied value) rather
   // than a computed gradient, so light/dark colors can be declared explicitly in CSS. The
@@ -713,10 +1014,11 @@ function DcfValuation() {
     activeResults && hasUsableReferencePrice ? activeResults.value_per_share / referencePriceNum - 1 : null
 
   // One flag covering "the currently-visible forward result is stale," in whichever mode is
-  // active - demoResultsStale in demo mode, resultsStale otherwise. Everything below reads
-  // this instead of either raw flag, the same way activeResults/activeSensitivity/activeError
-  // already read one shared name regardless of mode.
-  const activeResultsStale = isDemoSnapshot ? demoResultsStale : resultsStale
+  // active - driverResultsStale in Driver mode, demoResultsStale in demo mode, resultsStale
+  // otherwise. Everything below reads this instead of any raw flag, the same way
+  // activeResults/activeSensitivity/activeError already read one shared name regardless of
+  // mode.
+  const activeResultsStale = forecastMode === 'driver' ? driverResultsStale : isDemoSnapshot ? demoResultsStale : resultsStale
 
   // Gates CSV/Print and the Analysis Outputs card - not just activeResults, since a stale
   // result must not be exportable or printable either, even though it's still sitting in
@@ -755,6 +1057,14 @@ function DcfValuation() {
     forecastYears: form.forecastYears,
   })
 
+  // The warning list's second array, mode-dependent: driver_warnings in Driver mode
+  // (tax-rate/D&A/CapEx/base-revenue/zero-or-negative-revenue scrutiny), fcf_growth_warnings
+  // in Quick mode (its own flat-growth-rate scrutiny) - terminal_growth_warnings is shared by
+  // both, since Gordon Growth's own validity doesn't depend on which mode produced the cash
+  // flows feeding it.
+  const secondaryWarnings =
+    forecastMode === 'driver' ? (activeResults?.driver_warnings ?? []) : (activeResults?.fcf_growth_warnings ?? [])
+
   return (
     <div className="feature-page workspace">
       <CompanyHeader
@@ -768,9 +1078,22 @@ function DcfValuation() {
         isDemoSnapshot={isDemoSnapshot}
         isDemoOpen={showCostcoDemo}
         onToggleDemo={handleToggleCostcoDemo}
+        costcoDemoDisabled={forecastMode === 'driver'}
       />
 
       <CostcoDemoPanel open={showCostcoDemo} />
+
+      {forecastMode === 'driver' && (
+        <DriverScheduleBuilder
+          baseYearRevenue={driverForm.baseYearRevenue}
+          onBaseYearRevenueChange={setDriverBaseYearRevenue}
+          baseYearRevenueBadgeType={driverBaseYearRevenueBadgeType()}
+          driverYears={driverForm.driverYears}
+          onYearFieldChange={setDriverYearField}
+          onBroadcastField={broadcastDriverYearField}
+          lastActual={lastActualDriverReference(companyData)}
+        />
+      )}
 
       <div className="analytical-row">
         <section className="analytical-col">
@@ -795,46 +1118,73 @@ function DcfValuation() {
           <div className="analytical-col-header">
             <span className="step-badge">2</span>
             <h2>Assumptions</h2>
+            <div className="forecast-mode-toggle no-print">
+              <button
+                type="button"
+                className={forecastMode === 'quick' ? 'active' : ''}
+                onClick={() => setForecastMode('quick')}
+              >
+                Quick DCF
+              </button>
+              <button
+                type="button"
+                className={forecastMode === 'driver' ? 'active' : ''}
+                onClick={() => setForecastMode('driver')}
+                disabled={isDemoSnapshot}
+                title={isDemoSnapshot ? 'Not available while viewing the Costco demo' : undefined}
+              >
+                Driver-Based
+              </button>
+            </div>
           </div>
           <form onSubmit={handleSubmit} id="dcf-assumptions-form">
             <div className="field-group">
               <div className="field-group-label">Forecast</div>
-              <label className="field-row">
-                <span className="field-row-head">
-                  <span className="field-row-label">Base Year UFCF</span>
-                  {fieldBadgeType('baseYearFcf') && <SourceBadge type={fieldBadgeType('baseYearFcf')} />}
-                </span>
-                <FormattedNumberInput
-                  required
-                  min="0"
-                  step="any"
-                  value={form.baseYearFcf}
-                  onChange={setFieldValue('baseYearFcf')}
-                  formatter={compactCurrency}
-                />
-              </label>
-              <label className="field-row">
-                <span className="field-row-head">
-                  <span className="field-row-label">FCF Growth Rate (%/yr)</span>
-                  {fieldBadgeType('fcfGrowthRate') && <SourceBadge type={fieldBadgeType('fcfGrowthRate')} />}
-                </span>
-                <input
-                  type="number"
-                  required
-                  step="any"
-                  value={form.fcfGrowthRate}
-                  onChange={handleChange('fcfGrowthRate')}
-                />
-                {/* Every other field on this form is shared across all three demo cases -
-                    this is the one exception, so editing it must not read as "edits every
-                    case" the way editing WACC below genuinely does. */}
-                {isDemoSnapshot && (
-                  <span className="field-row-note no-print">
-                    Specific to the {COSTCO_CASES.find((c) => c.id === activeDemoCaseId)?.label} tab -
-                    every other field here is shared across all three cases.
-                  </span>
-                )}
-              </label>
+              {forecastMode === 'quick' ? (
+                <>
+                  <label className="field-row">
+                    <span className="field-row-head">
+                      <span className="field-row-label">Base Year UFCF</span>
+                      {fieldBadgeType('baseYearFcf') && <SourceBadge type={fieldBadgeType('baseYearFcf')} />}
+                    </span>
+                    <FormattedNumberInput
+                      required
+                      min="0"
+                      step="any"
+                      value={form.baseYearFcf}
+                      onChange={setFieldValue('baseYearFcf')}
+                      formatter={compactCurrency}
+                    />
+                  </label>
+                  <label className="field-row">
+                    <span className="field-row-head">
+                      <span className="field-row-label">FCF Growth Rate (%/yr)</span>
+                      {fieldBadgeType('fcfGrowthRate') && <SourceBadge type={fieldBadgeType('fcfGrowthRate')} />}
+                    </span>
+                    <input
+                      type="number"
+                      required
+                      step="any"
+                      value={form.fcfGrowthRate}
+                      onChange={handleChange('fcfGrowthRate')}
+                    />
+                    {/* Every other field on this form is shared across all three demo cases -
+                        this is the one exception, so editing it must not read as "edits every
+                        case" the way editing WACC below genuinely does. */}
+                    {isDemoSnapshot && (
+                      <span className="field-row-note no-print">
+                        Specific to the {COSTCO_CASES.find((c) => c.id === activeDemoCaseId)?.label} tab -
+                        every other field here is shared across all three cases.
+                      </span>
+                    )}
+                  </label>
+                </>
+              ) : (
+                <p className="field-row-note">
+                  Base Year Revenue and every per-year driver are set in the Forecast Drivers
+                  panel above.
+                </p>
+              )}
               <label className="field-row">
                 <span className="field-row-head">
                   <span className="field-row-label">Forecast Period (years)</span>
@@ -847,7 +1197,7 @@ function DcfValuation() {
                   max="15"
                   step="1"
                   value={form.forecastYears}
-                  onChange={handleChange('forecastYears')}
+                  onChange={handleForecastYearsChange}
                 />
               </label>
             </div>
@@ -1071,8 +1421,11 @@ function DcfValuation() {
                       </div>
                     </div>
                     <p className="comparison-disclaimer">
-                      The difference reflects the model&rsquo;s selected assumptions and simplified
-                      flat-growth methodology. It is not an investment recommendation.
+                      The difference reflects the model&rsquo;s selected assumptions and{' '}
+                      {forecastMode === 'driver'
+                        ? 'driver-based forecast methodology'
+                        : 'simplified flat-growth methodology'}
+                      . It is not an investment recommendation.
                     </p>
                   </div>
                 )}
@@ -1127,7 +1480,12 @@ function DcfValuation() {
                 with a concrete instruction, rather than the whole block disappearing. */}
             <div className="reverse-dcf-card">
               <div className="reverse-dcf-label">Price-Implied FCF Growth</div>
-              {!hasUsableReferencePrice ? (
+              {forecastMode === 'driver' ? (
+                <p className="col-empty-hint">
+                  Not available in Driver-Based mode - a multi-driver forecast has no single
+                  rate to solve for. Switch to Quick DCF to see price-implied FCF growth.
+                </p>
+              ) : !hasUsableReferencePrice ? (
                 <p className="col-empty-hint">
                   Enter a positive reference price and as-of date to calculate price-implied
                   growth.
@@ -1332,15 +1690,21 @@ function DcfValuation() {
                 Incl. PV of Terminal Value {compactCurrency(activeResults.pv_terminal_value)} (Terminal Value{' '}
                 {compactCurrency(activeResults.terminal_value)}).
               </p>
-              {(activeResults.terminal_growth_warnings?.length > 0 ||
-                activeResults.fcf_growth_warnings?.length > 0) && (
+              {(activeResults.terminal_growth_warnings?.length > 0 || secondaryWarnings.length > 0) && (
                 <ul className="terminal-growth-warning-list">
-                  {[...activeResults.terminal_growth_warnings, ...activeResults.fcf_growth_warnings].map(
-                    (warning) => (
+                  {[...activeResults.terminal_growth_warnings, ...secondaryWarnings].map(
+                    (warning, i) => (
                       <li
-                        key={warning.id}
+                        // Driver-mode warnings can repeat the same id across different years
+                        // (e.g. tax_rate_outside_0_100_percent on both year 1 and year 3), so
+                        // the id alone isn't a unique key the way it always was for Quick's
+                        // at-most-one-of-each-id warning arrays.
+                        key={`${warning.year ?? ''}-${warning.id}-${i}`}
                         className={`terminal-growth-warning terminal-growth-warning--${warning.tier}`}
                       >
+                        {warning.year != null && warning.year > 0 && (
+                          <span className="terminal-growth-warning-year">Year {warning.year}</span>
+                        )}
                         <span className="terminal-growth-warning-tier">{warning.tier}</span>
                         <span className="terminal-growth-warning-explanation">
                           {warning.explanation}
@@ -1386,37 +1750,83 @@ function DcfValuation() {
           >
             ⓘ Methodology {showMethodology ? '▲' : '▼'}
           </button>
-          <p className={`assumptions ${showMethodology ? '' : 'no-screen'}`}>
-            Explicit-period FCF is projected from the base year at a single flat growth rate (no
-            revenue/margin/CapEx build-up); terminal value uses the Gordon Growth method off WACC
-            and terminal growth as direct inputs; cash flows are discounted using the end-of-year
-            convention, not mid-year.
-          </p>
-          <p className={`assumptions ${showMethodology ? '' : 'no-screen'}`}>
-            Terminal growth represents the business&rsquo;s steady-state growth rate forever, not
-            a near-term forecast. Positive values are conventionally benchmarked against
-            sustainable long-run nominal economic growth (real growth plus inflation) in the cash
-            flows&rsquo; own currency &mdash; a figure that varies by market and period, so it
-            isn&rsquo;t hard-coded here. Negative values imply permanent structural decline, not
-            near-term softness (which belongs in the explicit forecast period instead). Only WACC
-            &gt; terminal growth, and Gordon Growth&rsquo;s own convergence requirement, are
-            enforced as hard limits; combinations that are valid but structurally unusual &mdash;
-            a narrow WACC&ndash;terminal growth spread, or terminal growth at or below &minus;100%
-            (at exactly &minus;100%, next period&rsquo;s projected cash flow is zero; below it,
-            repeated compounding produces alternating-sign cash flows) &mdash; surface as
-            warnings above instead of being blocked outright.
-          </p>
-          <p className={`assumptions ${showMethodology ? '' : 'no-screen'}`}>
-            Explicit-period FCF growth has no fixed economic ceiling or floor &mdash; analyst
-            judgment, not a hard-coded threshold. The arithmetic itself stays well-defined at
-            any value, so nothing is blocked on economic grounds; assumptions that are valid
-            but unusual surface as warnings instead. Exactly &minus;100% means every forecast
-            year becomes $0. Below &minus;100%, projected cash flow alternates between
-            negative and positive each year rather than continuing to decline &mdash;
-            mechanically computed, but worth confirming it&rsquo;s what you intend. Only
-            overflow or a non-finite result is rejected outright, since that genuinely cannot
-            be computed.
-          </p>
+          {forecastMode === 'driver' ? (
+            <>
+              <p className={`assumptions ${showMethodology ? '' : 'no-screen'}`}>
+                Each forecast year&rsquo;s unlevered FCF is built up from its own drivers:
+                revenue compounds off the prior year&rsquo;s at that year&rsquo;s growth rate,
+                EBIT is revenue &times; margin, cash taxes are EBIT &times; tax rate only when
+                EBIT is positive (no NOL carryforward &mdash; a loss year owes no cash tax but
+                earns no future benefit from it either), and D&amp;A/CapEx/NWC investment are
+                each a percentage of that year&rsquo;s revenue (NWC investment specifically as a
+                percentage of the year-over-year <em>change</em> in revenue, not a
+                balance-sheet ratio). Terminal value, discounting, and enterprise/equity value
+                use the exact same Gordon Growth and end-of-year-discounting engine as Quick
+                DCF, applied to this driver-built schedule instead of a flat-growth one.
+              </p>
+              <p className={`assumptions ${showMethodology ? '' : 'no-screen'}`}>
+                No driver value has a fixed ceiling or floor &mdash; analyst judgment, not a
+                hard-coded threshold. A tax rate outside 0%&ndash;100%, a negative D&amp;A or
+                CapEx percentage, a non-positive Base Year Revenue, a forecast year whose
+                revenue comes out zero or negative, or a final forecast year whose Unlevered
+                FCF is zero or negative all stay computable and surface as warnings above
+                instead of being blocked. Revenue hitting exactly zero in some year is a
+                permanent lock (no later percentage growth rate can restore it, since any rate
+                times zero is still zero); revenue going negative is a one-year event whose
+                sign in later years depends entirely on their own growth rates, never a
+                predictable alternating pattern the way a single flat rate produces.
+              </p>
+              <p className={`assumptions ${showMethodology ? '' : 'no-screen'}`}>
+                The terminal year uses the schedule&rsquo;s own final explicit year as-is, with
+                no adjustment toward a sustainable steady-state margin or reinvestment level
+                &mdash; a known simplification, not a claim that any particular convergence
+                (e.g. D&amp;A approaching CapEx) is the &ldquo;correct&rdquo; terminal
+                assumption. Sustainable terminal margins and reinvestment economics remain a
+                genuinely open modeling question, deferred rather than papered over. One
+                consequence is flagged rather than left implicit: because the terminal value
+                comes from that final year alone, a final year whose Unlevered FCF is zero or
+                negative produces a zero or negative terminal value &mdash; and often a
+                negative enterprise value with it &mdash; which is why that case raises its own
+                warning rather than being blocked. Price-
+                implied FCF growth (Reverse DCF) is Quick DCF-only: a multi-driver forecast has
+                no single rate to solve for.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className={`assumptions ${showMethodology ? '' : 'no-screen'}`}>
+                Explicit-period FCF is projected from the base year at a single flat growth rate (no
+                revenue/margin/CapEx build-up); terminal value uses the Gordon Growth method off WACC
+                and terminal growth as direct inputs; cash flows are discounted using the end-of-year
+                convention, not mid-year.
+              </p>
+              <p className={`assumptions ${showMethodology ? '' : 'no-screen'}`}>
+                Terminal growth represents the business&rsquo;s steady-state growth rate forever, not
+                a near-term forecast. Positive values are conventionally benchmarked against
+                sustainable long-run nominal economic growth (real growth plus inflation) in the cash
+                flows&rsquo; own currency &mdash; a figure that varies by market and period, so it
+                isn&rsquo;t hard-coded here. Negative values imply permanent structural decline, not
+                near-term softness (which belongs in the explicit forecast period instead). Only WACC
+                &gt; terminal growth, and Gordon Growth&rsquo;s own convergence requirement, are
+                enforced as hard limits; combinations that are valid but structurally unusual &mdash;
+                a narrow WACC&ndash;terminal growth spread, or terminal growth at or below &minus;100%
+                (at exactly &minus;100%, next period&rsquo;s projected cash flow is zero; below it,
+                repeated compounding produces alternating-sign cash flows) &mdash; surface as
+                warnings above instead of being blocked outright.
+              </p>
+              <p className={`assumptions ${showMethodology ? '' : 'no-screen'}`}>
+                Explicit-period FCF growth has no fixed economic ceiling or floor &mdash; analyst
+                judgment, not a hard-coded threshold. The arithmetic itself stays well-defined at
+                any value, so nothing is blocked on economic grounds; assumptions that are valid
+                but unusual surface as warnings instead. Exactly &minus;100% means every forecast
+                year becomes $0. Below &minus;100%, projected cash flow alternates between
+                negative and positive each year rather than continuing to decline &mdash;
+                mechanically computed, but worth confirming it&rsquo;s what you intend. Only
+                overflow or a non-finite result is rejected outright, since that genuinely cannot
+                be computed.
+              </p>
+            </>
+          )}
         </WorkflowCard>
       )}
 
@@ -1424,19 +1834,25 @@ function DcfValuation() {
           the core company -> assumptions -> valuation -> analysis sequence, rather than
           interrupting it - comparing scenarios is a side workflow, not part of reading the
           current valuation. */}
-      {comparison && (
-        <ScenarioComparisonTable
-          title="Scenario Comparison"
-          comparisons={comparison}
-          metrics={COMPARISON_METRICS}
-          onClear={() => setComparison(null)}
-        />
+      {comparisonModeError ? (
+        <div className="results">
+          <p className="error">{comparisonModeError}</p>
+        </div>
+      ) : (
+        comparison && (
+          <ScenarioComparisonTable
+            title="Scenario Comparison"
+            comparisons={comparison}
+            metrics={COMPARISON_METRICS}
+            onClear={() => setComparison(null)}
+          />
+        )
       )}
 
       <div className="scenarios-compact">
         <ScenarioManager
           storageKey="dcf"
-          currentData={form}
+          currentData={{ ...form, forecastMode, driverForm }}
           onLoad={loadScenario}
           onCompare={handleCompare}
         />

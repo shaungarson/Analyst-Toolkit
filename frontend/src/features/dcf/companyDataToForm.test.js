@@ -11,13 +11,16 @@ function makeCompanyData(overrides = {}) {
       reference_price_as_of: '2026-08-01',
       ...overrides.profile,
     },
-    periods: overrides.periods ?? [{ unlevered_fcf: 90000000000, net_debt: -50000000000 }],
+    periods: overrides.periods ?? [
+      { unlevered_fcf: 90000000000, net_debt: -50000000000, revenue: 400000000000 },
+    ],
   }
 }
 
 test('companyDataToSourcedFields: complete data maps every field as a string', () => {
   const sourced = companyDataToSourcedFields(makeCompanyData())
   assert.equal(sourced.baseYearFcf, '90000000000')
+  assert.equal(sourced.baseYearRevenue, '400000000000')
   assert.equal(sourced.netDebt, '-50000000000')
   assert.equal(sourced.dilutedSharesOutstanding, '15000000000')
   assert.equal(sourced.referencePrice, '200.5')
@@ -37,6 +40,13 @@ test('companyDataToSourcedFields: null unlevered_fcf (the EOSE case) blanks base
 test('companyDataToSourcedFields: null net_debt blanks netDebt', () => {
   const data = makeCompanyData({ periods: [{ unlevered_fcf: 90000000000, net_debt: null }] })
   assert.equal(companyDataToSourcedFields(data).netDebt, '')
+})
+
+test('companyDataToSourcedFields: null revenue blanks baseYearRevenue, not omits it', () => {
+  const data = makeCompanyData({ periods: [{ unlevered_fcf: 90000000000, revenue: null }] })
+  const sourced = companyDataToSourcedFields(data)
+  assert.equal(sourced.baseYearRevenue, '')
+  assert.ok('baseYearRevenue' in sourced)
 })
 
 test('companyDataToSourcedFields: null shares_outstanding blanks dilutedSharesOutstanding', () => {
@@ -68,14 +78,22 @@ test('companyDataToSourcedFields: consecutive loads never leak a prior company v
     profile: { shares_outstanding: null, reference_price: null, reference_price_as_of: null },
   })
 
-  let form = { baseYearFcf: '', netDebt: '', dilutedSharesOutstanding: '', referencePrice: '' }
+  let form = {
+    baseYearFcf: '',
+    baseYearRevenue: '',
+    netDebt: '',
+    dilutedSharesOutstanding: '',
+    referencePrice: '',
+  }
   form = { ...form, ...companyDataToSourcedFields(companyA) }
   assert.equal(form.baseYearFcf, '90000000000')
+  assert.equal(form.baseYearRevenue, '400000000000')
 
   // Same merge loadCompany performs on the second load - every EOSE-like field must land
   // as '' in the patch, overwriting company A's figures rather than leaving them in place.
   form = { ...form, ...companyDataToSourcedFields(companyB) }
   assert.equal(form.baseYearFcf, '')
+  assert.equal(form.baseYearRevenue, '')
   assert.equal(form.netDebt, '')
   assert.equal(form.dilutedSharesOutstanding, '')
   assert.equal(form.referencePrice, '')

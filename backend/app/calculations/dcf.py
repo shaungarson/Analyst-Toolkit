@@ -184,25 +184,18 @@ def value_per_share(equity_value_, diluted_shares_outstanding):
     return equity_value_ / diluted_shares_outstanding
 
 
-def _compute_dcf(
-    base_year_fcf,
-    fcf_growth_rate,
-    forecast_years,
-    wacc,
-    terminal_growth_rate,
-    net_debt,
-    diluted_shares_outstanding,
-):
-    """The one place the forward valuation formula is actually implemented - run_dcf (the
-    public, rounded forward API) and implied_fcf_growth_rate (the reverse solver) both call
-    this rather than each computing enterprise value / equity value / value per share their
-    own way, so the two can never silently drift into disagreement. Returns raw, unrounded
-    values deliberately: the solver needs the true continuous value_per_share to bisect
-    against, not a figure already quantized to the nearest cent - solving against a rounded
-    target would mean the "root" it finds is only accurate to within that $0.01 step, not to
-    the solver's own numerical tolerance.
+def _compute_dcf_core(fcfs, wacc, terminal_growth_rate, net_debt, diluted_shares_outstanding):
+    """The one place the forward valuation formula is actually implemented, given an
+    already-built annual FCF schedule. _compute_dcf (flat-growth, via project_fcf) and
+    _compute_driver_dcf (driver-based, via project_driver_years) both call this rather than
+    each computing enterprise value / equity value / value per share their own way, so the
+    two forecast-entry modes can never silently drift into disagreement about how a schedule
+    becomes a valuation. Returns raw, unrounded values deliberately: the reverse solver needs
+    the true continuous value_per_share to bisect against, not a figure already quantized to
+    the nearest cent - solving against a rounded target would mean the "root" it finds is
+    only accurate to within that $0.01 step, not to the solver's own numerical tolerance.
     """
-    fcfs = project_fcf(base_year_fcf, fcf_growth_rate, forecast_years)
+    forecast_years = len(fcfs)
     discount_factors = [discount_factor(wacc, t) for t in range(1, forecast_years + 1)]
 
     pv_fcfs = []
@@ -229,6 +222,24 @@ def _compute_dcf(
         "equity_value": eq_value,
         "value_per_share": per_share,
     }
+
+
+def _compute_dcf(
+    base_year_fcf,
+    fcf_growth_rate,
+    forecast_years,
+    wacc,
+    terminal_growth_rate,
+    net_debt,
+    diluted_shares_outstanding,
+):
+    """Flat-growth (Quick DCF) forward valuation - run_dcf (the public, rounded forward API)
+    and implied_fcf_growth_rate (the reverse solver) both call this. Builds the FCF schedule
+    from a single flat growth rate, then hands off to _compute_dcf_core, the one shared place
+    a schedule becomes a valuation.
+    """
+    fcfs = project_fcf(base_year_fcf, fcf_growth_rate, forecast_years)
+    return _compute_dcf_core(fcfs, wacc, terminal_growth_rate, net_debt, diluted_shares_outstanding)
 
 
 def run_dcf(
@@ -489,3 +500,329 @@ def implied_fcf_growth_rate(
         "reconciled_value_per_share": round(v_mid, 2),
         "floor_value_per_share": round(floor, 2),
     }
+
+
+# --- Driver-Based DCF: revenue -> margin -> taxes -> D&A -> CapEx -> NWC, one year at a ----
+# --- time, instead of a single flat FCF growth rate ----------------------------------------
+#
+# driver_years is a list of plain dicts, one per forecast year, each with:
+#   revenue_growth_rate, ebit_margin, tax_rate, da_pct_of_revenue, capex_pct_of_revenue,
+#   nwc_investment_pct_of_revenue_change
+# No field is hard-bounded here - the arithmetic stays well-defined (finite) at any value
+# short of the same structural revenue-collapse case project_fcf's flat-growth path already
+# has to handle (see driver_warnings below); analyst judgment governs everything else, per
+# CLAUDE.md's Financial Validation Principle.
+
+
+def project_driver_years(base_year_revenue, driver_years):
+    """Builds the full per-year operating schedule - revenue, EBIT, cash taxes, NOPAT, D&A,
+    CapEx, delta NWC, and UFCF - that driver-based inputs imply, one dict per forecast year
+    in order. Mirrors the sourced UFCF formula (EBIT x (1 - tax rate) + D&A - CapEx - delta
+    NWC; see MODELING_CONVENTIONS.md) exactly, except every line is itself forecast from a
+    driver rather than read from a filing, and cash tax uses max(EBIT, 0) x tax_rate - no NOL
+    carryforward is modeled, so a loss year owes no cash tax but also earns no benefit
+    against it. Delta NWC is modeled as nwc_investment_pct_of_revenue_change x the
+    year-over-year dollar *change* in revenue - not a balance-sheet NWC ratio.
+
+    run_driver_dcf extracts each year's "fcf" for _compute_dcf_core and re-attaches every
+    other field to the rounded result rows, so the two can never drift out of sync.
+    """
+    rows = []
+    prior_revenue = base_year_revenue
+    for year in driver_years:
+        revenue = prior_revenue * (1 + year["revenue_growth_rate"])
+        ebit = revenue * year["ebit_margin"]
+        cash_taxes = max(ebit, 0) * year["tax_rate"]
+        nopat = ebit - cash_taxes
+        da = revenue * year["da_pct_of_revenue"]
+        capex = revenue * year["capex_pct_of_revenue"]
+        delta_nwc = year["nwc_investment_pct_of_revenue_change"] * (revenue - prior_revenue)
+        fcf = nopat + da - capex - delta_nwc
+        rows.append(
+            {
+                "revenue": revenue,
+                "ebit": ebit,
+                "cash_taxes": cash_taxes,
+                "nopat": nopat,
+                "da": da,
+                "capex": capex,
+                "delta_nwc": delta_nwc,
+                "fcf": fcf,
+            }
+        )
+        prior_revenue = revenue
+    return rows
+
+
+def _compute_driver_dcf(
+    base_year_revenue, driver_years, wacc, terminal_growth_rate, net_debt, diluted_shares_outstanding
+):
+    rows = project_driver_years(base_year_revenue, driver_years)
+    for row in rows:
+        for label in ("revenue", "ebit", "cash_taxes", "nopat", "da", "capex", "delta_nwc", "fcf"):
+            _require_finite(row[label], f"projected {label}")
+
+    fcfs = [row["fcf"] for row in rows]
+    core = _compute_dcf_core(fcfs, wacc, terminal_growth_rate, net_debt, diluted_shares_outstanding)
+    return rows, core
+
+
+def _base_year_revenue_warning(base_year_revenue):
+    if base_year_revenue > 0:
+        return None
+    return {
+        "year": 0,
+        "id": "non_positive_base_year_revenue",
+        "tier": "extreme",
+        "explanation": (
+            "Base Year Revenue is zero or negative. Every forecast year's revenue is this "
+            "figure compounded by each year's own growth rate, so a non-positive base makes "
+            "the entire revenue schedule - and everything derived from it - structurally "
+            "meaningless, even though the arithmetic itself still computes a finite result."
+        ),
+    }
+
+
+def _driver_year_warnings(year_index, driver_year, revenue, prior_revenue, revenue_already_locked_at_zero):
+    """Per-year scrutiny for one driver year. The revenue-sign checks are deliberately based
+    on the *computed* revenue value each year, not on inspecting revenue_growth_rate against
+    a -100% threshold in isolation: unlike flat-growth FCF (one rate exponentiated, so its
+    sign pattern is fully determined), each driver year has its own independent growth rate,
+    so a later year's revenue sign depends on that year's own rate applied to whatever the
+    prior year's revenue actually was - never a predictable alternating pattern. Two distinct
+    cases, not collapsed into one: revenue hitting exactly zero is a permanent lock (0 times
+    any finite growth rate is still 0, so every later year is a mechanical consequence, not a
+    new event - flagged once, at the year it first happens); revenue going negative is a
+    one-year event whose sign in later years depends entirely on their own rates.
+    """
+    warnings = []
+    if not (0 <= driver_year["tax_rate"] <= 1):
+        warnings.append(
+            {
+                "year": year_index,
+                "id": "tax_rate_outside_0_100_percent",
+                "tier": "caution",
+                "explanation": (
+                    f"Year {year_index}'s tax rate ({driver_year['tax_rate']:.1%}) is outside "
+                    "the usual 0%-100% range. The arithmetic still computes (a negative rate "
+                    "acts as a tax subsidy on a profitable year; above 100% takes more cash "
+                    "than the year's entire EBIT) - double-check this reflects what you "
+                    "intend."
+                ),
+            }
+        )
+    if driver_year["da_pct_of_revenue"] < 0:
+        warnings.append(
+            {
+                "year": year_index,
+                "id": "negative_da_percent",
+                "tier": "caution",
+                "explanation": (
+                    f"Year {year_index}'s D&A is a negative percentage of revenue "
+                    f"({driver_year['da_pct_of_revenue']:.1%}), which reduces rather than adds "
+                    "back to NOPAT in the UFCF formula - an unusual assumption, not a "
+                    "computational problem."
+                ),
+            }
+        )
+    if driver_year["capex_pct_of_revenue"] < 0:
+        warnings.append(
+            {
+                "year": year_index,
+                "id": "negative_capex_percent",
+                "tier": "caution",
+                "explanation": (
+                    f"Year {year_index}'s CapEx is a negative percentage of revenue "
+                    f"({driver_year['capex_pct_of_revenue']:.1%}) - a net-divestment "
+                    "assumption rather than investment - an unusual assumption, not a "
+                    "computational problem."
+                ),
+            }
+        )
+
+    if revenue_already_locked_at_zero:
+        return warnings
+    if revenue == 0:
+        warnings.append(
+            {
+                "year": year_index,
+                "id": "zero_revenue_lock",
+                "tier": "extreme",
+                "explanation": (
+                    f"Year {year_index}'s revenue growth rate "
+                    f"({driver_year['revenue_growth_rate']:.1%}) applied to the prior year's "
+                    "revenue produces exactly zero. Because each year's revenue is a "
+                    "percentage of the prior year's, once it reaches zero no subsequent "
+                    "growth rate - positive, negative, or zero - can make it nonzero again: "
+                    "every later year's revenue will also be zero."
+                ),
+            }
+        )
+    elif revenue < 0:
+        warnings.append(
+            {
+                "year": year_index,
+                "id": "negative_revenue",
+                "tier": "extreme",
+                "explanation": (
+                    f"Year {year_index}'s revenue growth rate "
+                    f"({driver_year['revenue_growth_rate']:.1%}) applied to a prior-year "
+                    f"revenue of {prior_revenue:,.2f} produces a negative figure "
+                    f"({revenue:,.2f}). This is mechanically computed, but a negative revenue "
+                    "doesn't represent a coherent forecast - double-check this reflects what "
+                    "you intend. Whether later years return to positive revenue depends "
+                    "entirely on their own growth rates, not a predictable alternating "
+                    "pattern."
+                ),
+            }
+        )
+    return warnings
+
+
+def _terminal_year_fcf_warning(rows):
+    """The Gordon Growth terminal value is computed from the final explicit forecast year's
+    UFCF (see _compute_dcf_core), so a final year ending at or below zero produces a zero or
+    negative terminal value - and because the terminal value usually dominates a DCF, a zero
+    or negative enterprise value along with it. Nothing here is computationally undefined:
+    the arithmetic stays finite and the growing-perpetuity formula still evaluates. It's the
+    economics that stop cohering, which is precisely the case CLAUDE.md's Financial
+    Validation Principle says to surface prominently rather than block.
+
+    Deliberately keyed off the computed final-year UFCF rather than any individual driver:
+    no single driver determines the sign of a year's UFCF - it is the net of NOPAT + D&A -
+    CapEx - delta NWC - so an ordinary-looking reinvestment-heavy schedule can reach this
+    with every individual driver sitting in a perfectly normal range and no other warning
+    firing.
+    """
+    if not rows:
+        return None
+    final_fcf = rows[-1]["fcf"]
+    if final_fcf > 0:
+        return None
+    return {
+        "year": len(rows),
+        "id": "non_positive_terminal_year_fcf",
+        "tier": "extreme",
+        "explanation": (
+            f"Year {len(rows)} is the final explicit forecast year, and its Unlevered FCF is "
+            f"{final_fcf:,.2f}. The Gordon Growth terminal value is calculated directly from "
+            "that figure, so the terminal value is zero or negative too - and because the "
+            "terminal value usually dominates a DCF, the enterprise value and value per "
+            "share can come out negative as well. Sensitivity direction may also become "
+            "counterintuitive, with value per share rising as WACC increases and falling as "
+            "terminal growth increases - the reverse of the usual reading. The arithmetic is "
+            "sound; what it implies is a forecast that never reaches a positive steady "
+            "state. Verify the terminal-year economics before relying on this valuation."
+        ),
+    }
+
+
+def driver_warnings(base_year_revenue, driver_years, rows):
+    """Deterministic, explanatory warnings for valid-but-economically-unusual driver
+    assumptions - see _driver_year_warnings' own docstring for why the revenue-sign checks
+    are computed per year from the actual schedule rather than inferred from a growth-rate
+    threshold. No value here is hard-blocked; this is scrutiny, not a second validity check.
+    """
+    warnings = []
+    base_warning = _base_year_revenue_warning(base_year_revenue)
+    if base_warning:
+        warnings.append(base_warning)
+
+    prior_revenue = base_year_revenue
+    revenue_locked_at_zero = False
+    for year_index, (driver_year, row) in enumerate(zip(driver_years, rows), start=1):
+        revenue = row["revenue"]
+        warnings.extend(
+            _driver_year_warnings(year_index, driver_year, revenue, prior_revenue, revenue_locked_at_zero)
+        )
+        if revenue == 0:
+            revenue_locked_at_zero = True
+        prior_revenue = revenue
+
+    # Last, and on the schedule as a whole rather than any one year's drivers: the terminal
+    # value hangs off the final year alone, so this is the one warning that can fire with
+    # every individual driver looking entirely ordinary.
+    terminal_warning = _terminal_year_fcf_warning(rows)
+    if terminal_warning:
+        warnings.append(terminal_warning)
+    return warnings
+
+
+def run_driver_dcf(
+    base_year_revenue, driver_years, wacc, terminal_growth_rate, net_debt, diluted_shares_outstanding
+):
+    rows, core = _compute_driver_dcf(
+        base_year_revenue, driver_years, wacc, terminal_growth_rate, net_debt, diluted_shares_outstanding
+    )
+
+    forecast = []
+    for t, (row, df, pv) in enumerate(
+        zip(rows, core["discount_factors"], core["pv_fcfs"]), start=1
+    ):
+        _require_finite(df, "discount factor")
+        _require_finite(pv, "present value")
+        forecast.append(
+            {
+                "year": t,
+                "revenue": round(row["revenue"], 2),
+                "ebit": round(row["ebit"], 2),
+                "cash_taxes": round(row["cash_taxes"], 2),
+                "nopat": round(row["nopat"], 2),
+                "da": round(row["da"], 2),
+                "capex": round(row["capex"], 2),
+                "delta_nwc": round(row["delta_nwc"], 2),
+                "fcf": round(row["fcf"], 2),
+                "discount_factor": round(df, 6),
+                "present_value": round(pv, 2),
+            }
+        )
+
+    return {
+        "forecast": forecast,
+        "terminal_value": round(core["terminal_value"], 2),
+        "pv_terminal_value": round(core["pv_terminal_value"], 2),
+        "enterprise_value": round(core["enterprise_value"], 2),
+        "equity_value": round(core["equity_value"], 2),
+        "value_per_share": round(core["value_per_share"], 2),
+        "terminal_growth_warnings": terminal_growth_warnings(wacc, terminal_growth_rate),
+        "driver_warnings": driver_warnings(base_year_revenue, driver_years, rows),
+    }
+
+
+def driver_dcf_sensitivity(
+    base_year_revenue, driver_years, wacc, terminal_growth_rate, net_debt, diluted_shares_outstanding
+):
+    """Value per share across a grid of WACC x terminal growth rate, holding the entire
+    driver schedule fixed - the Driver-Based sibling of dcf_sensitivity, structurally
+    identical to it (same deltas, same convergence-domain nulling, same base-cell
+    never-goes-null guarantee), just calling run_driver_dcf per cell instead of run_dcf.
+    """
+    wacc_values = sorted({round(wacc + d, 6) for d in WACC_DELTAS if 0 < wacc + d <= 1})
+    growth_values = sorted({round(terminal_growth_rate + d, 6) for d in TERMINAL_GROWTH_DELTAS})
+
+    result_rows = []
+    for w in wacc_values:
+        value_per_share_by_growth = []
+        for g in growth_values:
+            if not gordon_growth_converges(w, g):
+                value_per_share_by_growth.append(None)
+                continue
+            is_base_cell = w == wacc and g == terminal_growth_rate
+            try:
+                result = run_driver_dcf(
+                    base_year_revenue=base_year_revenue,
+                    driver_years=driver_years,
+                    wacc=w,
+                    terminal_growth_rate=g,
+                    net_debt=net_debt,
+                    diluted_shares_outstanding=diluted_shares_outstanding,
+                )
+            except NonFiniteResultError:
+                if is_base_cell:
+                    raise
+                value_per_share_by_growth.append(None)
+                continue
+            value_per_share_by_growth.append(result["value_per_share"])
+        result_rows.append({"wacc": w, "value_per_share_by_growth": value_per_share_by_growth})
+
+    return {"terminal_growth_rates": growth_values, "rows": result_rows}

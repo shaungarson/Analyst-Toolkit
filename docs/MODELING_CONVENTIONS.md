@@ -50,9 +50,12 @@ Every calculation named here is a pure, independently tested function — see
   See `CLAUDE.md`'s Financial Validation section for the general principle this
   implements.
 - **Discounting:** end-of-year convention throughout (not mid-year).
-- **Explicit forecast:** one flat annual FCF growth rate from a base year, not a
-  revenue-driver build-up (revenue → margin → taxes → D&A → CapEx → ΔNWC — not yet built,
-  see `ROADMAP.md`).
+- **Explicit forecast — two modes:** **Quick DCF** projects one flat annual FCF growth rate
+  from a base year (unchanged). **Driver-Based DCF** builds the same annual UFCF schedule
+  year-by-year from revenue → margin → tax → D&A → CapEx → ΔNWC drivers instead — see its own
+  subsection below. Both modes hand their resulting schedule to the same shared valuation
+  core (discounting, terminal value, enterprise/equity value, value per share); there is
+  exactly one place that math is implemented, not two.
 - **Unlevered FCF (sourced company data):**
   `EBIT × (1 − effective tax rate) + D&A − CapEx − change in NWC` — the standard
   enterprise-value-DCF construction, not an operating-cash-flow shortcut. Any missing input
@@ -138,6 +141,112 @@ Every calculation named here is a pure, independently tested function — see
   shown as dollars and, only when that base value is a usable positive reference, percent —
   no severity label at any threshold. Each observation gates independently on the same
   current-ness its own inputs already track (forward vs. reverse), never a combined check.
+
+### Driver-Based DCF (v1)
+
+A second forecast-entry mode alongside Quick DCF, not a replacement — both build an annual
+UFCF schedule that feeds the exact same shared valuation core (discounting, terminal value,
+enterprise/equity value, value per share; see `backend/app/calculations/dcf.py`'s
+`_compute_dcf_core`). Costco's embedded demo, its Low/Base/High tabs, and Reverse DCF all
+remain Quick DCF-only — see below.
+
+- **Per-year formulas**, for forecast year *t* given Base Year Revenue (year 0) and that
+  year's driver inputs:
+  ```
+  revenue_t   = revenue_{t-1} × (1 + revenue_growth_rate_t)
+  ebit_t      = revenue_t × ebit_margin_t
+  cash_taxes_t = max(ebit_t, 0) × tax_rate_t
+  nopat_t     = ebit_t − cash_taxes_t
+  da_t        = revenue_t × da_pct_of_revenue_t
+  capex_t     = revenue_t × capex_pct_of_revenue_t
+  delta_nwc_t = nwc_investment_pct_of_revenue_change_t × (revenue_t − revenue_{t-1})
+  ufcf_t      = nopat_t + da_t − capex_t − delta_nwc_t
+  ```
+- **Cash tax / no NOL carryforward:** `max(EBIT, 0) × tax_rate` — a loss year owes no cash
+  tax, but earns no offsetting benefit against a later profitable year either. This
+  understates value for a name with a near-term loss followed by a rebound; a real, disclosed
+  limitation, not a hidden simplification. Deferred: modeling actual NOL carryforwards.
+- **ΔNWC convention:** `nwc_investment_pct_of_revenue_change × (revenue_t − revenue_{t-1})` —
+  a fraction of the year-over-year dollar *change* in revenue, matching the sourced "Δ NWC"
+  historical field shown in Sourced Historical Data (itself already a flow, the period's
+  change in net working capital — never the balance-sheet NWC figure the Unlevered FCF
+  formula above is built from). Never a balance-sheet ratio.
+- **No hard economic bounds** on any driver value beyond what the arithmetic itself requires
+  to stay finite (none of the formulas above divide by a driver value, so none has a
+  structural floor or ceiling) — same Financial Validation Principle as Quick DCF's FCF
+  growth rate. A tax rate outside 0%–100%, a negative D&A or CapEx percentage, a non-positive
+  Base Year Revenue, a forecast year whose revenue comes out zero or negative, and a final
+  forecast year whose UFCF is zero or negative (see **Terminal year** below) all stay
+  computable and surface as `driver_warnings` (id/tier/year/explanation) instead of being
+  blocked. Completeness is a separate question from plausibility, and is enforced across every
+  value sent to the API — Base Year Revenue, all six drivers in every forecast year, WACC,
+  Terminal Growth Rate, Net Debt, and Diluted Shares Outstanding. A *blank* input is a missing
+  assumption, not a zero one, so Run Valuation and scenario comparison both reject an
+  incomplete set with a message naming the missing fields and make no valuation request; the
+  payload builder enforces the same invariant itself rather than relying on each caller's
+  pre-check. This matters most for the shared assumptions, where a silently coerced zero is a
+  value the backend accepts as entirely valid (0% terminal growth, $0 net debt) and would
+  therefore produce a confident, wrong valuation rather than an error. A genuinely entered zero
+  is always a valid assumption, and whether it is *computationally* acceptable remains the
+  backend's decision. Revenue hitting exactly zero in some year is a permanent lock — flagged once, at
+  the year it first happens, since every later year is a mechanical consequence (any finite
+  growth rate times zero is still zero), not a new event. Revenue going negative is a
+  one-year event whose sign in later years depends entirely on their own growth rates —
+  deliberately *not* described as "alternating," unlike Quick DCF's single exponentiated
+  rate: each driver year has its own independent rate, so no alternating pattern is
+  guaranteed the way it is for a flat rate raised to successive powers.
+- **Base Year Revenue** is a sourced, adjustable field (Sourced/Adjusted/Analyst Input,
+  identical mechanism to Base Year UFCF) — pulled from the loaded company's latest period
+  `revenue`, blanked with no badge (never a leftover figure) when that company doesn't have
+  one, via the same `companyDataToSourcedFields` helper the cross-company stale-input fix
+  established.
+- **"Last Actual" reference row:** what the two most recent sourced periods imply for each
+  driver, shown for context only, never sent to the API and never itself a forecast input.
+  Every cell is independently guarded — a missing required value or a zero/non-finite
+  denominator (e.g. zero prior revenue, zero Δ Revenue) renders `n/a` for that cell alone,
+  never a fabricated number, `Infinity`, or `NaN`. The tax row is labeled neutrally as **Tax
+  Rate**, not "Cash Tax Rate": its Last Actual cell is the *book* effective rate
+  (income tax expense ÷ pre-tax income), while the forecast rate is used as a cash-tax proxy
+  on positive EBIT. Applying an effective rate to EBIT is standard UFCF practice, but the two
+  are different measures — on a company with meaningful net interest expense the book rate
+  over pre-tax income exceeds the same expense over EBIT — so the UI says so directly rather
+  than letting a "Cash" label sit beside a book figure.
+- **Sensitivity grid:** identical WACC × terminal growth grid and convergence-domain nulling
+  as Quick DCF's, holding the entire driver schedule fixed.
+- **Reverse DCF: Quick DCF-only.** A multi-driver forecast has no single scalar to solve a
+  reference price against; Driver mode shows explanatory copy instead of attempting one.
+- **Explain This Valuation:** only the terminal-value-share and sensitivity-range
+  observations apply (both read generic `enterprise_value`/`pv_terminal_value`/
+  `value_per_share`/sensitivity-grid fields `DriverDCFResults` shares with `DCFResults`, so
+  neither needed a Driver-specific code path). The price-implied-growth-comparison
+  observation is Reverse-DCF-dependent and never appears in Driver mode.
+- **Scenarios:** a `forecastMode` discriminator (`'quick'` default) is saved alongside the
+  rest of a scenario's inputs; a scenario saved before Driver mode existed has no such key
+  and loads as Quick DCF. Scenario comparison is limited to scenarios sharing one forecast
+  mode in v1 — a mixed selection shows an explanatory message instead of a table.
+- **Terminal year:** uses the schedule's own final explicit year as-is, with no adjustment
+  toward a sustainable steady-state margin or reinvestment level. This is a known
+  simplification, not a claim that any particular convergence (e.g. D&A approaching CapEx)
+  is the "correct" terminal assumption — sustainable terminal margins and reinvestment
+  economics remain a genuinely open modeling question, deferred rather than papered over.
+  One consequence is surfaced explicitly rather than left implicit: if that final year's UFCF
+  is zero or negative, Gordon Growth produces a zero or negative terminal value, often a
+  negative enterprise value with it, and a sensitivity grid that can read backwards. The two
+  axes are not equally affected, and the distinction matters when reading the grid: with a
+  negative final-year UFCF (and terminal growth above −100%) value per share **always** falls
+  as terminal growth rises — the reverse of normal — because a more negative terminal value is
+  being discounted. The WACC axis only inverts once that terminal value dominates the explicit
+  period's own positive present values; where the final year is only slightly negative, WACC
+  still behaves normally. A final year of exactly zero is a third case again: terminal value is
+  zero, so the grid is flat along the growth axis and normal along WACC. All of this is
+  computationally fine and none of it is blocked; it raises an `extreme`-tier
+  `non_positive_terminal_year_fcf` warning asking the analyst to verify the terminal-year
+  economics, worded to say direction *may* become counterintuitive rather than asserting it
+  always does.
+- **Not in v1:** live-ticker Low/Base/High case management (Costco's predetermined tabs are
+  unaffected and stay Quick DCF-only) — a saved driver scenario's `data` shape is already
+  what a future "copy Base into edited Low/High cases" workflow would clone, so no engine or
+  schema redesign is expected to be needed for it later.
 
 ## Shared conventions
 

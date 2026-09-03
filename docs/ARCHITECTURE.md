@@ -133,17 +133,55 @@ details.
 
 ## Reverse DCF (price-implied FCF growth)
 
-`backend/app/calculations/dcf.py`'s `_compute_dcf` is the one place the forward valuation
-formula is actually implemented — both `run_dcf` (the public, rounded forward API) and
-`implied_fcf_growth_rate` (the reverse solver) call it rather than each computing enterprise
-value / equity value / value per share their own way, so the two can never silently drift
-into disagreement. `run_dcf` wraps it with rounding and the forecast-schedule shape; the
-solver bisects against its raw, unrounded `value_per_share` directly, never against an
-already-cent-quantized target. `POST /api/dcf/implied-growth` (`ReverseDCFInputs` →
-`ReverseDCFResult`) is a thin router wrapper over `implied_fcf_growth_rate`, following the
-same typed-exception-to-422 pattern as the other two DCF routes. See
+`backend/app/calculations/dcf.py`'s `_compute_dcf_core(fcfs, wacc, terminal_growth_rate,
+net_debt, diluted_shares_outstanding)` is the one place the forward valuation formula (given
+an already-built annual FCF schedule) is actually implemented — `_compute_dcf` (Quick DCF's
+flat-growth path, via `project_fcf`), `_compute_driver_dcf` (Driver-Based DCF's path, via
+`project_driver_years`; see below), and `implied_fcf_growth_rate` (the reverse solver, via
+`_compute_dcf`) all route through it rather than each computing enterprise value / equity
+value / value per share their own way, so no two of them can ever silently drift into
+disagreement. `run_dcf` wraps `_compute_dcf` with rounding and the forecast-schedule shape;
+the solver bisects against `_compute_dcf`'s raw, unrounded `value_per_share` directly, never
+against an already-cent-quantized target. `POST /api/dcf/implied-growth` (`ReverseDCFInputs`
+→ `ReverseDCFResult`) is a thin router wrapper over `implied_fcf_growth_rate`, following the
+same typed-exception-to-422 pattern as the other DCF routes. See
 `docs/MODELING_CONVENTIONS.md` for the solver's domain, its three outcome statuses, and the
 forward/reverse invalidation matrix, and `docs/decisions.md` for the full design record.
+
+## Driver-Based DCF (v1)
+
+A second forecast-entry mode alongside Quick DCF, sharing `_compute_dcf_core` (above) rather
+than duplicating the valuation engine. `project_driver_years(base_year_revenue, driver_years)`
+builds the per-year revenue/EBIT/cash-taxes/NOPAT/D&A/CapEx/ΔNWC/UFCF schedule from plain
+dict-shaped driver inputs (mirroring the calculation layer's existing pattern of operating on
+plain Python values, never pydantic model instances directly); `run_driver_dcf` extracts each
+year's UFCF for `_compute_dcf_core` and re-attaches every other field to the rounded result
+rows, so the two can never drift out of sync. `driver_dcf_sensitivity` is the structural
+sibling of `dcf_sensitivity`, calling `run_driver_dcf` per grid cell instead of `run_dcf`, and
+returns the same `DcfSensitivityResults` shape. New routes: `POST /api/dcf/driver-valuation`
+(`DriverDCFInputs` → `DriverDCFResults`) and `POST /api/dcf/driver-sensitivity`
+(`DriverDCFInputs` → `DcfSensitivityResults`) — no `/driver-implied-growth` route exists;
+Reverse DCF stays Quick DCF-only (see `MODELING_CONVENTIONS.md`).
+
+Frontend: `frontend/src/features/dcf/driverSchedule.js` (pure helpers — resizing the per-year
+array to the shared forecast length, the "type once, override any year" broadcast, building
+the request payload, the `driverInputsError` completeness check covering every field that
+payload converts — which the Run Valuation and scenario-comparison paths must pass before any
+request is made, and which `buildDriverPayload` also enforces itself by throwing — and the
+read-only "Last Actual" historical reference row) and
+`DriverScheduleBuilder.jsx` (the full-width table itself, rendered above the three-column
+`analytical-row` grid in `DcfValuation.jsx` — the same full-width-panel slot `CostcoDemoPanel`
+already uses, not squeezed into the narrow Assumptions column). `DcfValuation.jsx` holds
+`forecastMode` (`'quick' | 'driver'`) and Driver mode's own `driverForm`/`driverResults`/
+`driverSensitivity` state, entirely separate from Quick DCF's — switching modes is an
+explicit reset of every result/sensitivity/reverse/explain-relevant piece of state (never a
+stale flag), so a Quick-mode number can never render under Driver-mode framing or vice versa.
+`activeResults`/`activeSensitivity`/`activeError`/`activeResultsStale` are mode-aware
+(Driver's own state when Driver mode is active; the existing demo-tab-or-single-run logic
+otherwise), which is what let the Analysis Outputs card, `explainValuation.js`, and the
+sensitivity-grid rendering all pick up Driver mode with zero Driver-specific branching. See
+`docs/decisions.md`'s "Driver-Based DCF (v1)" record for the full design history, including
+the deltas made during three rounds of review.
 
 ## Explain This Valuation
 

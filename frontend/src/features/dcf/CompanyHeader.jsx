@@ -26,6 +26,7 @@ function CompanyHeader({
   isDemoSnapshot,
   isDemoOpen,
   onToggleDemo,
+  costcoDemoDisabled,
 }) {
   // Reflects the actual response - was hardcoded to "Alpha Vantage" regardless of what
   // actually supplied the data, which became materially misleading once a request could
@@ -83,7 +84,14 @@ function CompanyHeader({
           <button type="submit" className={profile ? 'secondary' : undefined} disabled={companyLoading || !ticker.trim()}>
             {companyLoading ? 'Loading…' : 'Load Company'}
           </button>
-          <button type="button" className="secondary" onClick={onToggleDemo} aria-expanded={isDemoOpen}>
+          <button
+            type="button"
+            className="secondary"
+            onClick={onToggleDemo}
+            aria-expanded={isDemoOpen}
+            disabled={costcoDemoDisabled}
+            title={costcoDemoDisabled ? 'Not available in Driver-Based mode - Quick DCF only' : undefined}
+          >
             Costco Demo {isDemoOpen ? '▲' : '▼'}
           </button>
         </form>

@@ -113,3 +113,81 @@ class ReverseDCFResult(BaseModel):
     # doesn't hide it, but the frontend only displays it while explaining
     # target_below_floor, not alongside a successful result (see decisions.md).
     floor_value_per_share: float
+
+
+class DriverYear(BaseModel):
+    revenue_growth_rate: float = Field(
+        description="This year's revenue growth over the prior year's revenue (base year for "
+        "year 1). No fixed ceiling or floor - see driver_warnings for the zero/negative-"
+        "revenue scrutiny this can produce instead of a block.",
+    )
+    ebit_margin: float = Field(description="EBIT as a fraction of this year's revenue.")
+    tax_rate: float = Field(
+        description="Cash tax rate applied to EBIT only when EBIT is positive - "
+        "max(EBIT, 0) x tax_rate, no NOL carryforward modeled. No fixed ceiling or floor; a "
+        "rate outside 0%-100% surfaces as a warning, not a block.",
+    )
+    da_pct_of_revenue: float = Field(description="D&A as a fraction of this year's revenue.")
+    capex_pct_of_revenue: float = Field(description="CapEx as a fraction of this year's revenue.")
+    nwc_investment_pct_of_revenue_change: float = Field(
+        description="Working-capital investment as a fraction of the year-over-year dollar "
+        "change in revenue - not a balance-sheet NWC ratio.",
+    )
+
+
+class DriverDCFInputs(BaseModel):
+    base_year_revenue: float = Field(
+        description="Most recent year's revenue. No fixed floor - see driver_warnings for "
+        "the non-positive-base-year-revenue scrutiny this produces instead of a block.",
+    )
+    driver_years: list[DriverYear] = Field(min_length=1, max_length=15)
+    wacc: float = Field(gt=0, le=1)
+    terminal_growth_rate: float
+    net_debt: float
+    diluted_shares_outstanding: float = Field(gt=0)
+
+    @model_validator(mode="after")
+    def terminal_growth_rate_must_be_valid_for_gordon_growth(self):
+        _check_wacc_terminal_growth(self.wacc, self.terminal_growth_rate)
+        return self
+
+
+class DriverForecastYear(BaseModel):
+    year: int
+    revenue: float
+    ebit: float
+    cash_taxes: float
+    nopat: float
+    da: float
+    capex: float
+    delta_nwc: float
+    fcf: float
+    discount_factor: float
+    present_value: float
+
+
+class DriverWarning(BaseModel):
+    # 0 denotes the base year (non_positive_base_year_revenue); 1..N a forecast year.
+    year: int
+    id: Literal[
+        "non_positive_base_year_revenue",
+        "tax_rate_outside_0_100_percent",
+        "negative_da_percent",
+        "negative_capex_percent",
+        "zero_revenue_lock",
+        "negative_revenue",
+        "non_positive_terminal_year_fcf",
+    ]
+    tier: Literal["caution", "high", "extreme"]
+    explanation: str
+
+
+class DriverDCFResults(BaseModel):
+    forecast: list[DriverForecastYear]
+    terminal_value: float
+    pv_terminal_value: float
+    enterprise_value: float
+    equity_value: float
+    value_per_share: float
+    terminal_growth_warnings: list[TerminalGrowthWarning] = []
+    driver_warnings: list[DriverWarning] = []

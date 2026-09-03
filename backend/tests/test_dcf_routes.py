@@ -219,3 +219,137 @@ def test_implied_growth_route_target_below_floor_returns_200_not_error():
 def test_implied_growth_route_only_accepts_post():
     res = client.get("/api/dcf/implied-growth")
     assert res.status_code == 405
+
+
+DRIVER_PAYLOAD = {
+    "base_year_revenue": 1000,
+    "driver_years": [
+        {
+            "revenue_growth_rate": 0.10,
+            "ebit_margin": 0.20,
+            "tax_rate": 0.25,
+            "da_pct_of_revenue": 0.04,
+            "capex_pct_of_revenue": 0.05,
+            "nwc_investment_pct_of_revenue_change": 0.10,
+        },
+        {
+            "revenue_growth_rate": 0.08,
+            "ebit_margin": 0.20,
+            "tax_rate": 0.25,
+            "da_pct_of_revenue": 0.04,
+            "capex_pct_of_revenue": 0.05,
+            "nwc_investment_pct_of_revenue_change": 0.10,
+        },
+        {
+            "revenue_growth_rate": 0.06,
+            "ebit_margin": 0.20,
+            "tax_rate": 0.25,
+            "da_pct_of_revenue": 0.04,
+            "capex_pct_of_revenue": 0.05,
+            "nwc_investment_pct_of_revenue_change": 0.10,
+        },
+    ],
+    "wacc": 0.09,
+    "terminal_growth_rate": 0.025,
+    "net_debt": 200,
+    "diluted_shares_outstanding": 100,
+}
+
+
+def test_driver_valuation_route_returns_200_with_expected_shape():
+    res = client.post("/api/dcf/driver-valuation", json=DRIVER_PAYLOAD)
+    assert res.status_code == 200
+    body = res.json()
+    assert set(body.keys()) == {
+        "forecast",
+        "terminal_value",
+        "pv_terminal_value",
+        "enterprise_value",
+        "equity_value",
+        "value_per_share",
+        "terminal_growth_warnings",
+        "driver_warnings",
+    }
+    assert len(body["forecast"]) == 3
+    assert set(body["forecast"][0].keys()) == {
+        "year",
+        "revenue",
+        "ebit",
+        "cash_taxes",
+        "nopat",
+        "da",
+        "capex",
+        "delta_nwc",
+        "fcf",
+        "discount_factor",
+        "present_value",
+    }
+    # Matches the hand-calculated fixture in test_dcf.py, to the cent, through the real
+    # HTTP/serialization layer this time.
+    assert body["value_per_share"] == pytest.approx(22.55, abs=0.01)
+    assert body["driver_warnings"] == []
+
+
+def test_driver_valuation_route_rejects_wacc_at_or_below_terminal_growth():
+    payload = {**DRIVER_PAYLOAD, "wacc": 0.02, "terminal_growth_rate": 0.05}
+    res = client.post("/api/dcf/driver-valuation", json=payload)
+    assert res.status_code == 422
+    assert "WACC must be greater than the terminal growth rate" in res.text
+
+
+def test_driver_valuation_route_rejects_more_than_fifteen_driver_years():
+    payload = {**DRIVER_PAYLOAD, "driver_years": DRIVER_PAYLOAD["driver_years"] * 6}
+    res = client.post("/api/dcf/driver-valuation", json=payload)
+    assert res.status_code == 422
+
+
+def test_driver_valuation_route_rejects_empty_driver_years():
+    payload = {**DRIVER_PAYLOAD, "driver_years": []}
+    res = client.post("/api/dcf/driver-valuation", json=payload)
+    assert res.status_code == 422
+
+
+def test_driver_valuation_route_accepts_tax_rate_above_100_percent_with_warning():
+    # No hard bound - surfaces as a driver_warnings entry, still a 200.
+    payload = {
+        **DRIVER_PAYLOAD,
+        "driver_years": [{**DRIVER_PAYLOAD["driver_years"][0], "tax_rate": 1.5}],
+    }
+    res = client.post("/api/dcf/driver-valuation", json=payload)
+    assert res.status_code == 200
+    warnings = res.json()["driver_warnings"]
+    assert any(w["id"] == "tax_rate_outside_0_100_percent" for w in warnings)
+
+
+def test_driver_valuation_route_accepts_non_positive_base_year_revenue_with_warning():
+    payload = {**DRIVER_PAYLOAD, "base_year_revenue": 0}
+    res = client.post("/api/dcf/driver-valuation", json=payload)
+    assert res.status_code == 200
+    warnings = res.json()["driver_warnings"]
+    assert any(w["id"] == "non_positive_base_year_revenue" and w["year"] == 0 for w in warnings)
+
+
+def test_driver_valuation_route_returns_422_not_500_on_overflow():
+    payload = {**DRIVER_PAYLOAD, "base_year_revenue": 1.7e308}
+    res = client.post("/api/dcf/driver-valuation", json=payload)
+    assert res.status_code == 422
+    assert "can't be computed safely" in res.text
+
+
+def test_driver_valuation_route_only_accepts_post():
+    res = client.get("/api/dcf/driver-valuation")
+    assert res.status_code == 405
+
+
+def test_driver_sensitivity_route_returns_200_with_five_by_five_shape():
+    res = client.post("/api/dcf/driver-sensitivity", json=DRIVER_PAYLOAD)
+    assert res.status_code == 200
+    body = res.json()
+    assert len(body["terminal_growth_rates"]) == 5
+    assert len(body["rows"]) == 5
+
+
+def test_driver_sensitivity_route_returns_422_when_base_case_overflows():
+    payload = {**DRIVER_PAYLOAD, "base_year_revenue": 1.7e308}
+    res = client.post("/api/dcf/driver-sensitivity", json=payload)
+    assert res.status_code == 422

@@ -107,7 +107,15 @@ see [`docs/decisions.md`](docs/decisions.md).*
   then accessible result tabs switch between them instantly, with no further requests.
   Clearly labeled as a demo snapshot throughout, never presented as live data, and never
   saved to the scenario list.
-- Unlevered FCF projected from a base year at a flat growth rate
+- **Two forecast-entry modes, one shared valuation engine:** Quick DCF projects Unlevered FCF
+  from a base year at a flat annual growth rate; Driver-Based DCF builds the same annual FCF
+  schedule year-by-year from revenue → margin → tax → D&A → CapEx → working-capital drivers
+  instead, with a full-width per-year table (type once to fill every year, then override any
+  individual year) and a read-only "Last Actual" row for historical context. Both modes hand
+  their schedule to the identical discounting/terminal-value/valuation core — never two
+  competing implementations. No hard-coded ceiling or floor on any driver value; economically
+  unusual assumptions (a tax rate outside 0–100%, a forecast year with zero or negative
+  revenue) surface as specific, visible warnings instead of being blocked.
 - Gordon Growth terminal value, with WACC and terminal growth as direct inputs
 - Enterprise value → equity value → value per share bridge, shown as a proportional value
   bridge visualization
@@ -165,14 +173,15 @@ Every calculation is a pure, tested function, separate from the API and UI layer
   price (sourced or manually entered), never a buy/sell/attractive framing.
 - **Discounting:** end-of-year convention throughout — flagged as a genuine, material
   convention choice and decided deliberately.
-- **Deliberately deferred:** refinancing, waterfalls/promotes, driver-based DCF
-  forecasting, WACC build-up, comparable-company inputs. Full list: [`docs/ROADMAP.md`](docs/ROADMAP.md).
+- **Deliberately deferred:** refinancing, waterfalls/promotes, WACC build-up,
+  comparable-company inputs, and — within Driver-Based DCF — NOL carryforwards and
+  terminal-year normalization. Full list: [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 Every calculation — cap rate, amortization, IRR, equity multiple, DSCR, debt yield, terminal
 value, enterprise value, unlevered FCF construction — is backed by automated tests checked
 against values computed independently by hand, not just "does the code agree with itself."
-153 backend tests total, plus a GitHub Actions CI pipeline that runs the backend suite and
-the frontend lint/build checks on every push and pull request.
+190 backend tests and 94 frontend tests total, plus a GitHub Actions CI pipeline that runs
+the backend suite and the frontend lint/build checks on every push and pull request.
 
 ## Architecture
 

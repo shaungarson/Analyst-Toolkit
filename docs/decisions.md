@@ -864,3 +864,241 @@ High Growth, so a demo export adds `Case`/`FCF Growth Rate (%/yr)` rows and uses
 filename (`costco-low-growth-dcf.csv`, etc.) - both derived from the same active-tab state
 everything else already reads, not a separate lookup. Live-ticker/manual exports are
 unaffected; the extra rows and filename only appear in demo mode.
+
+## Cross-company stale-input fix (Base Year UFCF, Net Debt, Diluted Shares, Base Year Revenue)
+**Status:** Accepted
+
+`loadCompany` built its sourced-field patch with `baseYearFcf`/`netDebt`/
+`dilutedSharesOutstanding` set only inside `if (value != null)` guards, so a company missing
+one of those fields (confirmed live with EOSE, whose latest `unlevered_fcf` is `null`) meant
+the key was never in the patch object at all - `{...prev, ...sourced}` had nothing to
+overwrite the *previously loaded* company's figure with, so it silently survived, unbadged.
+`referencePrice` already avoided this by always setting all five of its own keys, to a real
+value or `''`.
+
+Fixed with a pure `companyDataToSourcedFields` helper (`frontend/src/features/dcf/
+companyDataToForm.js`) that always returns every key - the real value, or `''` - so the merge
+always replaces. `fieldBadgeType` (also extracted, as a pure `sourceableFieldBadgeType`) is
+corrected alongside it: a blank field shows no badge, and a non-blank analyst-entered value
+with no sourced value for this company reads "Analyst Input," never "Sourced" - mirroring
+`referencePriceBadgeType`'s existing treatment of an unsourced price. 11 regression tests on
+the two pure helpers, chosen deliberately over a component-testing dependency this project
+doesn't otherwise have; live-verified (AAPL → EOSE → AAPL) that the fix holds and that
+analyst-only assumptions (WACC, etc.) are untouched by any company load.
+
+Driver-Based DCF's own Base Year Revenue field (see below) was built on this corrected
+mechanism from the start, not retrofitted afterward.
+
+## Driver-Based DCF (v1)
+**Status:** Accepted
+
+A second forecast-entry mode alongside Quick DCF - not a replacement. Reached over three
+rounds of design review before implementation began (a Consultant Brief, an external-review
+verdict brought back by the user, and a final consolidated design with explicit
+implementation guardrails); several of the decisions below reversed or sharpened something
+proposed in an earlier round.
+
+**One shared valuation engine, two forecast-entry modes.** `_compute_dcf_core(fcfs, wacc,
+terminal_growth_rate, net_debt, diluted_shares_outstanding)` is the only place discounting,
+terminal value, enterprise/equity value, and value per share are computed - Quick DCF's
+`_compute_dcf` (via `project_fcf`) and Driver-Based's `_compute_driver_dcf` (via
+`project_driver_years`) both build an annual UFCF schedule and hand it to this one function,
+rather than each valuing its schedule its own way. A pure refactor of the pre-existing
+`_compute_dcf`, verified as a no-op against all 153 pre-existing backend tests before any new
+code was added.
+
+**Per-year drivers, not one constant applied to every year.** The alternative (type once,
+apply to the whole forecast) was rejected during design review: a constant-driver schedule is
+close to algebraically equivalent to Quick DCF's own flat FCF growth, and wouldn't justify
+Driver mode's added complexity. Entry effort is kept low with a "type once, override any
+year" broadcast column instead (a one-time action, not a live-bound default - a later
+individual edit is never fought or overwritten by an earlier broadcast).
+
+**Cash tax = `max(EBIT, 0) × tax_rate` - no NOL carryforward.** A loss year owes no cash tax
+but earns no future benefit from it either. A real, disclosed limitation (understates value
+for a name with a near-term loss followed by a rebound), not a hidden simplification -
+disclosed in both the UI methodology text and `MODELING_CONVENTIONS.md`. Deferred: modeling
+actual NOL carryforwards.
+
+**No hard economic bounds on any driver value, matching this project's existing Financial
+Validation Principle exactly.** An earlier draft schema hard-bounded `tax_rate` to `[0, 1]`
+and `da_pct_of_revenue`/`capex_pct_of_revenue` to non-negative - removed during design review
+as inconsistent with the project's own standing rule (compute finite results, warn on
+economically unusual assumptions, block only genuine computational failure), since none of
+those bounds are required for the arithmetic to stay finite. Base Year Revenue's floor was
+removed for the same reason, a deliberate divergence from Quick DCF's own `base_year_fcf:
+gt=0` this record makes explicit rather than leaving as a silent inconsistency. A new
+`driver_warnings` collection (year/id/tier/explanation, always present in `DriverDCFResults`,
+rendered visibly in the UI and in CSV export) replaces the removed hard bounds: tax rate
+outside 0%-100%, negative D&A/CapEx percentage, non-positive Base Year Revenue, a
+forecast year whose revenue comes out zero or negative, and a final forecast year whose UFCF
+is zero or negative (see the terminal-year warning below).
+
+**A non-positive final-year UFCF raises an `extreme` warning rather than being blocked or
+passed over in silence.** Found in closeout review, and the mirror image of this file's own
+standing lesson: there, economic judgment was dressed up as computational necessity; here, a
+structurally incoherent but perfectly computable case was getting no scrutiny at all - the
+other error the Financial Validation Principle names. Because the Gordon Growth terminal value
+is taken from the final explicit year alone, a final year at or below zero yields a zero or
+negative terminal value and usually a negative enterprise value, while the sensitivity grid
+can read backwards against its low-to-high tinting. The grid's two axes are not equally
+affected - the terminal-growth axis always inverts for a negative final-year UFCF, whereas the
+WACC axis only inverts once the negative terminal value outweighs the explicit period's own
+positive present values (verified: a final-year UFCF of -2 against four positive years leaves
+WACC behaving entirely normally). The warning is worded to say direction *may* become
+counterintuitive for exactly this reason, and `MODELING_CONVENTIONS.md` carries the per-axis
+detail. Reproduced with an entirely ordinary reinvestment-heavy
+forecast - 25% revenue growth, 5% EBIT margin, 25% tax, D&A 4% of revenue, CapEx 12%, NWC
+investment 15% of Δrevenue - where every individual driver sits in a normal range, so no other
+warning fired: -$28.25 per share on a -3,489 terminal value, with `driver_warnings == []`.
+Quick DCF cannot reach this state (`base_year_fcf: gt=0`, and sub--100% growth is already
+covered by `fcf_growth_warnings`), so the gap was specific to Driver mode. Keyed off the
+computed final-year UFCF rather than any individual driver, since no single driver determines
+the sign of the net of NOPAT + D&A - CapEx - ΔNWC.
+
+**A blank driver cell is a missing assumption, not a 0% one - completeness is enforced
+separately from plausibility.** Also found in closeout review. `Number('')` is `0` in
+JavaScript, so a blank cell reached the API as a deliberate 0% assumption; the live run path
+was guarded by per-cell `required` attributes, but `ScenarioManager` saves whatever is on
+screen (deliberately - a half-built idea is worth keeping), so a partially-filled draft could
+be saved and later compared, valued with tax/D&A/CapEx/NWC all at 0% (i.e. UFCF = EBIT) and
+presented as a legitimate result that compared *higher* than a complete Base case - in the one
+view with no schedule on screen to check it against. Fixed with a pure `driverInputsError`
+helper used by both Run Valuation and scenario comparison, which reject incomplete inputs
+with a message naming the missing fields and make no valuation request; comparison rejects per
+scenario, so the valid scenarios in a selection still compare normally. Deliberately *not*
+fixed by restoring a backend bound - the removed bounds were correctly removed, and this is a
+different question. A genuinely entered zero ('0', '0.0', '-0') stays valid in every field;
+only blank, whitespace-only, and non-numeric entries are rejected, and whether an entered
+value is computationally acceptable remains the backend's decision. Drafts remain saveable.
+
+The check covers **every field `buildDriverPayload` converts**, not just the driver table:
+Base Year Revenue, all six drivers per forecast year, and the four shared assumptions (WACC,
+Terminal Growth Rate, Net Debt, Diluted Shares Outstanding). The shared ones turned out to be
+the more dangerous half - a blank driver cell at least yields an odd-looking schedule, whereas
+a blank Terminal Growth Rate coerces to 0% and a blank Net Debt to $0, both of which the
+backend accepts as perfectly valid inputs, so nothing downstream ever objects and the analyst
+gets a confident wrong number instead of an error. Confirmed reachable: with Terminal Growth
+left blank, native `required` correctly blocks Run Valuation, but `ScenarioManager` still saved
+a scenario carrying `terminalGrowthRate: ''`, which comparison would then have valued at 0%.
+`buildDriverPayload` now enforces the invariant itself (throwing on incomplete input) rather
+than relying on every caller remembering a separate pre-check; callers still pre-check so they
+can surface the message in their own UI before firing anything. Shared fields are listed ahead
+of per-year cells in the message so they stay visible under its five-item cap.
+
+`ScenarioComparisonTable` was changed alongside this to show each failing scenario's own
+reason rather than a shared "these inputs may no longer be valid" sentence - without it the
+rejection was correct but silent about its cause. Shared with Quick DCF, whose comparison
+failures now also show their specific reason.
+
+**The tax row is labeled neutrally as "Tax Rate," not "Cash Tax Rate."** Its Last Actual cell
+is the *book* effective rate (income tax expense ÷ pre-tax income), while the
+forecast rate is applied to positive EBIT as a cash-tax proxy. Applying an effective rate to
+EBIT is standard UFCF practice and is internally consistent with this app's own historical
+UFCF field, so the methodology is unchanged - but a "Cash" label sitting directly beside a
+book figure invited copying one across as the other, which overstates cash taxes whenever net
+interest expense is material (EBIT 1,000, interest 300, tax expense 175 → the row shows 25%,
+which applied to EBIT is 250 against ~175 actual). Resolved with the neutral label plus
+explicit UI copy on how the two relate, not by changing what is computed. The copy states that
+the two are different measures that can differ for a given company, and frames Last Actual as
+context for the analyst's own judgment - deliberately avoiding any claim about how *close* they
+typically are, which this project has no basis to assert.
+
+**Revenue-sign warnings are computed per year from the actual schedule, not inferred from a
+growth-rate threshold - and deliberately do not reuse Quick DCF's "alternating sign"
+wording.** Caught during the final design pass: Quick DCF's single flat rate, exponentiated,
+produces a genuinely predictable alternating-sign pattern below -100% growth. Driver mode has
+no such guarantee - each year has its own independent rate, so a later year's sign depends on
+that year's own rate applied to whatever the prior year's revenue actually was. Two distinct,
+precisely worded cases instead: revenue hitting exactly zero is a permanent lock (flagged
+once, at the year it first happens, since 0 × any finite rate is still 0 - every later year
+is a mechanical consequence, not a new event); revenue going negative is a one-year event
+whose sign in later years genuinely depends on their own rates, stated as such rather than
+implying any pattern. Verified with a case that goes positive → negative → more negative
+under a perfectly ordinary +20% second-year rate, specifically to prove no alternation is
+assumed.
+
+**Base Year Revenue is sourced/adjustable, in the Driver Schedule Builder's header, using the
+same corrected replace-or-clear mechanism as the cross-company stale-input fix above** (an
+extra return value on `companyDataToSourcedFields`, not a parallel implementation).
+
+**The "Last Actual" reference row is read-only context, never a forecast input, and every
+cell is independently guarded against fabrication.** Shows what the two most recent sourced
+periods imply for each driver (including the effective tax rate SEC/Alpha Vantage already
+compute); a missing required value or a zero/non-finite denominator (e.g. zero prior revenue,
+zero Δ Revenue) renders `n/a` for that one cell, never `0/0`, `Infinity`, or a fabricated
+number, and never corrupts a sibling cell. The underlying sourced field is `change_in_nwc` - a
+dollar *flow* (the period's change in net working capital, already labeled "Δ NWC" in Sourced
+Historical Data) - deliberately distinguished in both code comments and UI copy from the
+balance-sheet NWC figure the Unlevered FCF formula's own components describe, after an
+earlier design draft's wording risked conflating the two.
+
+**Full-width layout, not squeezed into the narrow Assumptions column.** `DriverScheduleBuilder`
+renders above the three-column `analytical-row` grid - the same full-width-panel slot
+`CostcoDemoPanel` already established - so it stays legible and horizontally scrollable
+(verified at the full 15-year forecast length) rather than cramped into a ~320px column.
+
+**Mode switch is an explicit reset, never a stale flag.** Verified live: switching
+Quick→Driver→Quick clears Valuation Summary back to "Run a valuation to see results here" at
+every switch (never shows a stale number from the other mode, even briefly), while
+analyst-only shared assumptions (WACC, terminal growth, etc.) survive both switches untouched
+- confirmed by typing a WACC value, switching modes twice, and reading it back unchanged.
+
+**Reverse DCF and Explain This Valuation needed zero Driver-specific code.** Reverse DCF stays
+Quick DCF-only (a multi-driver forecast has no single scalar to solve a reference price
+against) - Driver mode shows explanatory copy in its place. `explainValuation.js`'s
+terminal-value-share and sensitivity-range observations already gated only on generic
+`enterprise_value`/`pv_terminal_value`/`value_per_share`/sensitivity-grid fields
+`DriverDCFResults` shares with `DCFResults`, and its price-implied-growth observation already
+gated only on `showReverseResult` (which Driver mode never sets) - confirmed by a dedicated
+test asserting the existing function returns exactly the two applicable diagnostics for a
+Driver-shaped input, with no new branch added to make that true.
+
+**Saved scenarios carry a `forecastMode` discriminator; comparison is single-mode in v1.** A
+scenario saved before Driver mode existed has no such key and loads as Quick DCF, the same
+missing-key-defaults-safely pattern used elsewhere in this app (e.g. reference-price status
+recovery). Selecting scenarios that mix Quick and Driver-Based for comparison shows an
+explanatory message instead of a table - verified live with one scenario of each mode
+selected together.
+
+**Live-ticker Low/Base/High case management is explicitly out of v1 scope; Costco's demo and
+tabs are unaffected.** The Driver-Based mode toggle is disabled while viewing the Costco demo
+(and the Costco Demo button is disabled while Driver mode is active), with an explanatory
+title on each - verified live. A saved driver scenario's `data` shape (forecast mode plus
+`driverForm`) is already what a future "copy Base into analyst-edited Low/High cases"
+workflow would clone, confirmed as a design property rather than built now.
+
+**Terminal year uses the schedule's own final explicit year as-is - not framed as "D&A
+converges with CapEx."** An earlier design draft's roadmap wording named that convergence as
+the implied eventual correctness target; corrected before implementation to name the actual
+open question instead - sustainable terminal margins and reinvestment economics - without
+declaring any particular refinement (D&A/CapEx convergence among them) as "correct."
+
+**Verification.** Backend: the pre-existing 153 tests re-verified unchanged after the
+`_compute_dcf_core` refactor, plus 37 new tests - a hand-calculated 3-year fixture (computed
+independently before any driver code was written, then locked in as an exact-to-the-cent
+assertion), a negative-EBIT year under the no-NOL convention, non-finite-intermediate
+handling (mapped to the same clean 422 Quick DCF already uses), and the full `driver_warnings`
+matrix, including the terminal-year check across a positive, an exactly-zero, and a negative
+final-year UFCF, and an interior-dip case confirming it reads the final year rather than any
+earlier one - 190 backend tests total. Frontend: 39 new pure-function tests
+(`driverSchedule.js`, extended `companyDataToForm.js`) plus the `explainValuation.js`
+shape-compatibility test above - 94 frontend tests total, all green. The completeness tests
+cover blank versus genuinely-entered zero in every field - including dedicated cases for a
+blank Terminal Growth Rate and a blank Net Debt, the two silent-zero cases the backend would
+otherwise accept - `buildDriverPayload`'s own throw, and the comparison guard against the
+saved-scenario shapes `handleCompare` actually feeds it; the React wiring around that
+predicate is not itself covered, this project having no component-testing dependency.
+
+Live-verified after these corrections: the terminal-year warning renders as `EXTREME` on the
+final year while still returning its (negative) valuation rather than blocking; a scenario
+saved with a blank Terminal Growth Rate is rejected in comparison with the message naming that
+exact field, with the network log confirming no valuation request was made for it while the
+complete scenario in the same selection still valued normally. Live dev-server verification covered the full workflow: AAPL
+loaded and sourced into Driver mode, forecast length resized from 3 to 15 years (table stayed
+scrollable throughout), broadcast-then-override on a real field, a driver warning triggered
+and read back correctly (tax rate 150%), CSV export inspected directly (full driver
+breakdown, sensitivity grid, warnings), scenario save/load round-tripping `forecastMode` and
+`driverForm` correctly, a legacy no-`forecastMode` scenario loading as Quick DCF, mixed-mode
+comparison blocked with the exact message, and the Costco demo's Base Growth case
+reproducing its known $395.69 value unchanged.

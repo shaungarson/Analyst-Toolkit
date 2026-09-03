@@ -13,6 +13,10 @@
 export function companyDataToSourcedFields(data) {
   const latest = data.periods[0]
   const baseYearFcf = latest?.unlevered_fcf != null ? String(Math.round(latest.unlevered_fcf)) : ''
+  // Driver-Based DCF's own base-year figure (revenue, not UFCF) - same always-present-key
+  // guarantee applies: a company whose latest period has no revenue must blank this, never
+  // inherit a previously loaded company's figure.
+  const baseYearRevenue = latest?.revenue != null ? String(Math.round(latest.revenue)) : ''
   const netDebt = latest?.net_debt != null ? String(Math.round(latest.net_debt)) : ''
   const dilutedSharesOutstanding =
     data.profile.shares_outstanding != null ? String(Math.round(data.profile.shares_outstanding)) : ''
@@ -27,6 +31,7 @@ export function companyDataToSourcedFields(data) {
 
   return {
     baseYearFcf,
+    baseYearRevenue,
     netDebt,
     dilutedSharesOutstanding,
     referencePrice,

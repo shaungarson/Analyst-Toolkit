@@ -32,10 +32,22 @@ function ScenarioComparisonTable({ title, comparisons, metrics, onClear }) {
         </table>
       </div>
       {comparisons.some((c) => c.error) && (
-        <p className="error">
-          Couldn't recalculate: {comparisons.filter((c) => c.error).map((c) => c.name).join(', ')}
-          . These scenarios may have been saved with inputs that are no longer valid.
-        </p>
+        // Each failing scenario's own reason, not just its name: "these inputs may no longer
+        // be valid" doesn't tell an analyst whether a scenario was rejected for an
+        // incomplete driver schedule, a non-convergent WACC, or a failed request - and the
+        // specific reason is already carried per scenario.
+        <div className="error">
+          <p>Couldn't recalculate:</p>
+          <ul className="comparison-error-list">
+            {comparisons
+              .filter((c) => c.error)
+              .map((c) => (
+                <li key={c.name}>
+                  <strong>{c.name}</strong> — {c.error}
+                </li>
+              ))}
+          </ul>
+        </div>
       )}
     </div>
   )

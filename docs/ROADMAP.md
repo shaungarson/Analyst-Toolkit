@@ -49,14 +49,31 @@ completed items, in the dependency order they were built:
    historical-CAGR helper already compute — no engine or methodology change, and no AI
    commentary, per this sequence's own "before any AI commentary" rule. See "Explain This
    Valuation" in [`decisions.md`](decisions.md).
+8. ~~**Driver-Based DCF (v1).**~~ **Done (2026-09-02).** A second forecast-entry mode
+   alongside Quick DCF (not a replacement) — revenue → margin → tax → D&A → CapEx → ΔNWC per
+   forecast year, sharing one valuation core with Quick DCF. Reverse DCF and live-ticker
+   Low/Base/High case management stay Quick DCF-only in v1; Costco's demo and tabs are
+   unaffected. See "Driver-Based DCF (v1)" in [`decisions.md`](decisions.md) and
+   [`MODELING_CONVENTIONS.md`](MODELING_CONVENTIONS.md).
 
 ## Later
 
 Reasonable follow-ups, not yet scheduled:
 
-- **Driver-based DCF forecast** — revenue → margin → taxes → D&A → CapEx → ΔNWC, replacing
-  the current flat-growth explicit period. The long-signaled next evolution of the DCF
-  engine; the data layer is already shaped to support it without a rewrite.
+- **Driver-Based DCF: NOL carryforward** — v1's cash-tax convention (`max(EBIT, 0) × rate`)
+  gives a loss year no tax benefit against a later profitable one; modeling actual net
+  operating loss carryforwards is a real, disclosed limitation, not yet addressed.
+- **Driver-Based DCF: terminal-year normalization** — sustainable terminal margins and
+  reinvestment economics, deferred rather than assumed. Not scoped as "D&A converges with
+  CapEx"; that's one possible refinement among several, not declared as the eventual
+  correctness target.
+- **Driver-Based DCF: Reverse DCF** — deferred; a multi-driver forecast has no single scalar
+  to solve a reference price against the way Quick DCF's one flat rate does.
+- **Live-ticker Low/Base/High case management** — a later case-management milestone, once
+  Driver-Based DCF itself has been used and stabilized. The intended workflow copies a Base
+  case into analyst-edited Low/High cases rather than inventing assumptions; a saved
+  driver-scenario's shape is already what that workflow would clone, so no engine redesign is
+  expected to be needed for it.
 - **Reverse DCF sensitivity table / comparison chart** — a WACC-based reverse-sensitivity
   grid, and a chart comparing price-implied growth against the analyst's own case and
   historical FCF CAGR. Deliberately deferred out of the core reverse-DCF milestone

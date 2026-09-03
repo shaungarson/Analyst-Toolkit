@@ -279,3 +279,29 @@ test('everything unavailable: returns an empty array', () => {
   })
   assert.deepEqual(obs, [])
 })
+
+// --- Driver-Based DCF: no new branching in explainValuation itself ------------------------
+//
+// Driver mode never populates a reverse result (Reverse DCF is Quick-only), so it always
+// calls this with showReverseResult: false / reverseResult: null - exactly the shape below.
+// DriverDCFResults shares enterprise_value/pv_terminal_value/equity_value/value_per_share
+// with DCFResults, and driver_dcf_sensitivity returns the same {terminal_growth_rates, rows}
+// shape as dcf_sensitivity, so diagnostics 2 and 3 need no Driver-specific code path here at
+// all - this test is the proof of that design claim, not just a demonstration.
+
+test('driver mode shape: diagnostics 2 and 3 present, diagnostic 1 never appears without a reverse result', () => {
+  const obs = explainValuation({
+    showActiveResults: true,
+    activeResults: RESULTS,
+    activeSensitivity: SENSITIVITY,
+    showReverseResult: false,
+    reverseResult: null,
+    historicalFcfCagr: null,
+    fcfGrowthRate: '', // blank in Driver mode - Quick-only field
+    forecastYears: '5',
+  })
+  assert.deepEqual(
+    obs.map((o) => o.id),
+    ['terminal-value-share', 'sensitivity-range'],
+  )
+})

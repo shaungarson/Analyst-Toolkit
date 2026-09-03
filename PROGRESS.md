@@ -12,9 +12,18 @@ Recently Shipped below for that and every earlier DCF milestone.
 
 ## Current Milestone
 
-None in progress. A Consultant Brief for driver-based DCF forecasting has been prepared and
-is awaiting the user's decision on whether/how to carry it forward (see Next Actions). See
-`docs/ROADMAP.md` and `docs/decisions.md`.
+**Driver-Based DCF (v1) is complete, has been through closeout review, and its review findings
+are resolved — awaiting the user's approval to commit and deploy.** Not yet committed, not yet
+pushed, not yet in CI, not yet deployed. Closeout review (including an independent
+financial-model review) surfaced three corrections, all now implemented and verified: an
+`extreme` warning when the final forecast year's UFCF is zero or negative (Gordon Growth
+otherwise produces a negative terminal value with no scrutiny at all); completeness validation
+so a blank input is never silently coerced to zero, across every field sent to the API; and a
+neutral "Tax Rate" label with copy distinguishing the reported book effective rate from the
+forecast cash-tax proxy. Verified at 190 backend and 94 frontend tests, lint and build clean,
+with the two behavioral fixes confirmed live against a running dev server. See
+`docs/decisions.md#driver-based-dcf-v1` for the full design, correction, and verification
+record, and Next Actions below.
 
 ## Blockers / Frozen Areas
 
@@ -110,10 +119,14 @@ is awaiting the user's decision on whether/how to carry it forward (see Next Act
 
 ## Next Actions
 
-1. Awaiting the user's decision on the driver-based DCF Consultant Brief presented this
-   session: whether it replaces the current flat-growth explicit period or ships as a second
-   mode, and what happens to Reverse DCF, saved scenarios, sensitivity, Explain This
-   Valuation, exports, and the Costco demo either way.
+1. Driver-Based DCF (v1) is implemented, reviewed, and its review findings resolved —
+   awaiting explicit approval to commit and deploy. See
+   `docs/decisions.md#driver-based-dcf-v1`. Deferred out of v1 and worth picking up next,
+   in rough priority order: a warning when a forecast year's EBIT margin is negative (the
+   no-NOL asymmetry binds silently in exactly that case), guarding the "Last Actual"
+   NWC-investment cell against a near-zero Δ Revenue denominator, and rendering the full
+   per-year build-up on screen rather than only in the CSV export — Driver mode's
+   auditability argument mostly rests on seeing why each year's UFCF is what it is.
 2. Real estate: no action planned until the user has the CRE-professional conversation.
 
 ## See Also

@@ -88,6 +88,13 @@
   border-left-width: 4px;
 }
 
+.terminal-growth-warning-year {
+  font-weight: 600;
+  font-size: 0.72rem;
+  color: var(--text);
+  margin-right: 0.35rem;
+}
+
 .terminal-growth-warning-tier {
   font-weight: 600;
   font-size: 0.72rem;
@@ -1574,4 +1581,124 @@
   .valuation-comparison {
     flex-wrap: wrap;
   }
+}
+
+/* --- Driver-Based DCF: mode toggle and the full-width driver schedule builder --------- */
+
+.forecast-mode-toggle {
+  display: flex;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+
+.forecast-mode-toggle button {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.forecast-mode-toggle button.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.forecast-mode-toggle button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.driver-schedule-builder {
+  margin-bottom: 1rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-bg);
+}
+
+.driver-schedule-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.driver-schedule-header h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.driver-base-revenue {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.driver-base-revenue .field-row-label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.driver-base-revenue input {
+  width: 10rem;
+}
+
+.driver-schedule-note {
+  font-size: 0.8rem;
+  color: var(--text);
+  margin: 0 0 0.75rem;
+}
+
+.driver-schedule-table-wrap {
+  max-width: 100%;
+}
+
+.driver-schedule-table {
+  font-size: 0.82rem;
+}
+
+.driver-schedule-table th,
+.driver-schedule-table td {
+  white-space: nowrap;
+}
+
+.driver-schedule-table input {
+  width: 5.5rem;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+.driver-row-label {
+  position: sticky;
+  left: 0;
+  background: var(--panel-bg);
+  min-width: 11rem;
+}
+
+.driver-last-actual-col,
+.driver-broadcast-col {
+  color: var(--text);
+  background: var(--bg);
+}
+
+.driver-broadcast-col input {
+  border-style: dashed;
+}
+
+.driver-explain-note {
+  font-size: 0.85rem;
+  color: var(--text);
 }
