@@ -1,29 +1,24 @@
 # Analyst Toolkit — Progress
 
-**Last verified:** 2026-09-02 (Cross-company stale-input fix — commit `449156d`, CI green,
-deployed and production-verified: Base Year UFCF, Net Debt, and Diluted Shares Outstanding
-now explicitly replace-or-clear on every company load instead of silently surviving from the
-previously loaded company when the new one is missing a field. Reproduced and re-verified
-live in production with AAPL → EOSE → AAPL: EOSE's null `unlevered_fcf` correctly blanks Base
-Year UFCF with no Sourced badge, EOSE's own Net Debt/Shares populate correctly, a manually
-entered WACC survives both switches untouched, and Valuation Summary stays cleared
-throughout). Prior verified milestone: 2026-09-02, the deployment polish sprint — see
-Recently Shipped below for that and every earlier DCF milestone.
+**Last verified:** 2026-09-02 (Driver-Based DCF v1 — commit `62badf0`, CI run #22 green,
+deployed to Vercel and Render and production-verified: the Costco Base Growth case still
+returns $395.69 through the Quick DCF path, and one Driver-Based valuation plus its
+sensitivity grid completed successfully against the production backend). Prior verified
+milestone: 2026-09-02, the cross-company stale-input fix (`449156d`) — see Recently Shipped
+below for that and every earlier DCF milestone.
 
 ## Current Milestone
 
-**Driver-Based DCF (v1) is complete, has been through closeout review, and its review findings
-are resolved — awaiting the user's approval to commit and deploy.** Not yet committed, not yet
-pushed, not yet in CI, not yet deployed. Closeout review (including an independent
-financial-model review) surfaced three corrections, all now implemented and verified: an
-`extreme` warning when the final forecast year's UFCF is zero or negative (Gordon Growth
-otherwise produces a negative terminal value with no scrutiny at all); completeness validation
-so a blank input is never silently coerced to zero, across every field sent to the API; and a
-neutral "Tax Rate" label with copy distinguishing the reported book effective rate from the
-forecast cash-tax proxy. Verified at 190 backend and 94 frontend tests, lint and build clean,
-with the two behavioral fixes confirmed live against a running dev server. See
-`docs/decisions.md#driver-based-dcf-v1` for the full design, correction, and verification
-record, and Next Actions below.
+**None in progress.** Driver-Based DCF (v1) shipped as commit `62badf0` — CI run #22 green,
+deployed to Vercel and Render, and production-verified. Closeout review (including an
+independent financial-model review) surfaced three corrections, all implemented before the
+commit: an `extreme` warning when the final forecast year's UFCF is zero or negative (Gordon
+Growth otherwise produces a negative terminal value with no scrutiny at all); completeness
+validation so a blank input is never silently coerced to zero, across every field sent to the
+API; and a neutral "Tax Rate" label with copy distinguishing the book effective rate from the
+forecast cash-tax proxy. See `docs/decisions.md#driver-based-dcf-v1` for the full design,
+correction, and verification record, and Next Actions below for what was deliberately deferred
+out of v1.
 
 ## Blockers / Frozen Areas
 
@@ -32,6 +27,15 @@ record, and Next Actions below.
 
 ## Recently Shipped
 
+- 2026-09-02 — Driver-Based DCF (v1): a second forecast-entry mode alongside Quick DCF,
+  building the annual UFCF schedule year-by-year from revenue → margin → tax → D&A → CapEx →
+  ΔNWC drivers instead of one flat growth rate, with both modes feeding the same shared
+  valuation core. Includes per-year sensitivity, scenario persistence and mixed-mode
+  comparison protection, a sourced "Last Actual" reference row, driver warnings, and CSV
+  export. Quick DCF, the Costco demo, and Reverse DCF are unchanged. Committed as `62badf0`,
+  CI run #22 green, deployed and production-verified (Costco Base Growth still $395.69; one
+  Driver-Based valuation plus sensitivity completed against the production backend) —
+  [decisions.md](docs/decisions.md#driver-based-dcf-v1)
 - 2026-09-02 — Cross-company stale-input fix: `loadCompany` only set the sourced patch for
   Base Year UFCF / Net Debt / Diluted Shares Outstanding when the newly loaded company
   actually had a value, so a field a new company lacks (e.g. EOSE's null `unlevered_fcf`)
@@ -119,14 +123,12 @@ record, and Next Actions below.
 
 ## Next Actions
 
-1. Driver-Based DCF (v1) is implemented, reviewed, and its review findings resolved —
-   awaiting explicit approval to commit and deploy. See
-   `docs/decisions.md#driver-based-dcf-v1`. Deferred out of v1 and worth picking up next,
-   in rough priority order: a warning when a forecast year's EBIT margin is negative (the
-   no-NOL asymmetry binds silently in exactly that case), guarding the "Last Actual"
-   NWC-investment cell against a near-zero Δ Revenue denominator, and rendering the full
-   per-year build-up on screen rather than only in the CSV export — Driver mode's
-   auditability argument mostly rests on seeing why each year's UFCF is what it is.
+1. Driver-Based DCF follow-ups deferred out of v1, in rough priority order: a warning when a
+   forecast year's EBIT margin is negative (the no-NOL asymmetry binds silently in exactly
+   that case), guarding the "Last Actual" NWC-investment cell against a near-zero Δ Revenue
+   denominator, and rendering the full per-year build-up on screen rather than only in the
+   CSV export — Driver mode's auditability argument mostly rests on seeing why each year's
+   UFCF is what it is. See `docs/decisions.md#driver-based-dcf-v1`.
 2. Real estate: no action planned until the user has the CRE-professional conversation.
 
 ## See Also
