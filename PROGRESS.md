@@ -1,15 +1,24 @@
 # Analyst Toolkit — Progress
 
 **Last verified:** 2026-09-03 (Driver-Based DCF v2 — evidence-led forecast entry, including a
-five-item closeout correction pass). Backend 190 tests unchanged and passing (no backend file
-touched); frontend 164 tests, lint and production build clean. Live-verified against the
-running backend and real SEC data: COST initialized, seeded and valued at $202.50/share; AT&T
-used as the data-quality fixture (12% EBIT/pre-tax divergence disclosed, CapEx unseedable
-across all five periods, direction-reversing NWC window refused where the pre-fix aggregate
-would have been 764%); a different ticker clears all driver cells while a same-ticker reload
-preserves them; a saved Driver scenario's cells do not survive a subsequent ticker load, with
-the scenario itself and the shared assumptions intact; Quick DCF's Costco Base Growth still
-$395.69; browser console clean. Not yet committed or deployed — see Next Actions.
+six-item closeout correction pass). Committed as `9d06901`, CI run #24 green, **deployed to
+Vercel and Render and production-verified**. Backend 190 tests unchanged and passing (no
+backend file touched); frontend 169 tests, lint and production build clean.
+
+Production verification against the live app and real SEC data: COST loaded from SEC EDGAR with
+per-driver evidence showing visible fiscal-year labels and medians, FY2026E–FY2030E column
+labels on a "Fiscal years ending August" basis, and no step badge on the panel; Initialize
+Forecast's plan naming all five seeds with their bases and refusing working capital by reason,
+then applying them (revenue growth Fade, the rest Flat, NWC left blank); Fade interpolating
+7.46 → 6.22 → 4.98 → 3.74 → 2.5 with exact endpoints; Custom revealing and preserving a
+hand-edited interior year while clearing that row's Seeded badge; Flat writing one value to
+every year; the one-time terminal-growth target proving independent (changing Terminal Growth
+to 1.25% left the schedule at 2.5%); one Driver-Based valuation returning $190.66/share on
+$76.79B enterprise value with its sensitivity grid; a saved Driver scenario loaded with no
+company identified, then AAPL loaded — all 30 driver cells cleared with no scenario value
+surviving, modes reset to Custom, badges gone, shared assumptions and the saved scenario itself
+intact; and Quick DCF's Costco Base Growth case still returning **$395.69**. Browser console
+clean throughout.
 
 ## Current Milestone
 
@@ -41,7 +50,8 @@ methodology: [`docs/MODELING_CONVENTIONS.md`](docs/MODELING_CONVENTIONS.md).
   excluded-period counts and reasons, gave
   observations visible fiscal-year labels, and removed the duplicated step badge. Rejected in
   scope: historical price correlation / "revenue beta", and any frontend duplication of the
-  backend projection. Local verification only — [decisions.md](docs/decisions.md#driver-based-dcf-v2-evidence-led-forecast-entry)
+  backend projection. Committed `9d06901`, CI run #24 green, deployed and production-verified
+  (see Last Verified above) — [decisions.md](docs/decisions.md#driver-based-dcf-v2-evidence-led-forecast-entry)
 - 2026-09-02 — Driver-Based DCF (v1): a second forecast-entry mode alongside Quick DCF,
   building the annual UFCF schedule from revenue → margin → tax → D&A → CapEx → ΔNWC drivers,
   both modes feeding one shared valuation core. Committed `62badf0`, CI run #22 green, deployed
@@ -74,14 +84,11 @@ methodology: [`docs/MODELING_CONVENTIONS.md`](docs/MODELING_CONVENTIONS.md).
 
 ## Next Actions
 
-1. **Commit and deploy Driver-Based DCF v2**, then production-verify: one Driver-Based
-   valuation with a seeded schedule against the production backend, and the Costco Base Growth
-   case still returning $395.69 through the Quick DCF path.
-2. Driver-Based follow-ups now in [`docs/ROADMAP.md`](docs/ROADMAP.md)'s Later column, in
-   rough priority order: **driver sensitivity (tornado)** — the current grid is WACC × terminal
-   growth only, so Driver mode's own drivers get no sensitivity treatment at all; then the
-   two-way Growth × Margin table.
-3. Real estate: no action planned until the user has the CRE-professional conversation.
+1. Driver-Based follow-ups in [`docs/ROADMAP.md`](docs/ROADMAP.md)'s Later column, in rough
+   priority order: **driver sensitivity (tornado)** — the current grid is WACC × terminal growth
+   only, so Driver mode's own drivers get no sensitivity treatment at all; then the two-way
+   Growth × Margin table.
+2. Real estate: no action planned until the user has the CRE-professional conversation.
 
 ## See Also
 
