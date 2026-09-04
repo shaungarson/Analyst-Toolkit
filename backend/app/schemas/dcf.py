@@ -255,3 +255,37 @@ class DriverTornadoResults(BaseModel):
     # Pre-ordered: complete rows by descending tested_range, then one-sided rows by
     # descending absolute delta, then rows with neither side computable.
     rows: list[DriverTornadoRow]
+
+
+class DriverGrowthMarginCell(BaseModel):
+    # None only when that combination overflowed (NonFiniteResultError). Unlike the WACC x
+    # terminal growth grids there is no Gordon Growth domain check here: WACC and terminal
+    # growth are held fixed, so if the base case converges every cell does.
+    value_per_share: float | None
+    # Movement from the base case, in dollars per share. None wherever value_per_share is.
+    delta: float | None
+    # Driver warnings this cell's combined shift introduces that the base case does not
+    # already raise, grouped by warning id. Empty at the base cell by construction.
+    new_warnings: list[EndpointWarning]
+
+
+class DriverGrowthMarginRow(BaseModel):
+    # A parallel shift applied to revenue growth in every forecast year, as a decimal
+    # fraction (0.01 = 1 percentage point). Rows ascend from the most negative shift.
+    revenue_growth_delta: float
+    # One cell per entry in ebit_margin_deltas, in that order.
+    cells: list[DriverGrowthMarginCell]
+
+
+class DriverGrowthMarginResults(BaseModel):
+    # Computed by the same endpoint as the grid, never supplied by the client.
+    base_value_per_share: float
+    # The unit step between adjacent rows/columns, as a decimal fraction.
+    step: float
+    # Column shifts applied to EBIT margin, ascending.
+    ebit_margin_deltas: list[float]
+    rows: list[DriverGrowthMarginRow]
+    # The actual schedules the shifts were applied to - a Fade or Custom row has no single
+    # level the delta axes could otherwise be read against.
+    base_revenue_growth_path: list[float]
+    base_ebit_margin_path: list[float]

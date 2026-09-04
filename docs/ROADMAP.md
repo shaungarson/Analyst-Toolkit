@@ -88,6 +88,27 @@ completed items, in the dependency order they were built:
     chart with tier, short name and affected years — never clamped or skipped. See
     "Driver-Based DCF: standardized ±1pp driver sensitivity (tornado)" in
     [`decisions.md`](decisions.md) and [`MODELING_CONVENTIONS.md`](MODELING_CONVENTIONS.md).
+12. **Driver-Based DCF: two-way Revenue Growth × EBIT Margin sensitivity.** **Locally verified;
+    not Done until deployed and production-verified.** Tests, lint and production build green;
+    verified against the running app — Costco Driver Base Case, all four inner cells matching
+    the tornado exactly, 320/375px with no page overflow, warning footnotes on a forced case,
+    print rules in scope, no console errors, and ~117 ms of supplementary-fetch wall clock after
+    the headline result (not material; no parallelization).
+    A 5 × 5 grid of value per share over uniform ±1pp parallel shifts
+    (−2pp…+2pp) applied to revenue growth and EBIT margin together, twenty-five
+    `run_driver_dcf` calls behind `POST /api/dcf/driver-growth-margin`, with the centre cell
+    being the analyst's own unperturbed case. The first surface showing two drivers
+    *interacting*, which the tornado structurally cannot: it moves one driver at a time, so it
+    cannot say whether growth creates or destroys value — which depends on the margin and
+    reinvestment the same schedule carries, and reverses inside a single grid on an ordinary
+    reinvestment-heavy forecast. Neither axis is presented with an assumed direction; the cells
+    are the finding. Exactly four cells overlap the tornado — (±1pp, base) and (base, ±1pp) —
+    and are asserted equal to it, while the ±2pp cells and every off-axis combination are this
+    grid's own contribution. Sequencing was contested and settled on the roadmap's side; see
+    the decision record. Configurable steps, absolute-level axis labels, sensitivity-cell
+    adoption, ROIC, and a Quick DCF equivalent were all excluded. See "Driver-Based DCF:
+    two-way Revenue Growth × EBIT Margin sensitivity" in [`decisions.md`](decisions.md) and
+    [`MODELING_CONVENTIONS.md`](MODELING_CONVENTIONS.md).
 
 ## Later
 
@@ -108,13 +129,27 @@ Reasonable follow-ups, not yet scheduled:
   changes for another reason; a token migration is not scheduled. The UI-audit milestone is
   complete.
 
-- **Two-way Revenue Growth x EBIT Margin sensitivity table** — **the recommended next feature,
-  pending its own scoping.** It shows the interaction between two major value drivers, which the
-  tornado cannot: that chart moves one driver at a time and so says nothing about how growth and
-  margin compound together. The tornado (item 11 above) has already settled the perturbation
-  convention this was waiting on: a fixed, stated shift, transparently labeled, rather than one
-  scaled to each driver's own historical dispersion. Must inherit the documented axis-inversion
-  handling for a non-positive final-year UFCF.
+- **DCF traceability: history→forecast continuity and PV composition** — **the recommended
+  next milestone, pending its own scoping.** One bundle framed around a single user outcome:
+  history → forecast → present value → enterprise value. Two charts, both frontend-only against
+  data the valuation response already returns. (1) *Continuity* — historical actuals and the
+  forecast on one axis with a hard labelled break, Unlevered FCF in both modes (the only metric
+  that exists in both) and Revenue additionally in Driver mode, positioned above the forecast
+  schedule. (2) *PV composition* — the present value of each explicit forecast year against the
+  present value of terminal value, positioned immediately above the Value Bridge, which
+  currently begins at Enterprise Value as a given and never shows where it came from; its
+  incremental contribution over the existing terminal-value observation is the **annual**
+  breakdown, so that must stay the visual focus.
+
+  Required in the design rather than discovered later: exact values readable without hover;
+  responsive, accessible and print-safe presentation; missing historical periods rendered as
+  gaps, never fabricated zeros; negative values below a true zero baseline. Terminal value's
+  share of enterprise value must be given **one** rule across the app — shown honestly above
+  100% where a positive EV is reduced by negative explicit-period PV, and not claimed as a
+  "share" at all where EV is zero or negative — which requires reconciling with
+  `explainValuation.js`, whose current rule suppresses the observation entirely outside 0–100%
+  (`ev > 0 && share >= 0 && share <= 1`). Extract only the signed-baseline bar geometry
+  genuinely shared with `HistoricalTrendCharts.jsx`; no generalized charting layer.
 - **Quick DCF FCF-growth sensitivity** — Quick mode's flat FCF growth rate still has no
   sensitivity treatment of its own. The WACC x terminal-growth grid does not cover it, and the
   Driver tornado does not apply (it measures the six operating drivers, which exist only in

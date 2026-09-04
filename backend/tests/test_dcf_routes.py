@@ -428,3 +428,59 @@ def test_driver_tornado_route_serializes_newly_introduced_endpoint_warnings():
     assert warning["id"] == "negative_da_percent"
     assert warning["years"] == [1, 2, 3]
     assert da["up_new_warnings"] == []
+
+
+def test_driver_growth_margin_route_returns_200_with_expected_shape():
+    res = client.post("/api/dcf/driver-growth-margin", json=DRIVER_PAYLOAD)
+    assert res.status_code == 200
+    body = res.json()
+    assert set(body.keys()) == {
+        "base_value_per_share",
+        "step",
+        "ebit_margin_deltas",
+        "rows",
+        "base_revenue_growth_path",
+        "base_ebit_margin_path",
+    }
+    assert body["step"] == 0.01
+    assert body["ebit_margin_deltas"] == [-0.02, -0.01, 0.0, 0.01, 0.02]
+    assert [row["revenue_growth_delta"] for row in body["rows"]] == [-0.02, -0.01, 0.0, 0.01, 0.02]
+    assert all(len(row["cells"]) == 5 for row in body["rows"])
+    assert set(body["rows"][0]["cells"][0].keys()) == {"value_per_share", "delta", "new_warnings"}
+    # One entry per forecast year on each tested path, so the client never has to infer the
+    # levels the delta axes were applied to.
+    years = len(DRIVER_PAYLOAD["driver_years"])
+    assert len(body["base_revenue_growth_path"]) == years
+    assert len(body["base_ebit_margin_path"]) == years
+
+
+def test_driver_growth_margin_route_computes_its_own_base_rather_than_trusting_the_client():
+    assert "base_value_per_share" not in DRIVER_PAYLOAD
+    grid = client.post("/api/dcf/driver-growth-margin", json=DRIVER_PAYLOAD).json()
+    valuation = client.post("/api/dcf/driver-valuation", json=DRIVER_PAYLOAD).json()
+    assert grid["base_value_per_share"] == valuation["value_per_share"]
+    assert grid["rows"][2]["cells"][2]["value_per_share"] == valuation["value_per_share"]
+
+
+def test_driver_growth_margin_route_rejects_wacc_at_or_below_terminal_growth():
+    res = client.post(
+        "/api/dcf/driver-growth-margin",
+        json={**DRIVER_PAYLOAD, "wacc": 0.02, "terminal_growth_rate": 0.02},
+    )
+    assert res.status_code == 422
+
+
+def test_driver_growth_margin_route_returns_422_not_500_when_the_base_case_overflows():
+    res = client.post(
+        "/api/dcf/driver-growth-margin",
+        json={
+            **DRIVER_PAYLOAD,
+            "base_year_revenue": 1e308,
+            "driver_years": [{**DRIVER_PAYLOAD["driver_years"][0], "revenue_growth_rate": 5.0}] * 15,
+        },
+    )
+    assert res.status_code == 422
+
+
+def test_driver_growth_margin_route_only_accepts_post():
+    assert client.get("/api/dcf/driver-growth-margin").status_code == 405

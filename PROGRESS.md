@@ -1,28 +1,31 @@
 # Analyst Toolkit — Progress
 
-**Last verified:** 2026-09-04 (UI audit closed — Phase 4 reassessed and deliberately not built).
-Documentation-only change; no code touched, so no deployment verification was needed. The last
-code milestone, UI audit Phase 3, remains committed, CI green, deployed and production-verified
-(see Recently Shipped).
+**Last verified:** 2026-09-04 (two-way Revenue Growth × EBIT Margin driver-interaction grid,
+verified against the running app on a fresh backend). 236 backend and 252 frontend tests green,
+lint and production build clean. Costco Driver Base Case renders with the centre cell equal to
+the base case ($263.25/share); all four inner cells match the tornado exactly ($248.94 / $278.22
+on revenue growth, $156.04 / $370.47 on EBIT margin); 320px and 375px show all 25 cells with no
+horizontal page overflow, the table scrolling inside its own container; a forced 3.0% flat
+margin marks the whole −2pp column with numbered footnotes, warning-level copy in the aggregate
+and per-cell years in the accessible text; print rules present and in scope; no console errors.
+Supplementary fetches add ~117 ms of wall clock after the headline valuation is already
+installed — not material, so the three requests stay sequential.
 
-Phase 3's production verification, for reference: at **320px and 375px** with a **15-year Custom**
-forecast, all **90 forecast inputs fully visible and focusable**, every editable field **16px /
-44px**, the three-segment mode control fitting, and **no horizontal page overflow**; the
-breakpoint exact at 719px/720px with the desktop table unchanged; both the Costco and NWC
-disclosures collapsing and expanding correctly.
+**Deployment and production verification are still outstanding.**
 
 ## Current Milestone
 
-**None in progress.** The UI-audit milestone is complete and closed
-([`docs/UI_AUDIT.md`](docs/UI_AUDIT.md)). Phases 1–3 shipped and were production-verified;
-Phase 4 was reassessed against the audit's materiality standard and **closed unbuilt** — the
-remaining type-scale inconsistency is a maintenance concern with no material usability or
-credibility effect, and keyboard focus is already functional, visible and sufficiently
-contrasted (measured 7.53:1). A small set of typography tokens may be adopted **opportunistically**
-when a component is changed for a higher-value reason; a token migration is **not** scheduled.
+**Driver-Based DCF: two-way Revenue Growth × EBIT Margin sensitivity — code complete, pending
+live verification.** A 5 × 5 grid of value per share over uniform ±1pp parallel shifts
+(−2pp…+2pp) applied to both drivers together, twenty-five `run_driver_dcf` calls behind `POST
+/api/dcf/driver-growth-margin`, rendered between the tornado and the WACC × terminal-growth
+grid in Driver mode.
 
-Print remains **out of scope** for the audit and untracked; the existing Print controls and
-README wording are deliberately untouched.
+Scope, design and the four corrections applied before implementation are recorded in
+[`decisions.md`](docs/decisions.md#driver-based-dcf-two-way-revenue-growth--ebit-margin-sensitivity)
+and [`MODELING_CONVENTIONS.md`](docs/MODELING_CONVENTIONS.md).
+
+**Remaining:** deploy, verify in production, then close the milestone documentation.
 
 ## Blockers / Frozen Areas
 
@@ -141,45 +144,12 @@ README wording are deliberately untouched.
   scope: historical price correlation / "revenue beta", and any frontend duplication of the
   backend projection. Committed `9d06901`, CI run #24 green, deployed and production-verified
   (see Last Verified above) — [decisions.md](docs/decisions.md#driver-based-dcf-v2-evidence-led-forecast-entry)
-- 2026-09-02 — Driver-Based DCF (v1): a second forecast-entry mode alongside Quick DCF,
-  building the annual UFCF schedule from revenue → margin → tax → D&A → CapEx → ΔNWC drivers,
-  both modes feeding one shared valuation core. Committed `62badf0`, CI run #22 green, deployed
-  and production-verified — [decisions.md](docs/decisions.md#driver-based-dcf-v1)
-- 2026-09-02 — Cross-company stale-input fix: sourced fields now always replace or clear, so a
-  field the newly loaded company lacks can never keep the previous company's figure. Committed
-  `449156d`, CI green, deployed — [decisions.md](docs/decisions.md#cross-company-stale-input-fix-base-year-ufcf-net-debt-diluted-shares-base-year-revenue)
-- 2026-09-02 — Deployment polish: DCF is the default module, opportunistic backend warm-up,
-  real page metadata and social preview, README screenshots. Committed `d1659b5`/`862a9b8`.
-- 2026-09-02 — Explain This Valuation: up to three deterministic observations synthesized from
-  figures already computed; no engine or methodology change. Committed `6d7404c` —
-  [decisions.md](docs/decisions.md#explain-this-valuation)
-- 2026-09-02 — Reverse DCF (price-implied FCF growth): solves for the constant explicit-period
-  growth rate that reconciles the dated reference price, never framed as a market forecast —
-  [decisions.md](docs/decisions.md#reverse-dcf-price-implied-fcf-growth)
-- 2026-09-01 — Costco demo-entry consolidation and one-run case tabs —
-  [decisions.md](docs/decisions.md#dcf-demo-entry-consolidation-and-the-one-run-three-tab-case-model)
-- 2026-09-01 — AGENTS.md: keeps Codex strictly read-only and advisory as an external consultant.
-- 2026-09-01 — Source Details inspector: bounded, friendly-first provenance detail —
-  [decisions.md](docs/decisions.md#source-details-inspector-bounded-friendly-first-provenance-detail)
-- 2026-08-31 — Historical trend mini-charts (Revenue, Unlevered FCF), library-free —
-  [decisions.md](docs/decisions.md#historical-trend-mini-charts)
-- 2026-08-31 — Embedded, provider-independent Costco DCF demo; Costco validated as the demo
-  candidate against the live production API —
-  [decisions.md](docs/decisions.md#revised-dcf-sequence-data-resilience-combined-provenanceprice-milestone-and-a-validated-real-company-demo)
-- 2026-08-31 — Per-value provenance and an editable, dated reference share price —
-  [decisions.md](docs/decisions.md#per-value-provenance-and-reference-price-disclosure)
-- 2026-08-31 — DCF data resilience: Alpha Vantage became optional field-level enrichment
-  rather than a hard dependency — [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-
-## Next Actions
-
-1. **Next feature, for separate scoping — Driver-Based Revenue Growth × EBIT Margin sensitivity
-   table.** It shows the interaction between two major value drivers and complements the existing
-   one-variable tornado, which tests drivers only in isolation. The tornado already settled the
-   perturbation convention this was waiting on. Not started; scope it before building.
-2. Also open in [`docs/ROADMAP.md`](docs/ROADMAP.md)'s Later column: **Quick DCF FCF-growth
-   sensitivity**, the one remaining assumption with no sensitivity surface of its own.
-3. Real estate: no action planned until the user has the CRE-professional conversation.
+Older entries (2026-08-31 → 2026-09-02: DCF data resilience, per-value provenance and the
+dated reference price, the embedded Costco demo, historical trend mini-charts, reverse DCF,
+Explain This Valuation, Driver-Based DCF v1, and the cross-company stale-input fix) have
+moved out of current state — each has its own record in
+[docs/decisions.md](docs/decisions.md), with the full chronological log in
+[docs/archive/PROGRESS_HISTORY.md](docs/archive/PROGRESS_HISTORY.md).
 
 ## See Also
 

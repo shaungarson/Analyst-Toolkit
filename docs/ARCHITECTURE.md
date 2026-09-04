@@ -181,10 +181,22 @@ base case re-raises, matching both grids' base-cell rule. Routes: `POST
 /api/dcf/driver-sensitivity` (`DriverDCFInputs` → `DcfSensitivityResults`), and `POST
 /api/dcf/driver-tornado` (`DriverDCFInputs` → `DriverTornadoResults`) — the tornado takes the
 same input shape as the valuation and carries no client-supplied base value, so its base can
-only have come from its own run. No `/driver-implied-growth` route exists; Reverse DCF stays
+only have come from its own run.
+
+`driver_growth_margin_sensitivity` adds the two-way surface: a 5 × 5 grid over parallel shifts
+of −2pp…+2pp applied to `revenue_growth_rate` (rows) and `ebit_margin` (columns) together,
+twenty-five `run_driver_dcf` calls — the centre cell reuses the base run rather than
+re-valuing an identical schedule, so the count is twenty-five and not twenty-six. The
+two-driver shift is composed from the tornado's own `_shift_driver`, so there is one tested
+implementation of "shift a driver without flattening its Fade or Custom shape". No per-cell
+Gordon Growth check is needed — WACC and terminal growth are held fixed, so convergence is a
+property of the base case alone — leaving overflow as the only null, and the base cell
+re-raises as everywhere else. Newly introduced warnings per cell reuse `new_endpoint_warnings`.
+Route: `POST /api/dcf/driver-growth-margin` (`DriverDCFInputs` → `DriverGrowthMarginResults`),
+again with no client-supplied base. No `/driver-implied-growth` route exists; Reverse DCF stays
 Quick DCF-only (see `MODELING_CONVENTIONS.md`).
 
-Frontend: three pure modules plus two components, with all state held by `DcfValuation.jsx`.
+Frontend: four pure modules plus three components, with all state held by `DcfValuation.jsx`.
 
 `driverTornado.js` / `DriverTornadoChart.jsx` — the ±1pp sensitivity chart. The module holds
 chart-specific pure helpers (driver labels, tested-path summarization across Flat/Fade/Custom
@@ -198,6 +210,22 @@ library, and deliberately no shared charting layer until a second chart establis
 actually be reused. `driverTornado` state has the same lifecycle as `driverSensitivity`
 throughout: fetched best-effort after the valuation lands, and cleared everywhere driver
 results are.
+
+`driverGrowthMargin.js` / `DriverGrowthMarginGrid.jsx` — the two-way Revenue Growth × EBIT
+Margin grid. The module holds the shift-axis labels, the Flat/Fade/Custom-aware summary of the
+schedules each axis actually shifted, the five-tier tint scale, and the aggregation of newly
+introduced warnings across cells into a numbered list carrying warning-level copy rather than
+any single cell's engine explanation; the component renders a real `<table>` reusing the WACC
+grid's own `sens-tier-*` and `sensitivity-base-case` classes, so all three sensitivity surfaces
+read on one visual scale rather than inventing a fourth. Every value per share is text in a
+cell, and a marked cell carries both a visible superscript footnote number — identifying which
+warning, not merely that there was one — and a `visually-hidden` naming of the warnings and the
+forecast years they affect, so nothing is hover-only. The one thing borrowed from the tornado is
+`formatDriverRate`, exported deliberately narrowly — both views describe driver paths in the
+same terms, and that shared formatter is the whole of what a second chart proved reusable; no
+general charting layer was extracted. `driverGrowthMargin` state has the same lifecycle as
+`driverTornado` and `driverSensitivity` in every respect, and the three are always reset
+together.
 
 `driverSchedule.js` — resizing the per-year array to the shared forecast length, building the
 request payload, the `driverInputsError` completeness check covering every field that payload

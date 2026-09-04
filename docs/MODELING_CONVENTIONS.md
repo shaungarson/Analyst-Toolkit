@@ -550,6 +550,96 @@ per id.
 This is a **standardized mechanical sensitivity**: not a probability, not a confidence
 interval, and not an estimate of how uncertain any assumption actually is.
 
+
+### Driver-Based DCF: two-way Revenue Growth × EBIT Margin sensitivity
+
+A 5 × 5 grid of value per share, available in Driver-Based mode only, over standardized
+**parallel shifts of −2pp, −1pp, base, +1pp and +2pp** applied to revenue growth (rows) and
+EBIT margin (columns) in **every forecast year**, holding every other driver — and WACC,
+terminal growth, net debt and share count — at the base case. Exactly **twenty-five**
+`run_driver_dcf` calls: the centre cell *is* the base case, so it reuses that run rather than
+valuing an identical schedule a second time — which also means the centre cell has only one
+possible origin, the same reason the base is computed inside the endpoint rather than supplied
+by the client.
+
+**Why this exists alongside the tornado.** The tornado moves one driver at a time and so
+cannot show how these two combine — and they do combine, because a year's UFCF depends on
+revenue and margin multiplicatively through EBIT, while the reinvestment drivers (CapEx, D&A,
+NWC investment) scale with revenue independently of margin. Whether more revenue growth raises
+or lowers value per share therefore depends on the margin and reinvestment the same schedule
+carries. Both outcomes are ordinary, and the grid computes which one applies rather than
+asserting either.
+
+**Neither axis is presented with an assumed direction, and this is a substantive convention
+rather than cautious wording.** The WACC × terminal-growth grid's legend can say that a lower
+WACC generally raises value; this grid's cannot say the equivalent about revenue growth,
+because on a reinvestment-heavy schedule it is false. On a schedule of 25% revenue growth, 18%
+EBIT margin, 25% tax, D&A 4% of revenue, CapEx 12% and NWC investment 15% of Δrevenue, the
+direction **reverses inside the grid itself**: at −2pp margin, moving revenue growth from −2pp
+to +2pp takes value per share from $2.32 to $1.40, while at +2pp margin the same shifts take it
+from $13.16 to $13.99.
+
+**The two axes are not symmetric, and the docs say so rather than implying they are.** Holding
+a year's revenue fixed, UFCF is increasing in EBIT margin only when that year's revenue is
+**positive** and its tax rate is **at or below 100%** — EBIT is revenue × margin, so a
+negative-revenue year (permitted and warned on, never blocked) reverses the relationship, and
+cash tax of `max(EBIT, 0) × rate` above 100% takes more than a profitable year's entire EBIT.
+The revenue-growth axis is genuinely non-monotone under ordinary assumptions. Neither
+condition is assumed by the engine or by the grid.
+
+**A per-year cash-flow relationship is not a valuation threshold.** For a year with positive
+EBIT, that year's UFCF is `R × (m(1−t) + d − c − n) + n × R_prior`, so the sign of
+`m(1−t) + d − c − n` governs whether more revenue raises or lowers *that year's* cash flow.
+That is a useful local explanation and nothing more: it does not determine the total valuation
+response, which also runs through compounding into later years, discounting, each year's own
+driver path where the schedule is a Fade or Custom, and the terminal value built off the final
+year alone. The grid is computed from twenty-five full valuations, never from this expression,
+and the test suite asserts the observed cells rather than the algebra.
+
+**Axes are labelled as shifts, not levels.** A Fade or Custom row has no single level to
+perturb, so the columns and rows read `−2pp … +2pp` against the analyst's own schedule, and the
+actual schedules the shifts were applied to are reported beneath the grid in the same
+Flat/Fade/Custom-aware form the tornado uses. A representative value (an average, or the first
+year) is never invented to stand in for a varying row.
+
+**Overlap with the tornado is exactly four cells.** The cells at (±1pp growth, base margin) and
+(base growth, ±1pp margin) test precisely what the tornado's revenue-growth and EBIT-margin
+rows test, and agree with them — this is asserted in the test suite, so the two views cannot
+drift. The ±2pp cells and every combination off those two lines have no tornado equivalent;
+they are what this grid adds.
+
+**A 1pp step is uniform across both axes deliberately, and is not the same proportional move
+for both.** A per-axis step tuned to each driver's typical dispersion would reintroduce the
+uncertainty-versus-magnitude blending the tornado's convention already rejects, and would leave
+two shift conventions to explain instead of one. The cost is disclosed rather than corrected
+for: on a schedule whose EBIT margin runs 3.43%, −2pp leaves **1.43%** — still positive, but a
+58% relative reduction, where −2pp on revenue growth is a far smaller relative move. Each axis
+therefore reports the schedule it actually shifted.
+
+**Uncomputable cells go null individually; the base cell re-raises.** Unlike the two WACC
+grids there is no per-cell Gordon Growth convergence check, because WACC and terminal growth
+are held fixed here: if the base case converges, every cell does. The only null is a
+computational overflow, and the centre cell raises rather than nulling — the same rule the
+tornado and both grids apply to their own base.
+
+**A cell whose combined shift introduces a warning is marked, not corrected.** Each cell's own
+valuation returns its driver warnings, compared against the base case's by `(year, id)` through
+the same `new_endpoint_warnings` helper the tornado uses. Distinct warnings are listed once
+beneath the grid, most severe first and **numbered**; a marked cell carries those numbers as a
+superscript, so a grid raising two different warnings says which cell raised which rather than
+only that something was flagged. The cell's accessible text names each warning **and the
+forecast years it affects**, taken from that cell's own warning.
+
+**The aggregate carries warning-level copy, never one cell's engine explanation.** The engine
+writes explanations per cell, naming that cell's particular years and computed figures. Reusing
+one of those sentences for an entry that counts several cells would describe the others
+incorrectly — a fabricated detail, which is worse than no detail — so the list beneath the grid
+states what is true of every cell raising that id, and the engine's exact sentence stays
+attached to the cell it belongs to.
+
+A negative EBIT margin is **not** itself something this engine warns about — only a resulting
+condition, such as a non-positive final-year UFCF, raises a warning of its own.
+
 ## Shared conventions
 
 - **Scenario comparison** recalculates every scenario from its saved *inputs* at view time,

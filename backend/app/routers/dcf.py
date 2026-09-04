@@ -5,6 +5,7 @@ from app.calculations.dcf import (
     dcf_sensitivity,
     driver_dcf_sensitivity,
     driver_dcf_tornado,
+    driver_growth_margin_sensitivity,
     implied_fcf_growth_rate,
     run_dcf,
     run_driver_dcf,
@@ -15,6 +16,7 @@ from app.schemas.dcf import (
     DcfSensitivityResults,
     DriverDCFInputs,
     DriverDCFResults,
+    DriverGrowthMarginResults,
     DriverTornadoResults,
     ReverseDCFInputs,
     ReverseDCFResult,
@@ -71,5 +73,18 @@ def driver_tornado(inputs: DriverDCFInputs):
     """
     try:
         return driver_dcf_tornado(**inputs.model_dump())
+    except NonFiniteResultError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/driver-growth-margin", response_model=DriverGrowthMarginResults)
+def driver_growth_margin(inputs: DriverDCFInputs):
+    """Takes the same DriverDCFInputs payload as /driver-valuation. Like /driver-tornado, the
+    base case is recomputed here alongside the twenty-four perturbed cells rather than being
+    passed in, so the grid's deltas can never be measured against a base the client assembled
+    or rounded separately.
+    """
+    try:
+        return driver_growth_margin_sensitivity(**inputs.model_dump())
     except NonFiniteResultError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

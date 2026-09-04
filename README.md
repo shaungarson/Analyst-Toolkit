@@ -171,6 +171,20 @@ see [`docs/decisions.md`](docs/decisions.md).*
   valued and shown — marked with the warning it introduces rather than quietly clamped to a
   more comfortable number. A mechanical sensitivity, explicitly not a probability or a
   confidence interval.
+- **Driver interaction (Revenue Growth × EBIT Margin), Driver-Based mode:** a 5 × 5 grid of
+  value per share over uniform ±1 percentage-point shifts (−2pp to +2pp) applied to revenue
+  growth and EBIT margin together, in every forecast year, everything else held constant. The
+  tornado moves one driver at a time and so cannot show how these two combine — and they do:
+  whether more revenue growth raises or lowers value per share depends on the margin and
+  reinvestment the same forecast carries, and on an ordinary reinvestment-heavy schedule the
+  direction reverses inside a single grid. Neither axis is therefore presented with an assumed
+  direction; the cells are the finding, not an illustration of a rule stated in advance. Axes
+  are labelled as shifts rather than levels, because a Fade or Custom row has no single level
+  to perturb — the actual schedules shifted are printed beneath the grid. The four cells one
+  step out along a single axis test exactly what the tornado tests and agree with it; every
+  other cell is this grid's own contribution. A cell whose combined shift moves the forecast
+  into territory the model flags is valued and marked, never clamped to a more comfortable
+  number.
 - Save, load, **duplicate**, and **compare named scenarios** side by side
 - CSV export and print-friendly output
 
@@ -211,7 +225,7 @@ Every calculation is a pure, tested function, separate from the API and UI layer
 Every calculation — cap rate, amortization, IRR, equity multiple, DSCR, debt yield, terminal
 value, enterprise value, unlevered FCF construction — is backed by automated tests checked
 against values computed independently by hand, not just "does the code agree with itself."
-190 backend tests and 94 frontend tests total, plus a GitHub Actions CI pipeline that runs
+236 backend tests and 252 frontend tests total, plus a GitHub Actions CI pipeline that runs
 the backend suite and the frontend lint/build checks on every push and pull request.
 
 ## Architecture
@@ -270,7 +284,8 @@ source → SEC-independent DCF data resilience (Alpha Vantage optional, never a 
 dependency) → per-value provenance and an editable, dated reference price → an embedded,
 provider-independent Costco DCF demo → compact historical Revenue/Unlevered FCF trend
 mini-charts → reverse DCF (price-implied FCF growth) → Driver-Based DCF (evidence-led
-forecast entry) → standardized ±1pp driver sensitivity (tornado). Detail:
+forecast entry) → standardized ±1pp driver sensitivity (tornado) → two-way Revenue Growth ×
+EBIT Margin driver-interaction grid. Detail:
 [`PROGRESS.md`](PROGRESS.md), [`docs/decisions.md`](docs/decisions.md).
 What's next: [`docs/ROADMAP.md`](docs/ROADMAP.md).
 

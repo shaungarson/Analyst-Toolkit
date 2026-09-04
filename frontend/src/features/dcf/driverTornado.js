@@ -19,8 +19,11 @@ export const TORNADO_DRIVER_LABELS = {
 }
 
 // Percentages here are driver rates (a fraction of 1), formatted to two decimals to match
-// the schedule builder's own cells rather than format.js's generic `percent`.
-const rate = (v) => `${(v * 100).toFixed(2)}%`
+// the schedule builder's own cells rather than format.js's generic `percent`. Exported
+// because the growth x margin grid describes the same driver paths in the same terms - a
+// deliberately narrow shared formatter, not the start of a general charting layer.
+export const formatDriverRate = (v) => `${(v * 100).toFixed(2)}%`
+const rate = formatDriverRate
 
 const EPSILON = 1e-9
 

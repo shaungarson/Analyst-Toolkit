@@ -1518,6 +1518,116 @@ caught.
   FCF growth rate still has no sensitivity treatment of its own. The reason is narrower: this
   chart measures the six operating drivers, which exist only in Driver mode.
 
+## Driver-Based DCF: two-way Revenue Growth × EBIT Margin sensitivity
+**Status:** Accepted
+
+The second sensitivity treatment of Driver-Based mode's own drivers, and the first that shows
+two of them **interacting**. The tornado moves one driver at a time and structurally cannot
+answer whether growth creates or destroys value, because that depends on the margin and
+reinvestment the same schedule carries. Full methodology: `MODELING_CONVENTIONS.md`'s
+"Driver-Based DCF: two-way Revenue Growth × EBIT Margin sensitivity".
+
+**Sequencing was contested and settled on the roadmap's side.** An alternative order was
+proposed — a history→forecast continuity chart and a PV-composition chart first, on the
+argument that a further sensitivity surface had diminishing marginal value. That argument was
+withdrawn: it counted the real-estate IRR grid as a competing DCF sensitivity surface, which a
+DCF user never sees (the real DCF count was two, not four), and it reopened a decision the
+roadmap had already settled without new material evidence, which is what `CLAUDE.md` §5
+explicitly warns against. The two charts remain the agreed next milestone, reframed around the
+user outcome — history → forecast → present value → enterprise value — rather than around the
+bar geometry they happen to share.
+
+**Uniform ±1pp steps on both axes, −2pp…+2pp, 5 × 5.** A per-axis step scaled to each driver's
+own dispersion was rejected for the same reason the tornado rejected it: it blends *how
+uncertain* an assumption is with *how much it matters*, and it would leave two shift
+conventions to explain instead of one. The cost is real and disclosed rather than corrected
+for — 1pp is a much larger proportional move on a 3.43% margin than on revenue growth — so each
+axis reports the schedule it actually shifted.
+
+**The grid asserts no direction for either axis.** This is the load-bearing design decision,
+not defensive phrasing. The WACC × terminal-growth grid's legend can say a lower WACC generally
+raises value; this one cannot say the equivalent about revenue growth. On an ordinary
+reinvestment-heavy schedule the direction reverses **inside a single grid**: at −2pp margin,
+moving revenue growth from −2pp to +2pp takes value per share from $2.32 to $1.40, while at
++2pp margin the same shifts take it from $13.16 to $13.99. Surfacing that is the feature.
+
+**A per-year cash-flow relationship is explanatory, not a valuation threshold.** For a year
+with positive EBIT, that year's UFCF is `R × (m(1−t) + d − c − n) + n × R_prior`, so the sign
+of `m(1−t) + d − c − n` governs whether more revenue raises or lowers *that year's* cash flow.
+An earlier draft of this design overstated it as the condition under which growth adds value.
+It is not: the total valuation response also runs through compounding into later years,
+discounting, each year's own driver path, and a terminal value built off the final year alone.
+The grid is computed from twenty-five full valuations, and the tests assert the observed cells
+rather than the algebra. Verified concretely — on the Costco demo's own Driver Base Case that
+per-year coefficient is +0.046 and the grid reads normally, while a near-threshold schedule
+whose coefficient is slightly *negative* still has value rising with growth.
+
+**The two axes are not symmetric.** UFCF is increasing in EBIT margin only where a year's
+revenue is **positive** and its tax rate is **at or below 100%** — EBIT is revenue × margin, so
+a negative-revenue year reverses it, and `max(EBIT, 0) × rate` above 100% takes more than the
+year's entire EBIT. The revenue-growth axis is genuinely non-monotone under ordinary
+assumptions. Neither condition is assumed, and the test suite deliberately contains **no**
+monotonicity assertion on the growth axis: encoding "more growth is worth more" would assert a
+belief the engine correctly refuses to hold.
+
+**A negative EBIT margin is not itself warned about, and the design does not pretend it is.**
+An earlier draft implied the engine flags it. It does not — `driver_warnings` covers tax rate
+outside 0–100%, negative D&A/CapEx percentages, zero or negative revenue, and a non-positive
+final-year UFCF. Only a resulting condition raises a warning, and cells are marked on exactly
+that basis.
+
+**Overlap with the tornado is precisely four cells, and is tested.** (±1pp growth, base margin)
+and (base growth, ±1pp margin) test what the tornado's two corresponding rows test and must
+agree with them; the ±2pp cells and every off-axis combination have no tornado equivalent.
+Claiming the grid's *edges* cross-check against the tornado would have been wrong — the edges
+are the ±2pp cells, which are exactly the ones that do not.
+
+**Reuse over abstraction, again.** The two-driver shift composes the tornado's existing
+`_shift_driver` rather than reimplementing it; per-cell warnings reuse `new_endpoint_warnings`;
+tinting reuses the WACC grid's `sens-tier-*` and `sensitivity-base-case` classes. The only new
+shared frontend export is `formatDriverRate`, a one-line formatter — the tornado's standing
+note said a common charting layer gets extracted when a second chart proves what is actually
+reusable, and with the second chart built, that turned out to be one formatter, not a layer.
+
+**Two defects caught in design review, before any live verification.** Both are recorded
+because each is a category this project has hit before.
+
+The first was a **count that did not match its own stated design**: the implementation ran
+twenty-six valuations, computing the base case and then re-computing the identical unperturbed
+schedule again as the centre cell. Beyond the wasted work, it left the centre cell with two
+possible origins — precisely the drift the "base is computed inside the endpoint, never
+supplied" rule exists to prevent. The centre cell now reuses the base run, and a test asserts
+both the call count and that the unshifted schedule is valued exactly once.
+
+The second was a **fabricated detail in an aggregate**. The frontend summary stored the first
+cell's engine `explanation` for a warning id and then incremented its count as further cells
+raised the same id — but those explanations name particular years and computed figures ("Year
+3's revenue growth rate of 27.00% applied to a prior-year revenue of 1,464.10..."), so the entry
+described cells it was counting incorrectly. The aggregate now carries warning-level copy true
+of every cell raising that id, with no explanation travelling from any single cell; the engine's
+exact sentence stays attached to the cell it belongs to. This is the same failure mode as
+inventing a representative value for a Fade row — asserting a specific figure where only a
+general statement is warranted — and it is worse than showing no detail at all.
+
+The same review also tightened the marker itself: distinct warnings are now **numbered**, a
+marked cell shows the numbers rather than a bare `!` (so a grid raising two different warnings
+says which cell raised which), and the cell's accessible text names the affected forecast years
+alongside each warning.
+
+**Rejected in scope:**
+
+- **Configurable step size or grid dimensions.** Both existing grids fix their deltas
+  deliberately — "a single *just show me the risk* view, not more inputs to fill in."
+- **Absolute-level axis labels.** They work only for a Flat row; a Fade or Custom row has no
+  single level, and inventing a representative one is the substitution this project rejects.
+  The axes are shifts, and the real schedules are printed beneath the grid.
+- **"Apply this cell to my schedule."** Sensitivity-cell adoption was already excluded from the
+  tornado milestone; nothing here changes that.
+- **Computing ROIC.** The grid shows the growth-versus-margin relationship without claiming the
+  ratio, which would need invested capital the driver model does not carry.
+- **Extending it to Quick DCF.** EBIT margin does not exist there. Quick's flat FCF growth rate
+  still has no sensitivity treatment of its own, and remains parked in `ROADMAP.md`'s Later.
+
 ## Dark-only interface, and a split accent token
 **Status:** Accepted
 

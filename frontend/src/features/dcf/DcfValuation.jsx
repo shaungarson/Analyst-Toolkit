@@ -19,6 +19,7 @@ import { historicalCagr } from './historicalGrowth'
 import { explainValuation } from './explainValuation'
 import DriverScheduleBuilder from './DriverScheduleBuilder'
 import DriverTornadoChart from './DriverTornadoChart'
+import DriverGrowthMarginGrid from './DriverGrowthMarginGrid'
 import {
   applyRowMode,
   buildBaseForecast,
@@ -222,6 +223,9 @@ function DcfValuation() {
   // only, best-effort on fetch, and cleared wherever driverResults is - so the two are
   // always reset together below rather than tracked independently.
   const [driverTornado, setDriverTornado] = useState(null)
+  // Same lifecycle again: supplementary, Driver-mode only, best-effort on fetch, and
+  // cleared wherever driverResults is.
+  const [driverGrowthMargin, setDriverGrowthMargin] = useState(null)
   const [driverResultsStale, setDriverResultsStale] = useState(false)
   const [driverError, setDriverError] = useState(null)
 
@@ -315,6 +319,7 @@ function DcfValuation() {
     setDriverResultsStale(false)
     setDriverSensitivity(null)
     setDriverTornado(null)
+    setDriverGrowthMargin(null)
     setDriverError(null)
     setComparison(null)
   }
@@ -427,6 +432,7 @@ function DcfValuation() {
       setDriverResultsStale(false)
       setDriverSensitivity(null)
       setDriverTornado(null)
+      setDriverGrowthMargin(null)
       setDriverError(null)
 
       // Every key companyDataToSourcedFields returns is always set - to this company's real
@@ -501,6 +507,7 @@ function DcfValuation() {
     setDriverResultsStale(false)
     setDriverSensitivity(null)
     setDriverTornado(null)
+    setDriverGrowthMargin(null)
     setDriverError(null)
     setResults(null)
     setResultsStale(false)
@@ -566,6 +573,7 @@ function DcfValuation() {
     setDriverResultsStale(false)
     setDriverSensitivity(null)
     setDriverTornado(null)
+    setDriverGrowthMargin(null)
     setDriverError(null)
     setShowInitializePlan(false)
     setDriverForm((prev) => ({
@@ -831,6 +839,21 @@ function DcfValuation() {
       )
     }
 
+    // Driver mode only, so it belongs to this exporter alone. Cells carry the same 'n/a'
+    // an uncomputable cell shows on screen, never a blank that would read as zero.
+    if (driverGrowthMargin) {
+      const shift = (d) => (d === 0 ? 'Base' : `${d > 0 ? '+' : '-'}${Math.abs(d * 100).toFixed(0)}pp`)
+      rows.push(
+        [],
+        ['Sensitivity: Value per Share by Revenue Growth & EBIT Margin'],
+        ['Revenue Growth (down) / EBIT Margin (across)', ...driverGrowthMargin.ebit_margin_deltas.map(shift)],
+        ...driverGrowthMargin.rows.map((row) => [
+          shift(row.revenue_growth_delta),
+          ...row.cells.map((cell) => (cell.value_per_share === null ? 'n/a' : cell.value_per_share)),
+        ]),
+      )
+    }
+
     const warnings = [...(activeResults.terminal_growth_warnings ?? []), ...(activeResults.driver_warnings ?? [])]
     if (warnings.length > 0) {
       rows.push(
@@ -969,12 +992,14 @@ function DcfValuation() {
       setDriverResultsStale(false)
       setDriverSensitivity(null)
       setDriverTornado(null)
+      setDriverGrowthMargin(null)
       return
     }
 
     setLoading(true)
     setDriverSensitivity(null)
     setDriverTornado(null)
+    setDriverGrowthMargin(null)
     try {
       const payload = buildDriverPayload(driverForm.baseYearRevenue, driverForm.driverYears, form)
       const res = await fetch(`${API_BASE}/api/dcf/driver-valuation`, {
@@ -1021,6 +1046,21 @@ function DcfValuation() {
         }
       } catch {
         // Driver tornado is supplementary; leave it out on failure.
+      }
+
+      // And again for the two-way grid - twenty-five valuations of its own, so it is its own
+      // request for exactly the same reason as the tornado above.
+      try {
+        const gridRes = await fetch(`${API_BASE}/api/dcf/driver-growth-margin`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        if (gridRes.ok) {
+          setDriverGrowthMargin(await gridRes.json())
+        }
+      } catch {
+        // Growth x margin grid is supplementary; leave it out on failure.
       }
     } finally {
       setLoading(false)
@@ -1857,6 +1897,12 @@ function DcfValuation() {
               {/* Above the WACC x terminal-growth grid, and Driver mode only - the six
                   operating drivers it measures exist only in this mode. */}
               {forecastMode === 'driver' && <DriverTornadoChart tornado={driverTornado} />}
+              {/* Between the tornado and the WACC grid: operating drivers ranked one at a
+                  time, then the two principal ones interacting, then the valuation
+                  assumptions that are not drivers at all. */}
+              {forecastMode === 'driver' && (
+                <DriverGrowthMarginGrid grid={driverGrowthMargin} />
+              )}
               {activeSensitivity ? (
                 <>
                   <h3 id="dcf-sensitivity-heading">

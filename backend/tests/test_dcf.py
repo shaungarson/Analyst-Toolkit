@@ -12,6 +12,9 @@ from app.calculations.dcf import (
     _shift_driver,
     driver_dcf_sensitivity,
     driver_dcf_tornado,
+    _growth_margin_shift,
+    driver_growth_margin_sensitivity,
+    GROWTH_MARGIN_DELTAS,
     new_endpoint_warnings,
     driver_warnings,
     gordon_growth_converges,
@@ -1377,3 +1380,262 @@ def test_driver_tornado_reports_no_warnings_for_an_uncomputable_endpoint():
     assert growth["up_value_per_share"] is None
     # No valuation means no warnings to compare - empty, never a fabricated entry.
     assert growth["up_new_warnings"] == []
+
+
+# --- Driver sensitivity (two-way): revenue growth x EBIT margin --------------------------
+
+# Two schedules whose only meaningful difference is how much margin each point of revenue
+# carries. Together they are the finding this grid exists for: the same engine, the same
+# standardized shifts, and revenue growth destroys value in one while creating it in the
+# other. Neither axis has a direction that can be assumed in advance.
+INTERACTION_INPUTS = dict(
+    base_year_revenue=1000,
+    driver_years=[
+        dict(
+            revenue_growth_rate=0.25,
+            ebit_margin=0.18,
+            tax_rate=0.25,
+            da_pct_of_revenue=0.04,
+            capex_pct_of_revenue=0.12,
+            nwc_investment_pct_of_revenue_change=0.15,
+        )
+        for _ in range(5)
+    ],
+    wacc=0.09,
+    terminal_growth_rate=0.025,
+    net_debt=200,
+    diluted_shares_outstanding=100,
+)
+
+# The reinvestment-heavy forecast reproduced in decisions.md, where every individual driver
+# sits in a normal range and no driver warning fires, yet the schedule is value-destroying.
+REINVESTMENT_HEAVY_INPUTS = dict(
+    INTERACTION_INPUTS,
+    driver_years=[
+        {**INTERACTION_INPUTS["driver_years"][0], "ebit_margin": 0.05} for _ in range(5)
+    ],
+)
+
+
+def _cell(result, growth_delta, margin_delta):
+    row = next(r for r in result["rows"] if r["revenue_growth_delta"] == growth_delta)
+    return row["cells"][result["ebit_margin_deltas"].index(margin_delta)]
+
+
+def test_growth_margin_grid_is_five_by_five_on_uniform_1pp_steps():
+    result = driver_growth_margin_sensitivity(**DRIVER_VALID_INPUTS)
+
+    assert result["step"] == 0.01
+    assert result["ebit_margin_deltas"] == list(GROWTH_MARGIN_DELTAS)
+    assert [row["revenue_growth_delta"] for row in result["rows"]] == list(GROWTH_MARGIN_DELTAS)
+    assert all(len(row["cells"]) == 5 for row in result["rows"])
+
+
+def test_growth_margin_grid_values_the_unperturbed_schedule_exactly_once():
+    """Twenty-five valuations, not twenty-six: the centre cell is the base case, so it reuses
+    the run the deltas are already measured against instead of valuing the identical schedule
+    a second time."""
+    calls = []
+    real_run = dcf.run_driver_dcf
+
+    def counting_run(**kwargs):
+        calls.append(kwargs["driver_years"])
+        return real_run(**kwargs)
+
+    original = dcf.run_driver_dcf
+    dcf.run_driver_dcf = counting_run
+    try:
+        result = dcf.driver_growth_margin_sensitivity(**DRIVER_VALID_INPUTS)
+    finally:
+        dcf.run_driver_dcf = original
+
+    assert len(calls) == 25
+    # And exactly one of those is the analyst's own unshifted schedule.
+    assert sum(1 for driver_years in calls if driver_years == DRIVER_YEARS) == 1
+    centre = _cell(result, 0.0, 0.0)
+    assert centre["value_per_share"] == result["base_value_per_share"]
+    assert centre["delta"] == 0.0
+
+
+def test_growth_margin_base_cell_matches_run_driver_dcf_exactly():
+    """The centre cell is the analyst's own unperturbed case, so it must agree with the
+    valuation shown everywhere else - not a separately-rounded recomputation of it."""
+    result = driver_growth_margin_sensitivity(**DRIVER_VALID_INPUTS)
+    direct = run_driver_dcf(**DRIVER_VALID_INPUTS)
+
+    centre = _cell(result, 0.0, 0.0)
+    assert centre["value_per_share"] == direct["value_per_share"]
+    assert result["base_value_per_share"] == direct["value_per_share"]
+    assert centre["delta"] == 0.0
+    # Compared against itself, so it can never introduce a warning of its own.
+    assert centre["new_warnings"] == []
+
+
+def test_growth_margin_inner_single_axis_cells_match_the_tornado():
+    """The four cells one step out along a single axis test exactly what the tornado's
+    revenue-growth and EBIT-margin rows test, so the two views must agree there. This is the
+    whole of the overlap: the +/-2pp cells and every off-axis combination have no tornado
+    equivalent at all."""
+    grid = driver_growth_margin_sensitivity(**DRIVER_VALID_INPUTS)
+    tornado = driver_dcf_tornado(**DRIVER_VALID_INPUTS)
+    rows = {row["driver"]: row for row in tornado["rows"]}
+
+    assert _cell(grid, -0.01, 0.0)["value_per_share"] == rows["revenue_growth_rate"]["down_value_per_share"]
+    assert _cell(grid, 0.01, 0.0)["value_per_share"] == rows["revenue_growth_rate"]["up_value_per_share"]
+    assert _cell(grid, 0.0, -0.01)["value_per_share"] == rows["ebit_margin"]["down_value_per_share"]
+    assert _cell(grid, 0.0, 0.01)["value_per_share"] == rows["ebit_margin"]["up_value_per_share"]
+
+
+def test_growth_margin_off_axis_cell_applies_both_shifts_together():
+    """An off-axis cell is not either single-axis result - it is the schedule with both
+    drivers moved at once, which is the only reason this grid exists."""
+    result = driver_growth_margin_sensitivity(**DRIVER_VALID_INPUTS)
+    both = run_driver_dcf(
+        **{
+            **DRIVER_VALID_INPUTS,
+            "driver_years": _growth_margin_shift(DRIVER_YEARS, 0.02, -0.02),
+        }
+    )
+    assert _cell(result, 0.02, -0.02)["value_per_share"] == both["value_per_share"]
+
+
+def test_growth_margin_shift_preserves_a_varying_row_shape():
+    """A Fade or Custom row moves as a whole rather than being flattened - the same
+    guarantee _shift_driver already makes, held across the two-driver composition."""
+    shifted = _growth_margin_shift(DRIVER_YEARS, 0.02, -0.01)
+
+    assert [y["revenue_growth_rate"] for y in shifted] == pytest.approx([0.12, 0.10, 0.08])
+    assert [y["ebit_margin"] for y in shifted] == pytest.approx([0.19, 0.19, 0.19])
+    # Every other driver untouched in every year.
+    for original, moved in zip(DRIVER_YEARS, shifted):
+        for field in (
+            "tax_rate",
+            "da_pct_of_revenue",
+            "capex_pct_of_revenue",
+            "nwc_investment_pct_of_revenue_change",
+        ):
+            assert moved[field] == original[field]
+
+
+def test_growth_margin_grid_shows_growth_reversing_direction_across_the_margin_axis():
+    """The finding the grid is built to surface, and the reason its legend must not claim a
+    direction for either axis: on one schedule, at the low-margin end more revenue growth
+    reduces value per share, while at the high-margin end the same shifts increase it.
+
+    Deliberately asserted from the computed cells rather than from any closed-form rule. A
+    per-year cash-flow coefficient explains the local relationship but does not determine the
+    total valuation response, which also runs through compounding into later years,
+    discounting, each year's own driver path, and the terminal value built off the final
+    year."""
+    result = driver_growth_margin_sensitivity(**INTERACTION_INPUTS)
+
+    low_margin = [_cell(result, g, -0.02)["value_per_share"] for g in GROWTH_MARGIN_DELTAS]
+    high_margin = [_cell(result, g, 0.02)["value_per_share"] for g in GROWTH_MARGIN_DELTAS]
+
+    assert low_margin == sorted(low_margin, reverse=True)
+    assert high_margin == sorted(high_margin)
+
+
+def test_growth_margin_grid_growth_axis_inverts_throughout_a_reinvestment_heavy_schedule():
+    """decisions.md's reinvestment-heavy case, where no individual driver looks unusual: here
+    more revenue growth reduces value in every margin column tested, not just the low ones."""
+    result = driver_growth_margin_sensitivity(**REINVESTMENT_HEAVY_INPUTS)
+
+    for index in range(len(GROWTH_MARGIN_DELTAS)):
+        column = [row["cells"][index]["value_per_share"] for row in result["rows"]]
+        assert column == sorted(column, reverse=True)
+
+
+def test_growth_margin_grid_margin_axis_rises_on_an_ordinary_positive_revenue_schedule():
+    """Not a claim that the margin axis always rises - it is increasing only where revenue is
+    positive and the tax rate is at or below 100%, neither of which this engine requires."""
+    result = driver_growth_margin_sensitivity(**INTERACTION_INPUTS)
+
+    for row in result["rows"]:
+        values = [cell["value_per_share"] for cell in row["cells"]]
+        assert values == sorted(values)
+
+
+def test_growth_margin_grid_reports_the_paths_it_actually_shifted():
+    result = driver_growth_margin_sensitivity(**DRIVER_VALID_INPUTS)
+
+    assert result["base_revenue_growth_path"] == [0.10, 0.08, 0.06]
+    assert result["base_ebit_margin_path"] == [0.20, 0.20, 0.20]
+
+
+def test_growth_margin_grid_deltas_are_measured_against_the_base_case():
+    result = driver_growth_margin_sensitivity(**DRIVER_VALID_INPUTS)
+    base = result["base_value_per_share"]
+
+    for row in result["rows"]:
+        for cell in row["cells"]:
+            if cell["value_per_share"] is None:
+                assert cell["delta"] is None
+            else:
+                assert cell["delta"] == pytest.approx(round(cell["value_per_share"] - base, 2))
+
+
+def test_growth_margin_grid_raises_when_the_base_case_itself_overflows():
+    """Same rule as the tornado and both WACC grids: an uncomputable base case fails the
+    request cleanly rather than returning a grid with a blank centre."""
+    with pytest.raises(NonFiniteResultError):
+        driver_growth_margin_sensitivity(
+            **{
+                **DRIVER_VALID_INPUTS,
+                "driver_years": [
+                    {**DRIVER_YEARS[0], "revenue_growth_rate": 1e100} for _ in range(15)
+                ],
+            }
+        )
+
+
+def test_growth_margin_grid_nulls_an_uncomputable_cell_without_losing_the_rest():
+    """A schedule sitting just under the float ceiling: the base case still computes, so the
+    grid is returned, and only the cells whose combined shift tips it over go null."""
+    result = driver_growth_margin_sensitivity(
+        base_year_revenue=1.693e300,
+        driver_years=[{**DRIVER_YEARS[0], "revenue_growth_rate": 2.40} for _ in range(15)],
+        wacc=0.09,
+        terminal_growth_rate=0.025,
+        net_debt=200,
+        diluted_shares_outstanding=100,
+    )
+
+    cells = [cell for row in result["rows"] for cell in row["cells"]]
+    assert _cell(result, 0.0, 0.0)["value_per_share"] is not None
+    assert any(cell["value_per_share"] is None for cell in cells)
+    assert any(cell["value_per_share"] is not None for cell in cells)
+    for cell in cells:
+        if cell["value_per_share"] is None:
+            assert cell["delta"] is None
+            assert cell["new_warnings"] == []
+
+
+def test_growth_margin_grid_marks_cells_that_introduce_a_new_warning():
+    """The warning has to come from the shifts themselves, not from the base schedule: at a
+    3.5% EBIT margin the base case's final-year UFCF is positive, and a -2pp margin shift
+    drives it non-positive - which the engine flags."""
+    inputs = dict(
+        DRIVER_VALID_INPUTS,
+        driver_years=[{**DRIVER_YEARS[0], "ebit_margin": 0.035} for _ in range(3)],
+    )
+    result = driver_growth_margin_sensitivity(**inputs)
+
+    warned = _cell(result, 0.0, -0.02)
+    assert "non_positive_terminal_year_fcf" in {w["id"] for w in warned["new_warnings"]}
+    # Valued and reported, never clamped away or dropped.
+    assert warned["value_per_share"] is not None
+    # The base case raises no warning of its own, so nothing is re-reported as newly caused.
+    assert _cell(result, 0.0, 0.0)["new_warnings"] == []
+
+
+def test_growth_margin_grid_does_not_re_report_a_warning_the_base_case_already_raises():
+    already_negative_capex = dict(
+        DRIVER_VALID_INPUTS,
+        driver_years=[{**year, "capex_pct_of_revenue": -0.01} for year in DRIVER_YEARS],
+    )
+    result = driver_growth_margin_sensitivity(**already_negative_capex)
+
+    for row in result["rows"]:
+        for cell in row["cells"]:
+            assert "negative_capex_percent" not in {w["id"] for w in cell["new_warnings"]}

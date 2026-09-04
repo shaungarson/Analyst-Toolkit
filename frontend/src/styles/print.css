@@ -427,4 +427,37 @@
     text-decoration-color: #000 !important;
   }
 
+  /* Two-way growth x margin grid. The cell tinting and base-case highlight already print via
+     the .sens-tier-* / .sensitivity-base-case rules above, since this grid reuses them; what
+     is left is the same dark-mode token problem the tornado has - --text, --muted and --flag
+     all go near-invisible on paper. */
+  .growth-margin-corner-row,
+  .growth-margin-paths dd,
+  .growth-margin-warning-text {
+    color: #000 !important;
+  }
+
+  .growth-margin-base,
+  .growth-margin-corner-col,
+  .growth-margin-paths dt {
+    color: #444 !important;
+  }
+
+  /* The marker is the only in-cell signal that a cell's shift introduced a warning, and the
+     list beneath names what - both have to survive, so neither is allowed to print in a
+     colour that disappears. */
+  .growth-margin-warn {
+    color: #000 !important;
+  }
+
+  .growth-margin-cell--warned {
+    text-decoration-color: #000 !important;
+  }
+
+  .growth-margin-warning-tier {
+    background: transparent !important;
+    border: 1px solid #000 !important;
+    color: #000 !important;
+  }
+
 }

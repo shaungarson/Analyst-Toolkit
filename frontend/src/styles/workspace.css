@@ -2546,3 +2546,141 @@
     cursor: pointer;
   }
 }
+
+/* --- Two-way Revenue Growth x EBIT Margin sensitivity ------------------------------------
+   Cell tinting, the base-case highlight and the scroll container are all the WACC x terminal
+   growth grid's existing treatment, reused rather than redefined (see driverGrowthMargin.js)
+   so all three sensitivity surfaces read on one visual scale. Only what is genuinely new to
+   this grid is styled here: the two-axis corner header, the tested-path list, and the marker
+   for a cell whose combined shift introduces a warning. */
+.growth-margin {
+  margin-bottom: 1.1rem;
+}
+
+.growth-margin-base {
+  color: var(--text);
+  font-size: 0.82rem;
+  margin: 0.2rem 0 0.6rem;
+}
+
+.growth-margin-table {
+  width: 100%;
+}
+
+/* Both axis names live in the corner cell, each on its own line with the arrow pointing the
+   way that axis runs - so neither header row has to carry a name that belongs to the other. */
+.growth-margin-corner {
+  text-align: left;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.growth-margin-corner-row,
+.growth-margin-corner-col {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.growth-margin-corner-col {
+  color: var(--muted);
+}
+
+/* The marker is real text in the cell rather than a background or a border, so it survives
+   print and screen-reader output, and cannot be confused with the base-case highlight or with
+   a tint tier. The number identifies which warning, so a grid raising two different ones stays
+   readable - "!" alone could only say that something was flagged. */
+.growth-margin-warn {
+  color: var(--flag);
+  font-weight: 700;
+  margin-left: 0.18rem;
+}
+
+.growth-margin-warn sup {
+  font-size: 0.62rem;
+}
+
+.growth-margin-cell--warned {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: var(--flag);
+  text-underline-offset: 2px;
+}
+
+.growth-margin-paths {
+  display: grid;
+  gap: 0.18rem 0.6rem;
+  margin: 0.5rem 0 0.2rem;
+  font-size: 0.72rem;
+}
+
+.growth-margin-paths > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.growth-margin-paths dt {
+  color: var(--muted);
+  font-weight: 600;
+  margin: 0;
+}
+
+.growth-margin-paths dd {
+  color: var(--text);
+  margin: 0;
+}
+
+/* Decimal markers, not bullets: the number in the list is the number in the cell. */
+.growth-margin-warning-list {
+  list-style: decimal;
+  margin: 0.3rem 0 0.6rem;
+  padding-left: 1.35rem;
+}
+
+.growth-margin-warning-list li {
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+
+.growth-margin-warning-list li + li {
+  margin-top: 0.25rem;
+}
+
+/* Same tier vocabulary as the tornado and the driver warnings under the Value Bridge, so a
+   "caution" means the same thing everywhere it appears. */
+.growth-margin-warning-tier {
+  border-radius: 2px;
+  display: inline-block;
+  margin-right: 0.3rem;
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0 0.24rem;
+  text-transform: uppercase;
+}
+
+.growth-margin-warning-tier--caution {
+  background: var(--panel-bg);
+  color: var(--flag);
+  border: 1px solid var(--border);
+}
+
+.growth-margin-warning-tier--high,
+.growth-margin-warning-tier--extreme {
+  background: var(--flag);
+  color: var(--bg);
+}
+
+.growth-margin-warning-text {
+  color: var(--text);
+}
+
+@media (max-width: 720px) {
+  /* The corner cell is the only one that can afford to wrap - every other cell holds a
+     currency figure that must not break across lines. The table itself keeps scrolling
+     horizontally inside .table-wrap, as the other grids do. */
+  .growth-margin-corner {
+    white-space: normal;
+  }
+}

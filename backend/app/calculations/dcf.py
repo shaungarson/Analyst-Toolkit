@@ -1037,3 +1037,135 @@ def driver_dcf_tornado(
         "shift": DRIVER_TORNADO_SHIFT,
         "rows": rows,
     }
+
+
+# --- Driver sensitivity (two-way): revenue growth x EBIT margin ---
+
+# The same 1 percentage point unit the tornado uses, two steps out in each direction on both
+# axes. Uniform across the two axes deliberately: a per-axis step tuned to each driver's own
+# typical dispersion would silently reintroduce exactly the "how uncertain is this" blending
+# that DRIVER_TORNADO_SHIFT's comment rejects, and would leave the grid with two different
+# shift conventions to explain rather than one.
+#
+# The consequence to be honest about: 1pp is not the same proportional move for both drivers.
+# On a company whose EBIT margin runs 3.43%, a -2pp shift is a 1.43% margin - still positive,
+# but a 58% relative reduction, where -2pp on revenue growth is a far smaller relative move.
+# Each axis therefore reports the assumption path it actually tested rather than relying on
+# the reader to infer the levels from the deltas.
+GROWTH_MARGIN_STEP = 0.01
+GROWTH_MARGIN_DELTAS = (-0.02, -0.01, 0.0, 0.01, 0.02)
+
+
+def _growth_margin_shift(driver_years, growth_delta, margin_delta):
+    """Both drivers shifted together, each as a parallel shift across every forecast year.
+    Composed from _shift_driver rather than reimplemented, so there is exactly one tested
+    implementation of "shift a driver without flattening its Fade or Custom shape" shared
+    with the tornado.
+    """
+    return _shift_driver(
+        _shift_driver(driver_years, "revenue_growth_rate", growth_delta),
+        "ebit_margin",
+        margin_delta,
+    )
+
+
+def driver_growth_margin_sensitivity(
+    base_year_revenue, driver_years, wacc, terminal_growth_rate, net_debt, diluted_shares_outstanding
+):
+    """Value per share across a grid of revenue growth x EBIT margin, both applied as
+    standardized parallel shifts in percentage points, with every other driver and every
+    valuation assumption (WACC, terminal growth, net debt, share count) held at the base case.
+
+    **What this adds over the tornado.** The tornado moves one driver at a time, so it cannot
+    show how these two combine - and they do combine, because a year's UFCF depends on revenue
+    and margin multiplicatively through EBIT, while the reinvestment drivers (CapEx, D&A, NWC
+    investment) scale with revenue independently of margin. This grid computes that
+    interaction and shows it. It deliberately asserts nothing in advance about the direction
+    either axis moves value; the cells are the finding.
+
+    **Axes are deltas, not levels.** A Fade or Custom row has no single level to perturb, so
+    the axes are labelled as shifts from the analyst's own schedule. base_revenue_growth_path
+    and base_ebit_margin_path carry the actual schedules those shifts were applied to.
+
+    **Only the inner single-axis cells correspond to a tornado row.** The four cells at
+    (+/-1pp, 0) and (0, +/-1pp) test exactly what the tornado's revenue-growth and EBIT-margin
+    rows test, and must agree with them. The +/-2pp cells and every off-axis combination have
+    no tornado equivalent - they are this grid's own contribution, not a re-presentation.
+
+    **No per-cell Gordon Growth check, unlike the WACC grids.** WACC and terminal growth are
+    held fixed here, so convergence is a property of the base case alone: if the base case
+    converges, every cell does. The only null is a computational overflow
+    (NonFiniteResultError) - except at the base cell, which re-raises rather than going null,
+    the same rule dcf_sensitivity and driver_dcf_sensitivity apply to their own centre cell.
+
+    **On reading the margin axis.** Holding a year's revenue fixed, UFCF is increasing in EBIT
+    margin only when that year's revenue is positive AND its tax rate is at or below 100%:
+    EBIT is revenue x margin, so a negative-revenue year (permitted and warned, never blocked)
+    reverses the relationship, and cash tax of max(EBIT, 0) x rate above 100% takes more than
+    a profitable year's entire EBIT. Neither condition is assumed here, and a negative EBIT
+    margin is not itself something this engine warns about - only a resulting condition, such
+    as a non-positive final-year UFCF, raises a warning of its own.
+
+    Warnings a cell's combined shift introduces that the base case does not already raise are
+    attached to that cell and never clamped or skipped, matching the tornado: substituting a
+    different assumption than the stated shift would falsify the grid's own claim about what
+    it tested.
+    """
+    shared = {
+        "wacc": wacc,
+        "terminal_growth_rate": terminal_growth_rate,
+        "net_debt": net_debt,
+        "diluted_shares_outstanding": diluted_shares_outstanding,
+    }
+
+    # No try/except, same rule as the tornado and both WACC grids: if the analyst's own
+    # unperturbed inputs cannot be computed, the whole request fails cleanly rather than
+    # returning an ostensibly-successful grid measured against a base that does not exist.
+    base_result = run_driver_dcf(
+        base_year_revenue=base_year_revenue, driver_years=driver_years, **shared
+    )
+    base_value = base_result["value_per_share"]
+    base_warnings = base_result["driver_warnings"]
+
+    rows = []
+    for growth_delta in GROWTH_MARGIN_DELTAS:
+        cells = []
+        for margin_delta in GROWTH_MARGIN_DELTAS:
+            # The centre cell IS the base case - both shifts are zero - so it reuses the run
+            # above rather than valuing the identical schedule a second time. Twenty-five
+            # run_driver_dcf calls in total, not twenty-six. Beyond the wasted work, a second
+            # run would also be a second place the centre cell could come from, which is
+            # exactly the drift the "base is computed here, never supplied" rule exists to
+            # prevent.
+            if growth_delta == 0.0 and margin_delta == 0.0:
+                cells.append(
+                    {"value_per_share": base_value, "delta": 0.0, "new_warnings": []}
+                )
+                continue
+            try:
+                result = run_driver_dcf(
+                    base_year_revenue=base_year_revenue,
+                    driver_years=_growth_margin_shift(driver_years, growth_delta, margin_delta),
+                    **shared,
+                )
+            except NonFiniteResultError:
+                cells.append({"value_per_share": None, "delta": None, "new_warnings": []})
+                continue
+            value = result["value_per_share"]
+            cells.append(
+                {
+                    "value_per_share": value,
+                    "delta": round(value - base_value, 2),
+                    "new_warnings": new_endpoint_warnings(base_warnings, result["driver_warnings"]),
+                }
+            )
+        rows.append({"revenue_growth_delta": growth_delta, "cells": cells})
+
+    return {
+        "base_value_per_share": base_value,
+        "step": GROWTH_MARGIN_STEP,
+        "ebit_margin_deltas": list(GROWTH_MARGIN_DELTAS),
+        "rows": rows,
+        "base_revenue_growth_path": [year["revenue_growth_rate"] for year in driver_years],
+        "base_ebit_margin_path": [year["ebit_margin"] for year in driver_years],
+    }
