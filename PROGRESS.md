@@ -1,21 +1,21 @@
 # Analyst Toolkit — Progress
 
-**Last verified:** 2026-09-04 (Base-year representativeness — local verification complete;
-not yet committed, deployed or production-verified. The SEC D&A milestone before it was committed
-`1338e38`, CI run #43 green, deployed and production-verified). 265 backend and 316 frontend tests
-green, lint and production build clean.
+**Last verified:** 2026-09-04 (Base-year representativeness — committed `740b940`, CI run #45
+green, deployed and production-verified). 265 backend and 316 frontend tests green, lint and
+production build clean.
 
-Live-verified against real companies on a local build: **COST (demo), KO and MSFT cautioned**,
-each with its own reason and its own ΔNWC direction — Costco a **$1.75B release**, KO a **$9.27B
-investment**, MSFT a **$12.92B investment**. **NVDA not cautioned**, its CAGR unqualified, and its
-price-implied-growth-versus-historical comparison (50.9% vs 50.5%) correctly retained. The caution
-clears and the badge flips to `ADJUSTED` the moment the base year is edited.
+Production verification, for reference: **KO cautioned** ($9.27B working-capital investment,
+"History spans 436.7pp against an aggregate of -96.6%"), its −42.44% CAGR shown with the
+**unstable**-tier qualification, and Explain This Valuation reduced to the analyst-case clause
+alone. **MSFT cautioned** ($12.92B investment, sign-change reason). **Costco demo cautioned** with
+a **$1.75B release** — the sign handled correctly in both directions on real data. **NVDA not
+cautioned**, CAGR unqualified, and its price-implied-growth-versus-historical comparison (50.9%
+vs 50.5%) correctly retained.
 
 ## Current Milestone
 
-**Base-year representativeness — code complete, awaiting review and deploy.** Caution-only, as
-scoped: no normalized value, no adoption action, no blocking, no engine change. Found by the
-bounded product-readiness review (see Recently Shipped).
+**None in progress.** Base-year representativeness is complete, deployed and
+production-verified (see Recently Shipped).
 
 ## Blockers / Frozen Areas
 
@@ -49,7 +49,12 @@ bounded product-readiness review (see Recently Shipped).
   working-capital artifact from UFCF-vs-revenue CAGR divergence was dropped as a heuristic dressed
   as evidence. **No normalized value ships.** The trigger is a proxy that under-fires by design,
   stated as such in the module. Live verification caught the one real defect — the suppression
-  flag was never wired into the `explainValuation` call, which the unit tests could not see —
+  flag was never wired into the `explainValuation` call, which the unit tests could not see. The
+  CAGR qualification is **tier-aware** — `unstable`, `thin` and `insufficient` each say what they
+  mean rather than all being called "unreliable", which was accurate for only one of the three —
+  and both the caution and the suppression key off the non-`ok` verdict itself rather than off
+  that copy, so an unrecognised future tier still withholds the benchmark. Committed `740b940`,
+  CI run #45 green, deployed and production-verified (see Last verified above) —
   [decisions.md](docs/decisions.md#base-year-representativeness-in-quick-dcf)
 
 - 2026-09-04 — **SEC D&A: component summation for filers with no combined tag.** Four basket
@@ -152,29 +157,27 @@ Older entries (2026-08-31 → 2026-09-02) moved out of current state — see
 
 ## Next Actions
 
-1. **Review, commit and deploy base-year representativeness**, then verify on the deployed build:
-   COST/KO/MSFT cautioned, NVDA not.
-2. **DCF Professional Summary** — the readiness review's top-ranked item of the six considered,
+1. **DCF Professional Summary** — the readiness review's top-ranked item of the six considered,
    and the one structural gap against real estate, which has `RealEstateDealSummary.jsx` while DCF
-   has no equivalent. Deliberately sequenced after the above: a summary makes a valuation
-   shareable, and shipping one before the base year carried a representativeness statement would
-   have propagated the defect rather than contained it.
-3. **Then reassess further DCF work.** The readiness review ranked the remaining candidates:
+   has no equivalent. Deliberately sequenced after base-year representativeness: a summary makes a
+   valuation shareable, and shipping one first would have propagated the defect rather than
+   contained it. The summary can now carry a representativeness statement worth printing.
+2. **Then reassess further DCF work.** The readiness review ranked the remaining candidates:
    historical loss-year effective tax rate (5 tickers), terminal-year normalization (methodology
    sophistication rather than workflow improvement), another data-coverage milestone (diminishing).
    Scenario/case management was found to be **already built** — save, load, duplicate, compare,
    driver schedules included, Quick/Driver mixing guarded.
-4. **Alpha Vantage — retest on a later date.** Still no `market_data_provider` and no
+3. **Alpha Vantage — retest on a later date.** Still no `market_data_provider` and no
    `reference_price` as of 2026-09-04, while SEC fundamentals resolve normally. Reference-price
    features were evaluated with a manually entered dated price and behaved correctly, so this is a
    data-source outage rather than a product-design question.
-5. Out of scope from the coverage work, each needing its own decision: extension-tag ingestion
+4. Out of scope from the coverage work, each needing its own decision: extension-tag ingestion
    (the only route to Microsoft's and Tesla's own D&A lines, and to Alphabet's and Tesla's
    coverage), **historical loss-year effective tax rate** (AMZN, T, MU, BA, INTC FY2024) —
    distinct from forecast NOL carryforwards in `docs/ROADMAP.md`'s Later list — restricted-cash /
    short-term-investment mapping (PG, INTC FY2021–23), derived EBIT (JNJ), segment-dimensioned
    debt (F).
-6. Real estate: no action planned until the user has the CRE-professional conversation.
+5. Real estate: no action planned until the user has the CRE-professional conversation.
 
 ## See Also
 
