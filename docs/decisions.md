@@ -1685,3 +1685,44 @@ rows, both pre-existing); the demo trigger rendered as a filled accent pill beca
 `.feature-page button` outranks a bare class; and the guidance trigger wrapped into a half-width
 strip because the card's grid rule also matched the note row, fixed with
 `:not(.driver-note-row)`.
+
+## UI audit closed: Phase 4 (type scale and focus styling) deliberately not built
+**Status:** Accepted
+
+Concludes the UI-audit milestone. Phases 1–3 shipped and were production-verified; Phase 4 was
+reassessed against the audit's own materiality standard and **closed unbuilt**. Full measurements:
+[`UI_AUDIT.md`](UI_AUDIT.md).
+
+**The reassessment re-measured the deployed build rather than trusting the original audit.** The
+type-scale finding is unchanged in size — 23 distinct font sizes and 51 text nodes under 12px,
+because Phases 1–3 were scoped not to touch it. Reporting it as improved would have been false.
+
+**It is nevertheless immaterial.** Every figure an analyst reads a decision from sits well above
+12px; nothing below 12px carries a number, only chrome. Contrast failures are at zero after
+Phase 1, and every editable mobile field is 16px after Phase 3. The genuine cost of 23 sizes is
+maintenance — future components re-inventing their own small size — which falls on development
+rather than on the analyst, and does not meet the bar for scheduling work.
+
+**Keyboard focus is functional, visible and sufficiently contrasted.** Measured on the deployed
+build, a real Tab press produces the browser's `outline: auto 1px` amber ring at **7.53:1**
+against the dark background, above the 3:1 non-text requirement, with `:focus-visible` matching
+correctly. The finding was only that its appearance varies between nine custom-styled components
+and the default elsewhere — a stylistic seam, not a defect.
+
+**A broad refactor is not justified by the expected user benefit.** It would touch nearly every
+component and carry regression risk in a theme with zero contrast failures, to fix something with
+no user-facing symptom. This is the materiality rule applied to our own backlog rather than to a
+user's request.
+
+**Permitted but not scheduled:** a small set of typography tokens may be adopted
+**opportunistically** when a component is already being changed for a higher-value reason. A
+dedicated token migration is **not** to be implemented or scheduled — that is precisely the
+cleanup-for-its-own-sake this decision declines.
+
+**What this milestone did fix, for the record:** 15 dark-mode WCAG AA failures including the two
+buttons that begin every session and a sourced financial value; a dark-only palette with the
+accent token split by role; `<main>`, a DCF `<h1>`, `aria-current`, accessible table names and
+hidden decorative step numerals; the Driver Schedule evidence hierarchy and its terminology; a
+floating popover replaced by inline keyboard-operable guidance; and a flagship feature that could
+not be operated on a phone (1 of 7 forecast inputs reachable, now all of them at 320px with a
+15-year forecast).

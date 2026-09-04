@@ -101,13 +101,20 @@ Reasonable follow-ups, not yet scheduled:
   accessibility), Phase 2 (Driver Schedule evidence hierarchy, reliability on every row, visible
   History-informed terminology, inline NWC guidance replacing the floating popover) and Phase 3
   (stacked mobile Driver Schedule, 16px/44px fields, collapsed mobile demo disclosure) are done —
-  see [`decisions.md`](decisions.md). Phase 4 is gated on a materiality reassessment and may be
-  closed unbuilt.
+  see [`decisions.md`](decisions.md). **Phase 4 (type scale, shared focus styling) was reassessed
+  on the deployed build and closed unbuilt on 2026-09-04** — a maintenance concern with no
+  material usability or credibility effect, and focus that is already functional and
+  sufficiently contrasted. Typography tokens may be adopted opportunistically when a component
+  changes for another reason; a token migration is not scheduled. The UI-audit milestone is
+  complete.
 
-- **Two-way Revenue Growth x EBIT Margin sensitivity table** — the tornado (item 11 above) has
-  now settled the perturbation convention: a fixed, stated shift, transparently labeled, rather
-  than one scaled to each driver's own historical dispersion. Must inherit the documented
-  axis-inversion handling for a non-positive final-year UFCF.
+- **Two-way Revenue Growth x EBIT Margin sensitivity table** — **the recommended next feature,
+  pending its own scoping.** It shows the interaction between two major value drivers, which the
+  tornado cannot: that chart moves one driver at a time and so says nothing about how growth and
+  margin compound together. The tornado (item 11 above) has already settled the perturbation
+  convention this was waiting on: a fixed, stated shift, transparently labeled, rather than one
+  scaled to each driver's own historical dispersion. Must inherit the documented axis-inversion
+  handling for a non-positive final-year UFCF.
 - **Quick DCF FCF-growth sensitivity** — Quick mode's flat FCF growth rate still has no
   sensitivity treatment of its own. The WACC x terminal-growth grid does not cover it, and the
   Driver tornado does not apply (it measures the six operating drivers, which exist only in

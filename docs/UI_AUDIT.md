@@ -1,8 +1,8 @@
 # UI Audit — DCF workflow and shared app presentation
 
-**Status: audit approved 2026-09-03. Phases 1, 2 and 3 are implemented, approved and shipped.
-Phase 4 is deliberately gated: it must be re-justified against the materiality standard before
-any of it is built, and may correctly be closed unbuilt.**
+**Status: complete and closed, 2026-09-04. Phases 1–3 shipped and production-verified;
+Phase 4 was reassessed against the materiality standard and deliberately closed unbuilt. No
+further UI-audit work is scheduled.**
 
 ## Scope decisions
 
@@ -182,8 +182,9 @@ values (0.64/0.66/0.68/0.70/0.72/0.74/0.76/0.78) chosen per component.
 22 sizes is not density, it is drift — and it is why each new component invents its own small
 size.
 
-**Why deferred.** Systemic refactor, regression risk across both themes, no single acute
-failure. Phases 2 and 3 will establish what the small end of the scale actually needs.
+**Outcome: closed unbuilt (2026-09-04).** Re-measured after Phases 1–3 at 23 distinct sizes and
+51 nodes under 12px — materially unchanged, and materially harmless: nothing below 12px carries a
+number. See "Phase 4 — Closed unbuilt" below.
 
 ### D-2 — Costco demo note is a wall of dense text on mobile
 
@@ -200,11 +201,12 @@ and must not be cut — only collapsed.
 
 ## Informational
 
-**I-2 — Focus styling is inconsistent, not absent.** `index.css`, `App.css` and
-`feature-form.css` contain **zero** `:focus-visible` rules; `workspace.css` has 9, all narrowly
-scoped to later-added components. Everything else inherits the browser default ring, which a
-real Tab press confirms is present. Keyboard navigation works; only its appearance varies.
-Held for Phase 4 per the approved plan.
+**I-2 — Focus styling is inconsistent, not absent. Closed unbuilt (2026-09-04).**
+`index.css`, `App.css` and `feature-form.css` contain **zero** `:focus-visible` rules;
+`workspace.css` has 9, all narrowly scoped to later-added components. Everything else inherits
+the browser default ring — measured on the deployed build at **7.53:1** against the dark
+background, above the 3:1 non-text requirement, with `:focus-visible` matching correctly.
+Keyboard navigation is functional and visible; only its appearance varies.
 
 **I-3 — The tornado is the internal reference pattern.** The driver sensitivity chart already
 does what F-3 and F-4 ask for elsewhere: values as real text in real cells, status conveyed by
@@ -285,12 +287,46 @@ Driver Schedule below 720px" in [`decisions.md`](decisions.md).
 **Success criterion met:** at 320px and 375px with a 15-year Custom forecast, all 90 forecast
 inputs are fully visible and focusable, with no horizontal page overflow.
 
-### Phase 4 — Optional visual-system cleanup
+### Phase 4 — Closed unbuilt (2026-09-04)
 
-After Phases 1–3, **reassess whether D-1 (type scale) and I-2 (shared focus styling) still
-provide material value. Do not assume this phase must be built.** Phases 2 and 3 may resolve
-enough of the small-type inconsistency to make a global refactor unjustified. If meaningful
-inconsistencies remain, present a before/after proposal before implementing anything.
+Reassessed against the materiality standard after Phases 1–3 shipped, by **re-measuring the
+deployed build** rather than reasoning from the original audit. Both findings survive as
+observations; neither justifies the work.
+
+**D-1 (type scale) is unchanged in size and immaterial in effect.** The shipped build still
+renders **23 distinct font sizes** (was 22) and **51 text nodes below 12px** (was 51) — Phases
+1–3 were scoped not to touch it, and did not. But magnitude is not materiality:
+
+- *Usability:* every figure an analyst reads a decision from is well above 12px — the hero value
+  at 38.4px, price-implied growth at 20.8px, sourced values and sensitivity cells at 14.4px, and
+  the driver evidence cell at 12.5px after Phase 2. **Nothing below 12px carries a number**; what
+  is small is chrome — step badges, chart axis labels, provenance captions, print-hidden toggles.
+- *Accessibility:* zero contrast failures after Phase 1, and every editable field is 16px on
+  mobile after Phase 3, so the iOS focus-zoom trap is gone. Small text with passing contrast that
+  carries no decision data is not an accessibility defect.
+- *Credibility:* dense secondary type is the idiom of professional finance tooling. The surfaces
+  a reviewer actually judges — the headline valuation, the tornado, the evidence cell — were the
+  ones Phases 1–3 corrected.
+
+The real cost of 23 sizes is **maintenance**: each new component re-invents its own small size.
+That cost falls on future development, not on the analyst, and does not clear the bar this audit
+set for blocking or scheduling work.
+
+**I-2 (focus styling) is functional and sufficiently contrasted.** Measured on the deployed
+build: a real Tab press produces the browser's `outline: auto 1px` ring in amber, at **7.53:1**
+against the dark background — well above the 3:1 non-text requirement, and `:focus-visible`
+matches correctly. Keyboard navigation works and is clearly visible throughout. The finding was
+only ever that its *appearance* varies (nine components define custom rings, the rest inherit the
+default), which is a stylistic seam with no reported or observable impact.
+
+**A broad refactor is not justified by the expected user benefit.** It would touch nearly every
+component and carry regression risk in a theme that currently has zero contrast failures, to
+resolve a maintenance concern with no user-facing symptom.
+
+**Permitted follow-on, not scheduled:** a small set of typography tokens may be adopted
+**opportunistically** when a component is being changed for a higher-value reason. **Do not
+implement or schedule a token migration.** A sweeping adoption pass is exactly the cleanup this
+decision declines.
 
 ---
 

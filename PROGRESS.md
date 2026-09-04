@@ -1,36 +1,28 @@
 # Analyst Toolkit — Progress
 
-**Last verified:** 2026-09-03 (UI audit Phase 3 — stacked Driver Schedule below 720px).
-Committed, CI green, **deployed to Vercel and Render and production-verified**. Backend untouched
-by this milestone; frontend 227 tests, lint and production build clean.
+**Last verified:** 2026-09-04 (UI audit closed — Phase 4 reassessed and deliberately not built).
+Documentation-only change; no code touched, so no deployment verification was needed. The last
+code milestone, UI audit Phase 3, remains committed, CI green, deployed and production-verified
+(see Recently Shipped).
 
-Production verification against the live app, Costco demo in Driver-Based mode: at **320px and
-375px** with a **15-year Custom** forecast, all **90 forecast inputs are fully visible and
-focusable**, every editable field computes to **16px / 44px**, the three-segment mode control
-fits, and there is **no horizontal page overflow**. Five-year forecasts behave the same. The
-breakpoint is exact — at **719px** the layout is stacked with the table header hidden and the
-demo trigger shown; at **720px** the media query stops matching and every desktop property
-returns (`table-header-group`, `table-row`, the sticky driver column, suppressed `::before` year
-labels, 13.33px inputs), so the desktop table is unchanged. The Costco disclosure collapses
-behind "Demo data and assumptions" on mobile and is shown outright on desktop; the NWC guidance
-expands inline to What happened / What to do in both. Browser console clean.
+Phase 3's production verification, for reference: at **320px and 375px** with a **15-year Custom**
+forecast, all **90 forecast inputs fully visible and focusable**, every editable field **16px /
+44px**, the three-segment mode control fitting, and **no horizontal page overflow**; the
+breakpoint exact at 719px/720px with the desktop table unchanged; both the Costco and NWC
+disclosures collapsing and expanding correctly.
 
 ## Current Milestone
 
-**UI audit Phases 1–3 complete. Phase 4 is gated pending a materiality reassessment.** The audit
-([`docs/UI_AUDIT.md`](docs/UI_AUDIT.md)) holds the measured findings and the phase plan.
+**None in progress.** The UI-audit milestone is complete and closed
+([`docs/UI_AUDIT.md`](docs/UI_AUDIT.md)). Phases 1–3 shipped and were production-verified;
+Phase 4 was reassessed against the audit's materiality standard and **closed unbuilt** — the
+remaining type-scale inconsistency is a maintenance concern with no material usability or
+credibility effect, and keyboard focus is already functional, visible and sufficiently
+contrasted (measured 7.53:1). A small set of typography tokens may be adopted **opportunistically**
+when a component is changed for a higher-value reason; a token migration is **not** scheduled.
 
-- **Phase 1 — done.** Dark-only, split accent token, semantic accessibility.
-- **Phase 2 — done.** Driver Schedule evidence hierarchy, reliability on every row, visible
-  "History-informed" terminology, inline NWC guidance replacing the floating popover.
-- **Phase 3 — done.** Stacked per-driver layout below 720px, 16px/44px mobile fields, the
-  collapsed mobile Costco disclosure, and eight touch targets. Presentation only.
-- **Phase 4 — deliberately not started.** The remaining findings (type scale, shared focus
-  styling) are to be re-justified against the audit's materiality standard before anything is
-  built, and may correctly be closed unbuilt rather than cleaned up for its own sake.
-
-Print is **out of scope** for the audit and untracked; the existing Print controls and README
-wording are deliberately untouched.
+Print remains **out of scope** for the audit and untracked; the existing Print controls and
+README wording are deliberately untouched.
 
 ## Blockers / Frozen Areas
 
@@ -39,6 +31,14 @@ wording are deliberately untouched.
 
 ## Recently Shipped
 
+- 2026-09-04 — **UI audit closed; Phase 4 deliberately not built.** Reassessed by re-measuring
+  the deployed build: the type scale is genuinely unchanged (23 distinct sizes, 51 nodes under
+  12px, since Phases 1–3 were scoped not to touch it) but immaterial — nothing below 12px carries
+  a number, contrast failures are at zero, and every editable mobile field is 16px. Keyboard focus
+  measured at **7.53:1**, above the 3:1 non-text requirement. A broad refactor would touch nearly
+  every component and risk regressions in a theme with zero contrast failures, to fix a
+  maintenance concern with no user-facing symptom. Documentation-only —
+  [decisions.md](docs/decisions.md#ui-audit-closed-phase-4-type-scale-and-focus-styling-deliberately-not-built)
 - 2026-09-03 — **UI audit Phase 3: stacked Driver Schedule below 720px.** Driver-Based DCF was
   unusable on a phone: the table was 956px in a 285px container with the Driver column pinned
   `sticky` at 224px, leaving 61px for inputs 88px wide — **1 of 7 inputs reachable**, and none at
@@ -173,12 +173,12 @@ wording are deliberately untouched.
 
 ## Next Actions
 
-1. **Decide Phase 4.** Reassess the remaining type-scale and shared-focus findings against the
-   audit's materiality standard now that Phases 1–3 have shipped, and close them unbuilt unless
-   one creates a real usability, accessibility, or credibility problem. Do not clean up for its
-   own sake.
-2. Driver-Based modeling follow-ups in [`docs/ROADMAP.md`](docs/ROADMAP.md)'s Later column: the
-   two-way **Revenue Growth × EBIT Margin** table, and **Quick DCF FCF-growth sensitivity**.
+1. **Next feature, for separate scoping — Driver-Based Revenue Growth × EBIT Margin sensitivity
+   table.** It shows the interaction between two major value drivers and complements the existing
+   one-variable tornado, which tests drivers only in isolation. The tornado already settled the
+   perturbation convention this was waiting on. Not started; scope it before building.
+2. Also open in [`docs/ROADMAP.md`](docs/ROADMAP.md)'s Later column: **Quick DCF FCF-growth
+   sensitivity**, the one remaining assumption with no sensitivity surface of its own.
 3. Real estate: no action planned until the user has the CRE-professional conversation.
 
 ## See Also
