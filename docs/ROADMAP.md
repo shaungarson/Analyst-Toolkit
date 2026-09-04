@@ -138,9 +138,8 @@ completed items, in the dependency order they were built:
     [`MODELING_CONVENTIONS.md`](MODELING_CONVENTIONS.md).
 
 
-14. **SEC period discovery: silent staleness, and a verified CapEx fallback.** **Deployed and
-    production-verified (`bcb649f`, CI run #38); held open pending the bounded Alpha Vantage
-    retest after the UTC daily reset.** A bounded data-layer readiness review found
+14. ~~**SEC period discovery: silent staleness, and a verified CapEx fallback.**~~ **Done
+    (2026-09-04).** Committed `bcb649f`, CI run #38 green, deployed and production-verified. A bounded data-layer readiness review found
     that period discovery anchored on a single tag, and that J&J — which stopped tagging
     `OperatingIncomeLoss` after FY2014 — was being served eleven-year-old financials as current,
     silently. Discovery now anchors on the union of the revenue and EBIT tag sets, with a
@@ -154,6 +153,18 @@ completed items, in the dependency order they were built:
     [`decisions.md`](decisions.md).
 
 ## Later
+
+- **Alpha Vantage retest (operational follow-up, not a milestone).** AV returned
+  `RateLimitedError` throughout the 2026-09-04 data-layer readiness review and when the SEC
+  data-integrity milestone closed. Most likely exhausted by that review's own 15-ticker probe
+  (~75 requests against a 25/day free cap, at 5 per uncached ticker); the pre-probe baseline was
+  never established, and it may stay limited for a day or two. When it clears, load ≤4 uncached
+  tickers and record `source.market_data_provider` and `profile.reference_price`. Deliberately
+  gates nothing: SEC EDGAR is the primary fundamentals source and the app degrades correctly
+  without AV. But the consequences are worth confirming — no AV means no reference price for any
+  live ticker, which removes Implied Upside/Downside and Reverse DCF, and AV is the fallback
+  whose absence turned several SEC mapping gaps into total unlevered-FCF failures during the
+  review.
 
 Reasonable follow-ups, not yet scheduled:
 

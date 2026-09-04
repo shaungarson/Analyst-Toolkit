@@ -1,34 +1,20 @@
 # Analyst Toolkit — Progress
 
 **Last verified:** 2026-09-04 (SEC data-integrity milestone — committed `bcb649f`, CI run #38
-green, **deployed and production-verified**). 249 backend and 279 frontend tests green, lint and
+green, deployed and production-verified). 249 backend and 279 frontend tests green, lint and
 production build clean.
 
 Production verification, for reference: **J&J's latest period is now 2025-12-28, was
 2014-12-28** — and its unlevered FCF is 0/5, which is the correct outcome: honest refusal on
 current periods instead of confident answers built on eleven-year-old data. PepsiCo, Home Depot
 and NVIDIA moved 0/5 → 5/5 on the CapEx fallback; Amazon and AT&T reach 4/5, the fifth year
-blocked by a loss-year tax rate that is deliberately out of scope; Costco is unchanged at 5/5 as
-the control. Figures match the local SEC-only measurements exactly.
-
-**One precondition remains open:** the bounded Alpha Vantage retest. AV is still returning
-`RateLimitedError`, and the daily allowance resets at UTC midnight — 5.8 hours after this
-verification. Very likely exhausted by the readiness review's own 15-ticker probe (~75 requests
-against a 25/day cap, at 5 requests per uncached ticker), but the pre-probe baseline is unknown
-and only a post-reset run can establish it.
+blocked by a loss-year tax rate that is deliberately out of scope; Costco unchanged at 5/5 as the
+control. Figures match the local SEC-only measurements exactly.
 
 ## Current Milestone
 
-**SEC period discovery: silent staleness and a verified CapEx fallback — implemented, deployed
-and production-verified; held open for the Alpha Vantage retest.**
-
-Full record:
-[`decisions.md`](docs/decisions.md#sec-period-discovery-silent-staleness-and-a-verified-capex-fallback).
-
-**Remaining:** after UTC midnight, load ≤4 uncached tickers and record
-`source.market_data_provider` and `profile.reference_price` for each; if AV is healthy, the
-milestone closes. If it is not, that is a separate finding — the fallback provider being absent
-is what turned several mapping gaps into total UFCF failures during the review.
+**None in progress.** The SEC data-integrity milestone is complete, deployed and
+production-verified (see Recently Shipped).
 
 ## Blockers / Frozen Areas
 
@@ -37,6 +23,33 @@ is what turned several mapping gaps into total UFCF failures during the review.
 
 ## Recently Shipped
 
+- 2026-09-04 — **SEC period discovery: silent staleness, and a verified CapEx fallback.** Found by
+  a bounded data-layer readiness review that was meant to choose the next *modelling* milestone
+  and found a data-integrity defect instead. Period discovery anchored on a single tag,
+  `OperatingIncomeLoss`, justified in its own docstring as present for every company in a
+  three-company validation sample. **Johnson & Johnson stopped tagging it after FY2014**, so
+  discovery walked back eleven years and the app served **FY2014 financials as J&J's latest
+  period** — `reported` provenance, no warning, every downstream figure derived from it. Missing
+  data already refused honestly; this *substituted* silently, the failure mode `CLAUDE.md` §6
+  names as recurring. Discovery now anchors on the **union** of the revenue and EBIT tag sets
+  (PepsiCo resolves through EBIT with no mapped revenue tag, so both are needed), with a
+  contiguity cut and a wholesale-staleness check. Stale periods are **dropped, not flagged**: the
+  wrong year's data is not an assumption an analyst can weigh. The first attempt filtered every
+  period against the newest, which would have discarded the legitimate multi-year history every
+  chart is built from — Costco collapsed from five periods to two, and the control fixture that
+  existed to catch exactly that caught it. `PaymentsToAcquireProductiveAssets` added to
+  `_CAPEX_TAGS` after verifying real company facts (six of seventeen report no
+  `PaymentsToAcquirePropertyPlantAndEquipment` fact at all); `PaymentsForRepurchaseOfCommonStock`,
+  `PaymentsToAcquireBusinesses*` and `PaymentsToAcquireMarketableSecurities` deliberately **not**
+  added despite matching the same pattern at full coverage. Ford verified and left unfixed —
+  segment-dimensioned debt, structural rather than a mapping defect, pinned by a test. Coverage
+  reported separately from methodology limits: complete SEC-only coverage went **3 → 6** of the
+  basket (the valid-current baseline was 3, not 4 — J&J's apparent 5/5 was FY2010–FY2014 data),
+  with every remaining blocker an out-of-scope methodology question. Four focused fixtures cut
+  from real filings, **40 KB** against ~65 MB for the full basket; no network-dependent CI tests.
+  Committed `bcb649f`, CI run #38 green, deployed and production-verified (see Last verified
+  above) —
+  [decisions.md](docs/decisions.md#sec-period-discovery-silent-staleness-and-a-verified-capex-fallback)
 - 2026-09-04 — **DCF traceability: history→forecast continuity and enterprise-value composition.**
   One milestone framed around a single outcome — history → forecast → present value → enterprise
   value — rather than around the bar geometry the two charts share. Both frontend-only against
@@ -88,79 +101,34 @@ is what turned several mapping gaps into total UFCF failures during the review.
   guidance, and a stacked mobile Driver Schedule; the type-scale/focus phase was reassessed on
   the deployed build and deliberately not built. Full measured findings and per-phase records:
   [UI_AUDIT.md](docs/UI_AUDIT.md) · [decisions.md](docs/decisions.md)
-- 2026-09-03 — **Driver-Based DCF: standardized ±1pp driver sensitivity (tornado).** The first
-  sensitivity treatment of Driver mode's own drivers — the existing grid tests WACC × terminal
-  growth, neither of which is a driver. `POST /api/dcf/driver-tornado` runs thirteen
-  `run_driver_dcf` calls (one base, computed server-side rather than trusted from the client,
-  plus six drivers × two directions) applying a ±1pp parallel shift across every forecast year,
-  so Fade and Custom rows keep their shape. Ranked by the spread across the base value and both
-  endpoints, not the endpoint distance alone — identical when the endpoints straddle base, but
-  correct when they don't, which happens for real: NWC investment reverses sign in a
-  declining-revenue year, revenue growth reverses against a negative-revenue year, and
-  `max(EBIT, 0) × tax_rate` kinks at EBIT = 0. An endpoint whose shift introduces a driver
-  warning the base case doesn't already raise is marked with its tier, short name and affected
-  years — never clamped or skipped, since substituting a different assumption than the stated
-  ±1pp would make the comparison unreliable. Rendered as a real table with a bar column (values
-  readable without hover, the table's own semantics carrying accessibility with no duplicated
-  summary, no chart library and deliberately no shared charting layer yet). WACC and terminal
-  growth excluded as non-drivers, with a neutral pointer to their own grid that claims nothing
-  about relative magnitude. Committed `a4430ce`, CI run #28 green, deployed and
-  production-verified (see Last verified above) —
-  [decisions.md](docs/decisions.md#driver-based-dcf-standardized-1pp-driver-sensitivity-tornado)
-- 2026-09-03 — **Costco demo: a provider-independent Driver Base Case.** Reverses v1's
-  Quick-only restriction — the demo now populates a complete, deterministic five-year Driver
-  Base Case (revenue growth Fade to the shared terminal growth rate; EBIT margin, tax, D&A and
-  CapEx Flat at their historical medians, all badged Seeded) alongside the unchanged Quick-mode
-  Low/Base/High presets, computed from the same frozen snapshot via the same
-  `driverHistory()`/`buildBaseForecast()` pipeline Initialize Forecast uses for any company. NWC
-  Investment is force-set to an explicit `-3.0% Flat` demo assumption rather than seeded, since
-  Costco's own working-capital history is correctly refused as unstable, and stays unbadged with
-  its own Unstable badge still visible. Leaving the demo via a live company load now resets the
-  driver schedule even when the ticker matches. No engine, methodology, or backend change.
-  Committed `7e4c21c`, CI run #26 green, deployed and production-verified (see Last Verified
-  above) — [decisions.md](docs/decisions.md#costco-demo-a-provider-independent-driver-base-case)
-- 2026-09-03 — **Guidance for unstable NWC assumptions.** The NWC Investment row's Unstable
-  badge is now an accessible popover trigger (not just plain text) explaining what the refusal
-  means and how to proceed — a normalized assumption, 0% if none is defensible, sensitivity-tested
-  both directions. Opens on click or keyboard activation; closes via its own close button,
-  Escape, or an outside click, with focus returned to the trigger every time. No change to
-  instability rules, seeding logic, or forecast behavior. Committed `31bc1fc`, CI run #26 green,
-  deployed and production-verified (see Last Verified above).
-- 2026-09-03 — **Driver-Based DCF v2: evidence-led forecast entry.** Per-driver historical
-  evidence (every usable observation plus one normalized reference statistic — median for five
-  drivers, aggregate ΣΔNWC ÷ ΣΔRevenue for working capital); an explicit **Initialize Forecast**
-  action that shows its plan and basis before writing anything and badges what it writes as
-  historical-derived starting points; refusal rather than a weak seed where history is thin,
-  unstable or sign-flipping; **Flat / Fade / Custom** row modes with the annual grid
-  repositioned as the advanced schedule editor; a one-time (never live) "use terminal growth as
-  target" action; real fiscal-year column labels where the fiscal period is unambiguous;
-  and instructional text reduced to one line plus a print-preserving disclosure. A closeout
-  correction pass then hardened the NWC aggregate denominator (direction-reversal and
-  net-versus-gross checks), replaced per-row seed clearing with a whole-schedule reset that
-  preserves only a positively-identified same-ticker reload, surfaced every material note plus
-  excluded-period counts and reasons, gave
-  observations visible fiscal-year labels, and removed the duplicated step badge. Rejected in
-  scope: historical price correlation / "revenue beta", and any frontend duplication of the
-  backend projection. Committed `9d06901`, CI run #24 green, deployed and production-verified
-  (see Last Verified above) — [decisions.md](docs/decisions.md#driver-based-dcf-v2-evidence-led-forecast-entry)
-Older entries (2026-08-31 → 2026-09-02: DCF data resilience, per-value provenance and the
-dated reference price, the embedded Costco demo, historical trend mini-charts, reverse DCF,
-Explain This Valuation, Driver-Based DCF v1, and the cross-company stale-input fix) have
-moved out of current state — each has its own record in
-[docs/decisions.md](docs/decisions.md), with the full chronological log in
+- 2026-09-03 — **Driver-Based DCF, v1 through the ±1pp tornado.** Evidence-led forecast entry
+  (v2), the provider-independent Costco Driver Base Case, inline guidance for unstable NWC
+  assumptions, and the standardized ±1pp driver sensitivity. Each has its own record in
+  [decisions.md](docs/decisions.md) and [MODELING_CONVENTIONS.md](docs/MODELING_CONVENTIONS.md).
+
+Older entries (2026-08-31 → 2026-09-02) moved out of current state — see
+[docs/decisions.md](docs/decisions.md) and
 [docs/archive/PROGRESS_HISTORY.md](docs/archive/PROGRESS_HISTORY.md).
 
 ## Next Actions
 
-1. **Finish this milestone:** bounded Alpha Vantage retest after the UTC reset, then close.
-   Deployment and production verification are done.
-2. **Then resume the paused DCF product-readiness review** using real-company archetypes. It was
+1. **Operational follow-up, not a milestone — Alpha Vantage retest.** AV was returning
+   `RateLimitedError` throughout the readiness review and at the time this milestone closed. Very
+   likely exhausted by the review's own 15-ticker probe (~75 requests against a 25/day free cap,
+   at 5 requests per uncached ticker), but the pre-probe baseline was never established. **It may
+   stay rate-limited for another day or two**, so this is deliberately not gating any milestone.
+   When it clears: load ≤4 uncached tickers and record `source.market_data_provider` and
+   `profile.reference_price` for each. If AV is unhealthy for a reason other than the probe, that
+   is its own finding — with no AV there is no reference price for any live ticker, which
+   silently removes Implied Upside/Downside and Reverse DCF, and it is the fallback whose absence
+   turned several SEC mapping gaps into total UFCF failures during the review.
+2. **Resume the paused DCF product-readiness review** using real-company archetypes. It was
    paused when the pre-flight found the data layer could only load the archetype it was validated
-   on. Re-run it once coverage is known-good; the modelling questions it was meant to rank —
-   scenario workflow, terminal-year normalization, NOL handling, a professional summary artifact,
-   or no further DCF feature — are unchanged.
-3. Out of scope and each needing its own decision, from the coverage review: D&A component
-   summation (TSLA, GOOGL, MSFT, INTC), restricted-cash treatment (PG), derived EBIT (JNJ),
+   on; complete SEC-only coverage is now 6 of 17 rather than 3, so more archetypes are reachable.
+   The modelling questions it was meant to rank are unchanged: scenario workflow, terminal-year
+   normalization, NOL handling, a professional summary artifact, or no further DCF feature.
+3. Out of scope from the coverage review, each needing its own decision: D&A component summation
+   (TSLA, GOOGL, MSFT, INTC), restricted-cash treatment (PG), derived EBIT (JNJ),
    segment-dimensioned debt (F), loss-year tax treatment (AMZN, T, MU, BA).
 4. Real estate: no action planned until the user has the CRE-professional conversation.
 
