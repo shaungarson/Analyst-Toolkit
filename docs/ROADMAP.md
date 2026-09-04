@@ -138,8 +138,9 @@ completed items, in the dependency order they were built:
     [`MODELING_CONVENTIONS.md`](MODELING_CONVENTIONS.md).
 
 
-14. **SEC period discovery: silent staleness, and a verified CapEx fallback.** **Implemented; not
-    Done until deployed and production-verified.** A bounded data-layer readiness review found
+14. **SEC period discovery: silent staleness, and a verified CapEx fallback.** **Deployed and
+    production-verified (`bcb649f`, CI run #38); held open pending the bounded Alpha Vantage
+    retest after the UTC daily reset.** A bounded data-layer readiness review found
     that period discovery anchored on a single tag, and that J&J — which stopped tagging
     `OperatingIncomeLoss` after FY2014 — was being served eleven-year-old financials as current,
     silently. Discovery now anchors on the union of the revenue and EBIT tag sets, with a

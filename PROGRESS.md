@@ -1,23 +1,34 @@
 # Analyst Toolkit — Progress
 
-**Last verified:** 2026-09-04 (SEC data-integrity milestone — implemented, 249 backend and 279
-frontend tests green, lint and production build clean). **Not yet deployed or
-production-verified**, and the bounded Alpha Vantage retest is still outstanding.
+**Last verified:** 2026-09-04 (SEC data-integrity milestone — committed `bcb649f`, CI run #38
+green, **deployed and production-verified**). 249 backend and 279 frontend tests green, lint and
+production build clean.
+
+Production verification, for reference: **J&J's latest period is now 2025-12-28, was
+2014-12-28** — and its unlevered FCF is 0/5, which is the correct outcome: honest refusal on
+current periods instead of confident answers built on eleven-year-old data. PepsiCo, Home Depot
+and NVIDIA moved 0/5 → 5/5 on the CapEx fallback; Amazon and AT&T reach 4/5, the fifth year
+blocked by a loss-year tax rate that is deliberately out of scope; Costco is unchanged at 5/5 as
+the control. Figures match the local SEC-only measurements exactly.
+
+**One precondition remains open:** the bounded Alpha Vantage retest. AV is still returning
+`RateLimitedError`, and the daily allowance resets at UTC midnight — 5.8 hours after this
+verification. Very likely exhausted by the readiness review's own 15-ticker probe (~75 requests
+against a 25/day cap, at 5 requests per uncached ticker), but the pre-probe baseline is unknown
+and only a post-reset run can establish it.
 
 ## Current Milestone
 
-**SEC period discovery: silent staleness and a verified CapEx fallback — code complete, pending
-Alpha Vantage retest, deployment and production verification.**
+**SEC period discovery: silent staleness and a verified CapEx fallback — implemented, deployed
+and production-verified; held open for the Alpha Vantage retest.**
 
-Found by a bounded data-layer readiness review that was meant to pick the next *modelling*
-milestone. It found a data-integrity defect instead: period discovery anchored on
-`OperatingIncomeLoss` alone, and **Johnson & Johnson stopped tagging it after FY2014**, so the app
-served **FY2014 financials as J&J's latest period** with `reported` provenance and no warning.
 Full record:
 [`decisions.md`](docs/decisions.md#sec-period-discovery-silent-staleness-and-a-verified-capex-fallback).
 
-**Remaining:** bounded Alpha Vantage retest after the daily reset, deploy, verify production,
-then close.
+**Remaining:** after UTC midnight, load ≤4 uncached tickers and record
+`source.market_data_provider` and `profile.reference_price` for each; if AV is healthy, the
+milestone closes. If it is not, that is a separate finding — the fallback provider being absent
+is what turned several mapping gaps into total UFCF failures during the review.
 
 ## Blockers / Frozen Areas
 
@@ -141,8 +152,8 @@ moved out of current state — each has its own record in
 
 ## Next Actions
 
-1. **Finish this milestone:** bounded Alpha Vantage retest (≤4 uncached tickers, recording
-   `source.market_data_provider`), deploy, production-verify, close.
+1. **Finish this milestone:** bounded Alpha Vantage retest after the UTC reset, then close.
+   Deployment and production verification are done.
 2. **Then resume the paused DCF product-readiness review** using real-company archetypes. It was
    paused when the pre-flight found the data layer could only load the archetype it was validated
    on. Re-run it once coverage is known-good; the modelling questions it was meant to rank —
