@@ -1,35 +1,33 @@
 # Analyst Toolkit — Progress
 
-**Last verified:** 2026-09-03 (UI audit Phase 2 — Driver Schedule evidence hierarchy and inline
-NWC guidance). Committed, CI green, **deployed to Vercel and Render and production-verified**.
-Backend untouched by this milestone; frontend 227 tests, lint and production build clean.
+**Last verified:** 2026-09-03 (UI audit Phase 3 — stacked Driver Schedule below 720px).
+Committed, CI green, **deployed to Vercel and Render and production-verified**. Backend untouched
+by this milestone; frontend 227 tests, lint and production build clean.
 
-Production verification against the live app, Costco demo in Driver-Based mode: the schedule's
-column header reads **History**, and each cell carries **Historical evidence** (full `FY22`
-labels) above **Historical benchmark** (`Median 7.46%` / `Aggregate -3.26%`) with reliability
-right-aligned beside it. Five rows read **Reliable** as quiet muted text and NWC reads
-**Unstable** — once, not twice — with **Not used as starting point** beneath its benchmark. The
-guidance under the NWC row is an inline `<button aria-expanded>` disclosure, collapsed by
-default, expanding to **What happened** / **What to do**; keyboard-verified — focusable,
-toggles its reported state, focus stays on the trigger, and `aria-controls` resolves. No
-floating popover renders anywhere. The Initialize Forecast panel heads its refusals **Not used
-as a starting point** and each note gives only the reason plus *"Review the observations and
-enter your own assumption."* Badges read **History-informed**. Browser console clean.
+Production verification against the live app, Costco demo in Driver-Based mode: at **320px and
+375px** with a **15-year Custom** forecast, all **90 forecast inputs are fully visible and
+focusable**, every editable field computes to **16px / 44px**, the three-segment mode control
+fits, and there is **no horizontal page overflow**. Five-year forecasts behave the same. The
+breakpoint is exact — at **719px** the layout is stacked with the table header hidden and the
+demo trigger shown; at **720px** the media query stops matching and every desktop property
+returns (`table-header-group`, `table-row`, the sticky driver column, suppressed `::before` year
+labels, 13.33px inputs), so the desktop table is unchanged. The Costco disclosure collapses
+behind "Demo data and assumptions" on mobile and is shown outright on desktop; the NWC guidance
+expands inline to What happened / What to do in both. Browser console clean.
 
 ## Current Milestone
 
-**UI audit Phase 2 complete. Phase 3 design awaiting approval.** The audit
-([`docs/UI_AUDIT.md`](docs/UI_AUDIT.md)) holds the measured findings and the four-phase plan.
-**Every phase presents a design for approval before it is built, and pauses again for approval
-before commit, deploy, or moving on.**
+**UI audit Phases 1–3 complete. Phase 4 is gated pending a materiality reassessment.** The audit
+([`docs/UI_AUDIT.md`](docs/UI_AUDIT.md)) holds the measured findings and the phase plan.
 
 - **Phase 1 — done.** Dark-only, split accent token, semantic accessibility.
-- **Phase 2 — done.** Driver Schedule evidence hierarchy, reliability stated on every row, the
-  visible "History-informed" terminology, and the floating NWC popover replaced by inline
-  expandable guidance. Presentation only — no calculation, payload, or state-model change.
-- **Phase 3 — next, design not yet approved.** Stacked mobile Driver Schedule below an
-  evidence-based breakpoint, the mobile Costco disclosure, and undersized touch targets.
-- **Phase 4** — optional type-scale/focus cleanup, to be re-justified before it is built.
+- **Phase 2 — done.** Driver Schedule evidence hierarchy, reliability on every row, visible
+  "History-informed" terminology, inline NWC guidance replacing the floating popover.
+- **Phase 3 — done.** Stacked per-driver layout below 720px, 16px/44px mobile fields, the
+  collapsed mobile Costco disclosure, and eight touch targets. Presentation only.
+- **Phase 4 — deliberately not started.** The remaining findings (type scale, shared focus
+  styling) are to be re-justified against the audit's materiality standard before anything is
+  built, and may correctly be closed unbuilt rather than cleaned up for its own sake.
 
 Print is **out of scope** for the audit and untracked; the existing Print controls and README
 wording are deliberately untouched.
@@ -41,6 +39,21 @@ wording are deliberately untouched.
 
 ## Recently Shipped
 
+- 2026-09-03 — **UI audit Phase 3: stacked Driver Schedule below 720px.** Driver-Based DCF was
+  unusable on a phone: the table was 956px in a 285px container with the Driver column pinned
+  `sticky` at 224px, leaving 61px for inputs 88px wide — **1 of 7 inputs reachable**, and none at
+  the default scroll position. Below 720px the table now renders as one panel per driver, as a
+  **CSS presentation switch over the same markup, handlers and state** — no second layout
+  component, no `matchMedia` branch, nothing duplicated to drift. A `<tbody>` per driver keeps
+  each driver's row and note row in one panel; `data-year` on each forecast cell renders the
+  fiscal year through `::before` without duplicating the input. Editable fields are **16px** (the
+  floor below which iOS zooms the page on focus) and **44px** tall, as is the Flat/Fade/Custom
+  control. The Costco disclosure collapses behind "Demo data and assumptions" on mobile only —
+  with no unscoped collapse rule, so widening can never strand the content. **All 90 inputs
+  visible and focusable at 320px and 375px with a 15-year forecast, no horizontal overflow,
+  desktop unchanged.** No calculation, payload, or state-model change —
+  [decisions.md](docs/decisions.md#stacked-driver-schedule-below-720px) ·
+  [UI_AUDIT.md](docs/UI_AUDIT.md)
 - 2026-09-03 — **UI audit Phase 2: Driver Schedule evidence hierarchy and inline NWC guidance.**
   The evidence cell previously rendered as one undifferentiated run
   (`’22 3.48 ’23 -10.87 … agg -3.26%UNSTABLE`), where the derived statistic read as another
@@ -160,14 +173,13 @@ wording are deliberately untouched.
 
 ## Next Actions
 
-1. **Present the Phase 3 mobile design for approval** — a 375px stacked per-driver layout
-   covering one complete reliable driver (name, History-informed status, historical evidence,
-   benchmark, reliability, mode controls, all five forecast inputs) and the unstable NWC version
-   with its guidance disclosure. Do not implement before approval.
-2. Then Phase 4 only if a reassessment still justifies it.
-3. Driver-Based modeling follow-ups in [`docs/ROADMAP.md`](docs/ROADMAP.md)'s Later column: the
+1. **Decide Phase 4.** Reassess the remaining type-scale and shared-focus findings against the
+   audit's materiality standard now that Phases 1–3 have shipped, and close them unbuilt unless
+   one creates a real usability, accessibility, or credibility problem. Do not clean up for its
+   own sake.
+2. Driver-Based modeling follow-ups in [`docs/ROADMAP.md`](docs/ROADMAP.md)'s Later column: the
    two-way **Revenue Growth × EBIT Margin** table, and **Quick DCF FCF-growth sensitivity**.
-4. Real estate: no action planned until the user has the CRE-professional conversation.
+3. Real estate: no action planned until the user has the CRE-professional conversation.
 
 ## See Also
 

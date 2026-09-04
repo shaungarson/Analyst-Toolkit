@@ -1,8 +1,8 @@
 # UI Audit — DCF workflow and shared app presentation
 
-**Status: audit approved 2026-09-03. Phases 1 and 2 are implemented, approved and shipped;
-Phase 3 design is pending approval and Phase 4 is not started. Uncommitted — this file ships with the Phase 1 milestone commit, together with
-its `ROADMAP.md` / `PROGRESS.md` references, rather than as a documentation-only commit.**
+**Status: audit approved 2026-09-03. Phases 1, 2 and 3 are implemented, approved and shipped.
+Phase 4 is deliberately gated: it must be re-justified against the materiality standard before
+any of it is built, and may correctly be closed unbuilt.**
 
 ## Scope decisions
 
@@ -277,13 +277,13 @@ NWC guidance" in [`decisions.md`](decisions.md).
   `5-yr history ▼` (**14px tall**), `How to read this` and `ⓘ Methodology` (14px), `SEC filings
   ↗` (23px), and the two `stockanalysis.com` links (16px) — seven controls under 24px.
 
-**Design approval required before implementation:** a realistic 375px mockup containing one
-complete reliable driver (name, History-informed status, historical evidence, benchmark,
-reliability, mode controls, all five forecast inputs) and the unstable NWC version with its
-guidance disclosure.
+**Status: shipped.** Stacked per-driver panels below 720px, driven by a CSS presentation switch
+over the same markup and state — no second layout component. Fields are 16px (the iOS
+focus-zoom floor) and 44px tall; eight mobile touch targets, six at 44px or above. See "Stacked
+Driver Schedule below 720px" in [`decisions.md`](decisions.md).
 
-**Success criterion:** every forecast input fully visible and operable at 375px alongside its
-driver name.
+**Success criterion met:** at 320px and 375px with a 15-year Custom forecast, all 90 forecast
+inputs are fully visible and focusable, with no horizontal page overflow.
 
 ### Phase 4 — Optional visual-system cleanup
 

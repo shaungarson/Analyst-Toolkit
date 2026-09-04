@@ -1624,3 +1624,64 @@ class - the exact trap the retired popover CSS had documented); the region label
 numeric column's `text-align: right` and floated away from the left-starting observation grid;
 and `Reliable` inherited bold 700 from an ancestor, which is not the quiet acknowledgement it is
 meant to be. Each was caught by rendering the real component rather than trusting the CSS.
+
+## Stacked Driver Schedule below 720px
+**Status:** Accepted
+
+UI audit Phase 3. Presentation only - no calculation, payload, completeness rule or internal
+state model changed. Measured evidence: [`UI_AUDIT.md`](UI_AUDIT.md).
+
+**The problem was measured, not assumed.** At 375px the schedule table was 956px inside a 285px
+container (3.35x, 70% off-screen at any moment), with the Driver column pinned `sticky` at 224px
+of the 285px viewport. That left 61px of usable width for inputs 88px wide, so **no forecast
+input could ever be fully visible beside its driver name** - 1 of 7 reachable, and none at the
+default scroll position, where the analyst saw driver names, history truncated mid-number, and
+zero input fields. The sticky column was the cause rather than the missing fix, which is why the
+table layout is dropped below the breakpoint instead of tuned.
+
+**One source of state, and no second layout component.** The stack is a CSS presentation switch
+over the same table markup, the same React tree, the same handlers and the same `driverYears`
+state. There is no mobile render path and no `matchMedia` branch in the schedule, so there is no
+second implementation of anything to drift. Two small structural changes made that possible:
+
+- **One `<tbody>` per driver** instead of one for the whole table. The driver row and its note
+  row are siblings, so without a shared parent the guidance would become a detached second card.
+  Multiple tbodies are valid HTML; nothing about state or calculation changes.
+- **`data-year` on each forecast cell**, rendered as the visible label through `::before` below
+  the breakpoint. The year stays attached to its input without duplicating the input or its
+  handler, and the input's existing `aria-label` already carries the same year, so the
+  association is programmatic as well as visual.
+
+**Fields are 16px below the breakpoint, and that is a functional floor rather than a style
+choice.** iOS Safari zooms the whole page when a field smaller than 16px takes focus, which on a
+form this dense throws the analyst out of context on every tap. Only the editable fields were
+raised - the surrounding labels keep their smaller sizes. Forecast inputs and the Flat/Fade/
+Custom control are 44px tall; the mode control uses `inline-flex` plus `min-height` rather than
+padding alone, so its height is guaranteed independently of the horizontal padding that has to
+keep three segments fitting at 320px.
+
+**Verified at 320px, 375px, 719px and 720px, with 1-, 5- and 15-year Custom forecasts.** At
+320px with 15 years: 90 inputs, all 90 fully visible and focusable, 16px/44px, no horizontal
+overflow, and the three-segment mode control 154px inside a 204px row. At 720px the query stops
+matching and every desktop property returns - `table-header-group`, `table-row`, the sticky
+column, suppressed `::before` labels, and 13.33px inputs.
+
+**Eight mobile touch targets**, six at 44px or above. The two `stockanalysis.com` links sit
+mid-sentence at 32px: above the 24px floor, and forcing 44px there would break the paragraph
+they are part of, which is a worse outcome than a slightly small link.
+
+**The Costco demo disclosure collapses below the breakpoint only.** Its ~120 words of provenance
+prose filled most of the first phone screen before any data or control was reachable; the
+content is the disclosure that makes the demo honest, so it is collapsed behind a "Demo data and
+assumptions" trigger rather than cut. There is deliberately **no unscoped collapse rule**: the
+trigger only exists below the breakpoint, so a rule applying at every width could strand the
+content - a panel mounted narrow and then widened would hide its body with no control left to
+reopen it. That exact defect was caught in review before shipping.
+
+**Four further defects were found by rendering rather than by reading the CSS**, three of them
+the same class of cause the retired popover had already documented: `.driver-base-revenue`
+overflowed the page by 9px at 375px and `.scenario-save-row` by 5px at 320px (both nowrap flex
+rows, both pre-existing); the demo trigger rendered as a filled accent pill because
+`.feature-page button` outranks a bare class; and the guidance trigger wrapped into a half-width
+strip because the card's grid rule also matched the note row, fixed with
+`:not(.driver-note-row)`.

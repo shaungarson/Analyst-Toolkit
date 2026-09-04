@@ -1,3 +1,4 @@
+import { useId, useState } from 'react'
 import { compactCurrency } from '../../lib/format'
 import {
   COSTCO_CASES,
@@ -24,12 +25,45 @@ import {
 // The top disclosure paragraph (frozen snapshot, no live lookup) is shared by both modes
 // unchanged; only the second paragraph is mode-specific, since Quick mode's three-case setup
 // and Driver mode's single five-year schedule have nothing in common to describe together.
+// Below the stacked-layout breakpoint this content is ~120 words of provenance prose that
+// filled most of the first screen before any data or control was reachable. It is the
+// disclosure that makes the demo honest, so it is collapsed rather than cut - and only on
+// small screens, where the cost of showing it is highest.
+//
+// The initial state is resolved once from the same breakpoint the stacked layout uses, rather
+// than tracked on resize: this is a starting position, not a mode, and re-collapsing a panel
+// the analyst deliberately opened because they rotated their phone would be worse than leaving
+// it open. Where matchMedia is unavailable (jsdom) it defaults to open, matching desktop.
+const STACKED_LAYOUT_QUERY = '(max-width: 719.98px)'
+
+function isStackedLayout() {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    ? window.matchMedia(STACKED_LAYOUT_QUERY).matches
+    : false
+}
+
 function CostcoDemoPanel({ open, forecastMode }) {
+  const [detailsOpen, setDetailsOpen] = useState(() => !isStackedLayout())
+  const detailsId = useId()
+
   if (!open) return null
 
   return (
     <div className="costco-demo-panel no-print">
-      <div className="costco-demo-body">
+      {/* Trigger is hidden above the breakpoint, where the content is shown outright. */}
+      <button
+        type="button"
+        className="costco-demo-details-toggle"
+        aria-expanded={detailsOpen}
+        aria-controls={detailsId}
+        onClick={() => setDetailsOpen((v) => !v)}
+      >
+        Demo data and assumptions <span aria-hidden="true">{detailsOpen ? '▴' : '▾'}</span>
+      </button>
+      <div
+        id={detailsId}
+        className={detailsOpen ? 'costco-demo-body' : 'costco-demo-body costco-demo-body--collapsed'}
+      >
         <p className="costco-demo-disclosure">
           <strong>Embedded demonstration snapshot</strong> - Costco Wholesale (COST), frozen
           data, not a live lookup. Financials: fiscal year ended{' '}

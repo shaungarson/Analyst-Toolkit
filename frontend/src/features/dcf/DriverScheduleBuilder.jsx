@@ -1,4 +1,3 @@
-import { Fragment } from 'react'
 import { compactCurrency } from '../../lib/format'
 import SourceBadge from '../../components/SourceBadge'
 import FormattedNumberInput from '../../components/FormattedNumberInput'
@@ -331,137 +330,135 @@ function DriverScheduleBuilder({
                 ))}
               </tr>
             </thead>
-            <tbody>
-              {DRIVER_ROWS.map(({ field, label }) => {
-                const mode = rowModes[field] ?? 'custom'
-                const driver = history.drivers[field]
-                const seeded = Boolean(seededFields?.[field])
-                // Every non-null note is rendered, not only those on an unreliable driver.
-                // The tax cash-proxy caution is company-specific and fires on histories that
-                // are otherwise perfectly reliable, so gating notes on reliability hid the one
-                // disclosure most likely to change an analyst's mind about a seeded rate.
-                // The NWC-unstable case swaps its raw note for the inline guidance
-                // disclosure, whose "What happened" says the same thing in fewer words.
-                const showGuidance = field === 'nwcInvestmentPct' && driver.reliability === 'unstable'
-                const showNote = showGuidance || Boolean(driver.note) || driver.excluded.length > 0
-                return (
-                  <Fragment key={field}>
-                    <tr>
-                      <td className="driver-row-label">
-                        {label}
-                        {seeded && (
-                          <span
-                            className="driver-seed-badge"
-                            title="History-informed starting point — not a forecast. Edit to make it your own."
-                          >
-                            History-informed
+            {DRIVER_ROWS.map(({ field, label }) => {
+              const mode = rowModes[field] ?? 'custom'
+              const driver = history.drivers[field]
+              const seeded = Boolean(seededFields?.[field])
+              // Every non-null note is rendered, not only those on an unreliable driver.
+              // The tax cash-proxy caution is company-specific and fires on histories that
+              // are otherwise perfectly reliable, so gating notes on reliability hid the one
+              // disclosure most likely to change an analyst's mind about a seeded rate.
+              // The NWC-unstable case swaps its raw note for the inline guidance
+              // disclosure, whose "What happened" says the same thing in fewer words.
+              const showGuidance = field === 'nwcInvestmentPct' && driver.reliability === 'unstable'
+              const showNote = showGuidance || Boolean(driver.note) || driver.excluded.length > 0
+              return (
+                <tbody key={field} className="driver-group">
+                  <tr>
+                    <td className="driver-row-label">
+                      {label}
+                      {seeded && (
+                        <span
+                          className="driver-seed-badge"
+                          title="History-informed starting point — not a forecast. Edit to make it your own."
+                        >
+                          History-informed
+                        </span>
+                      )}
+                    </td>
+                    <td className="driver-history-col">
+                      <DriverEvidence driver={driver} />
+                    </td>
+                    <td className="driver-mode-col">
+                      <RowModeSwitch field={field} label={label} mode={mode} onChange={onRowModeChange} />
+                    </td>
+
+                    {mode === 'custom' ? (
+                      driverYears.map((year, i) => (
+                        <td key={i} data-year={yearLabels.labels[i]}>
+                          <input
+                            type="number"
+                            step="any"
+                            required
+                            form="dcf-assumptions-form"
+                            aria-label={`${label}, ${yearLabels.labels[i]}`}
+                            value={year[field]}
+                            onChange={(e) => onYearFieldChange(i, field)(e.target.value)}
+                          />
+                        </td>
+                      ))
+                    ) : (
+                      <td colSpan={yearCount} className="driver-generated-cell">
+                        {mode === 'flat' ? (
+                          <span className="driver-generated-inputs">
+                            <label>
+                              All years
+                              <input
+                                type="number"
+                                step="any"
+                                required
+                                form="dcf-assumptions-form"
+                                aria-label={`${label}, all years`}
+                                value={driverYears[0][field]}
+                                onChange={(e) => onFlatChange(field, e.target.value)}
+                              />
+                            </label>
+                          </span>
+                        ) : (
+                          <span className="driver-generated-inputs">
+                            <label>
+                              {yearLabels.labels[0]}
+                              <input
+                                type="number"
+                                step="any"
+                                required
+                                form="dcf-assumptions-form"
+                                aria-label={`${label}, first forecast year`}
+                                value={driverYears[0][field]}
+                                onChange={(e) => onFadeEndpointChange(field, 'start', e.target.value)}
+                              />
+                            </label>
+                            <span aria-hidden="true" className="driver-fade-arrow">→</span>
+                            {yearCount > 1 && (
+                              <label>
+                                {yearLabels.labels[yearCount - 1]}
+                                <input
+                                  type="number"
+                                  step="any"
+                                  required
+                                  form="dcf-assumptions-form"
+                                  aria-label={`${label}, final forecast year target`}
+                                  value={driverYears[yearCount - 1][field]}
+                                  onChange={(e) => onFadeEndpointChange(field, 'end', e.target.value)}
+                                />
+                              </label>
+                            )}
+                            {field === 'revenueGrowthRate' && yearCount > 1 && (
+                              <button
+                                type="button"
+                                className="link-button no-print"
+                                disabled={!canUseTerminalGrowthTarget}
+                                onClick={onUseTerminalGrowthAsTarget}
+                                title="Copies the Terminal Growth Rate into the final-year target once. Terminal growth is perpetual FCF growth, not revenue growth - the two fields stay independent afterwards."
+                              >
+                                Use terminal growth as target
+                              </button>
+                            )}
+                            <span className="driver-generated-preview">
+                              {driverYears.map((y) => y[field] || '—').join(' · ')}
+                            </span>
                           </span>
                         )}
                       </td>
-                      <td className="driver-history-col">
-                        <DriverEvidence driver={driver} />
-                      </td>
-                      <td className="driver-mode-col">
-                        <RowModeSwitch field={field} label={label} mode={mode} onChange={onRowModeChange} />
-                      </td>
-
-                      {mode === 'custom' ? (
-                        driverYears.map((year, i) => (
-                          <td key={i}>
-                            <input
-                              type="number"
-                              step="any"
-                              required
-                              form="dcf-assumptions-form"
-                              aria-label={`${label}, ${yearLabels.labels[i]}`}
-                              value={year[field]}
-                              onChange={(e) => onYearFieldChange(i, field)(e.target.value)}
-                            />
-                          </td>
-                        ))
-                      ) : (
-                        <td colSpan={yearCount} className="driver-generated-cell">
-                          {mode === 'flat' ? (
-                            <span className="driver-generated-inputs">
-                              <label>
-                                All years
-                                <input
-                                  type="number"
-                                  step="any"
-                                  required
-                                  form="dcf-assumptions-form"
-                                  aria-label={`${label}, all years`}
-                                  value={driverYears[0][field]}
-                                  onChange={(e) => onFlatChange(field, e.target.value)}
-                                />
-                              </label>
-                            </span>
-                          ) : (
-                            <span className="driver-generated-inputs">
-                              <label>
-                                {yearLabels.labels[0]}
-                                <input
-                                  type="number"
-                                  step="any"
-                                  required
-                                  form="dcf-assumptions-form"
-                                  aria-label={`${label}, first forecast year`}
-                                  value={driverYears[0][field]}
-                                  onChange={(e) => onFadeEndpointChange(field, 'start', e.target.value)}
-                                />
-                              </label>
-                              <span aria-hidden="true" className="driver-fade-arrow">→</span>
-                              {yearCount > 1 && (
-                                <label>
-                                  {yearLabels.labels[yearCount - 1]}
-                                  <input
-                                    type="number"
-                                    step="any"
-                                    required
-                                    form="dcf-assumptions-form"
-                                    aria-label={`${label}, final forecast year target`}
-                                    value={driverYears[yearCount - 1][field]}
-                                    onChange={(e) => onFadeEndpointChange(field, 'end', e.target.value)}
-                                  />
-                                </label>
-                              )}
-                              {field === 'revenueGrowthRate' && yearCount > 1 && (
-                                <button
-                                  type="button"
-                                  className="link-button no-print"
-                                  disabled={!canUseTerminalGrowthTarget}
-                                  onClick={onUseTerminalGrowthAsTarget}
-                                  title="Copies the Terminal Growth Rate into the final-year target once. Terminal growth is perpetual FCF growth, not revenue growth - the two fields stay independent afterwards."
-                                >
-                                  Use terminal growth as target
-                                </button>
-                              )}
-                              <span className="driver-generated-preview">
-                                {driverYears.map((y) => y[field] || '—').join(' · ')}
-                              </span>
-                            </span>
-                          )}
-                        </td>
-                      )}
-                    </tr>
-                    {showNote && (
-                      <tr className="driver-note-row">
-                        <td colSpan={3 + yearCount}>
-                          {/* The reliability status is no longer repeated here - it is stated
-                              once, in the evidence cell above. */}
-                          {showGuidance ? (
-                            <NwcGuidanceDisclosure />
-                          ) : (
-                            driver.note && <span className="driver-note-text">{driver.note}</span>
-                          )}
-                          {driver.excluded.length > 0 && <ExcludedPeriods excluded={driver.excluded} />}
-                        </td>
-                      </tr>
                     )}
-                  </Fragment>
-                )
-              })}
-            </tbody>
+                  </tr>
+                  {showNote && (
+                    <tr className="driver-note-row">
+                      <td colSpan={3 + yearCount}>
+                        {/* The reliability status is no longer repeated here - it is stated
+                            once, in the evidence cell above. */}
+                        {showGuidance ? (
+                          <NwcGuidanceDisclosure />
+                        ) : (
+                          driver.note && <span className="driver-note-text">{driver.note}</span>
+                        )}
+                        {driver.excluded.length > 0 && <ExcludedPeriods excluded={driver.excluded} />}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              )
+            })}
           </table>
         </div>
       )}
