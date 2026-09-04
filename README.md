@@ -236,6 +236,18 @@ Every calculation is a pure, tested function, separate from the API and UI layer
 - **Unlevered FCF from sourced company data:** `EBIT × (1 − effective tax rate) + D&A −
   CapEx − change in NWC` — the standard enterprise-value-DCF construction. Any missing
   input makes the result undefined rather than silently treating it as zero.
+- **D&A from SEC filings:** one combined cash-flow tag where a filer reports one — always
+  preferred, because where both exist a component sum does not reproduce it. A filer that reports
+  no combined tag can instead be summed from two explicit components (depreciation plus
+  amortization of intangibles, both required for every displayed year), but **only if that
+  company has been individually reconciled against its own filed cash flow statements and added
+  to a verified list by SEC filer ID**. A company that merely happens to report both tags is not
+  used: matching tags is necessary but not sufficient evidence, and a live ticker can't be
+  checked after the app has already reported a number for it. Of the four companies in the test
+  basket with no combined tag, two reconcile in every year and are verified; two are refused —
+  one reports amortization only in quarterly filings, the other runs 18–35% below its own
+  reported figure. Where a company isn't verified, D&A is left undefined rather than partially
+  built: reporting depreciation alone would be the same as asserting its amortization is zero.
 - **Implied Upside/Downside:** deterministic arithmetic against a valid, positive reference
   price (sourced or manually entered), never a buy/sell/attractive framing.
 - **Discounting:** end-of-year convention throughout — flagged as a genuine, material
@@ -247,7 +259,7 @@ Every calculation is a pure, tested function, separate from the API and UI layer
 Every calculation — cap rate, amortization, IRR, equity multiple, DSCR, debt yield, terminal
 value, enterprise value, unlevered FCF construction — is backed by automated tests checked
 against values computed independently by hand, not just "does the code agree with itself."
-249 backend tests and 279 frontend tests total, plus a GitHub Actions CI pipeline that runs
+265 backend tests and 293 frontend tests total, plus a GitHub Actions CI pipeline that runs
 the backend suite and the frontend lint/build checks on every push and pull request.
 
 ## Architecture

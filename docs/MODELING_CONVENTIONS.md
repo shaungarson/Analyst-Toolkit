@@ -64,6 +64,20 @@ Every calculation named here is a pure, independently tested function — see
     isn't positive.
   - **Net working capital** = (current assets − cash and short-term investments) −
     (current liabilities − current portion of debt).
+- **D&A (sourced data):** one combined cash-flow D&A fact where the filer reports one — which
+  most do, and which is always preferred. A filer that reports no combined tag is summed from two
+  explicit components, depreciation plus amortization of intangible assets, **both required for
+  every displayed year** — but only for a filer on an explicit verified list, keyed by SEC CIK,
+  whose reconstruction has been reconciled by hand against its own filed cash flow statements in
+  every year the app displays. Currently **Microsoft and Intel**. An unknown filer that happens
+  to tag both components is **not** summed: structural evidence is necessary but not sufficient,
+  and a live ticker cannot be reconciled after the app has already served its number. Where a
+  filer is unverified, or a verified filer is missing a component for a displayed year, D&A is
+  undefined rather than partially constructed — serving depreciation alone is arithmetically
+  identical to asserting the filer's amortization is zero. Finance-lease right-of-use
+  amortization, financing-cost and debt-discount amortization, securities amortized cost, and
+  forward-looking future-amortization disclosures are excluded. See `decisions.md`'s "SEC D&A:
+  component summation" record for the per-company reconciliation evidence.
 - **Cash (sourced data):** cash and cash equivalents plus short-term investments, summed —
   see `decisions.md`'s SEC financial-field conventions record for why this combined meaning
   is preserved.

@@ -1,21 +1,21 @@
 # Analyst Toolkit — Progress
 
-**Last verified:** 2026-09-04 (Analysis Outputs disclosure hierarchy — committed `b8aeb02`,
-deployed and production-verified; the SEC data-integrity milestone before it was committed
-`bcb649f`, CI run #38 green, deployed and production-verified). 249 backend and 293 frontend
-tests green, lint and production build clean.
+**Last verified:** 2026-09-04 (SEC D&A component summation — local verification complete;
+not yet committed, deployed or production-verified). 265 backend and 293 frontend tests green,
+lint and production build clean.
 
-Production verification, for reference: **J&J's latest period is now 2025-12-28, was
-2014-12-28** — and its unlevered FCF is 0/5, which is the correct outcome: honest refusal on
-current periods instead of confident answers built on eleven-year-old data. PepsiCo, Home Depot
-and NVIDIA moved 0/5 → 5/5 on the CapEx fallback; Amazon and AT&T reach 4/5, the fifth year
-blocked by a loss-year tax rate that is deliberately out of scope; Costco unchanged at 5/5 as the
-control. Figures match the local SEC-only measurements exactly.
+Component reconstructions were validated against the filers' own cash flow statements across
+**every** relevant year, not the latest alone: **Intel exact in all five**, **Microsoft within
+±5% and two-sided** (+1.2%, −4.9%, −4.6%, −2.6%, +1.0%) against a line that also carries a
+non-D&A "other" bucket and was itself restated between filings. **Alphabet and Tesla are
+refused** — see below. All thirteen combined-tag filers re-checked and unchanged.
 
 ## Current Milestone
 
-**None in progress.** The Analysis Outputs disclosure hierarchy is complete, deployed and
-production-verified (see Recently Shipped).
+**SEC D&A component summation — code complete after a material correction, awaiting deploy
+verification.** Implemented, tested and live-verified locally. Scope limited to D&A normalization
+by instruction: no extension-tag ingestion, NOL handling, cash mapping, derived EBIT or DCF
+Professional Summary.
 
 ## Blockers / Frozen Areas
 
@@ -23,6 +23,46 @@ production-verified (see Recently Shipped).
   conventions with a CRE professional. See [docs/decisions.md#real-estate-freeze-pending-professional-validation](docs/decisions.md#real-estate-freeze-pending-professional-validation).
 
 ## Recently Shipped
+
+- 2026-09-04 — **SEC D&A: component summation for filers with no combined tag.** Four basket
+  filers — MSFT, GOOGL, TSLA, INTC — report **no** combined cash-flow D&A tag at any period, so
+  D&A and therefore unlevered FCF were `None` for all five years. A combined fact is now always
+  preferred (**a correctness rule, not ordering**: where both exist, components do not reproduce
+  it — Ford 0.49×, Amazon 0.65×, Home Depot 1.16×), and only a period without one falls back to
+  an explicit two-component sum with **both components required in every period**, gated at
+  filer level.
+
+  **Two admitted, two refused — and the refusals are the substance.** A first version made
+  amortization *optional* and returned depreciation-only figures for Alphabet and Tesla. That was
+  wrong and was corrected before commit. "Optional" is arithmetically identical to **assuming
+  zero** for a filer that does not tag the concept — the same silent-substitution failure mode as
+  the J&J staleness defect, reached by a different route. Alphabet reports
+  `AmortizationOfIntangibleAssets` **only on 10-Qs**, never annually, while its 10-Ks disclose
+  accumulated amortization of finite-lived intangibles: it *has* amortization, so its
+  depreciation line is not its D&A and the "exact match" supported only that line. Tesla's
+  residual was attributed to impairment; its filing reports **no material impairments**, and the
+  gap is **systematic** — −18.2%, −23.2%, −28.6%, −35.4%, −32.6% across FY2025–FY2021 — including
+  the single year it tags both components. Both now return `None`.
+
+  **Validating only the latest year is what let that through**; all displayed years are now
+  checked, which is also what exposed Microsoft's deviation as **two-sided**, not conservative —
+  its latest component sum *exceeds* its filed aggregate, and Microsoft restated that line
+  between filings (FY2025 34,153 → 29,433).
+
+  **The fallback is an explicit allowlist keyed by SEC CIK, not a rule the module infers.** A
+  second correction replaced a structural completeness gate that would have admitted *any*
+  unexamined filer tagging both components — necessary but not sufficient evidence, and a live
+  ticker cannot be reconciled after the app has already served its number. A filer is added only
+  after hand reconciliation against its own filed statements in every displayed year: currently
+  **MSFT and INTC**. Resolution is per period, so a gap in the extra period fetched solely for
+  the prior-year NWC balance cannot erase D&A from the five displayed years — a defect the
+  window-based gate had, now pinned by a test. Slots stay explicit, never a name pattern: finance-lease ROU amortization (**a verified 15%
+  double-count at Microsoft**), financing-cost amortization, securities amortized cost,
+  forward-looking future-amortization disclosures, and an Intel OCI **pension** line matching
+  only on "unamortized" — on a filer the gate admits. Measured, not projected: **complete 6 → 7**
+  (+MSFT), partial 4 → 5 (+INTC at 1/5), none 7 → 5. Five fixtures cut from real filings, 51 KB;
+  no network-dependent CI tests —
+  [decisions.md](docs/decisions.md#sec-da-component-summation-for-filers-with-no-combined-tag)
 
 - 2026-09-04 — **Analysis Outputs: progressive disclosure.** Presentation only, DCF Sensitivity
   & Bridge tab. The tab-level "How to read this" legend is gone (it explained three different
@@ -37,32 +77,16 @@ production-verified (see Recently Shipped).
   production-verified (Costco driver demo on the deployed build: both disclosures collapsed, the
   D&A caution chip visible, $263.25/share matching local) —
   [decisions.md](docs/decisions.md#analysis-outputs-progressive-disclosure-and-where-warnings-live)
-- 2026-09-04 — **SEC period discovery: silent staleness, and a verified CapEx fallback.** Found by
-  a bounded data-layer readiness review that was meant to choose the next *modelling* milestone
-  and found a data-integrity defect instead. Period discovery anchored on a single tag,
-  `OperatingIncomeLoss`, justified in its own docstring as present for every company in a
-  three-company validation sample. **Johnson & Johnson stopped tagging it after FY2014**, so
-  discovery walked back eleven years and the app served **FY2014 financials as J&J's latest
-  period** — `reported` provenance, no warning, every downstream figure derived from it. Missing
-  data already refused honestly; this *substituted* silently, the failure mode `CLAUDE.md` §6
-  names as recurring. Discovery now anchors on the **union** of the revenue and EBIT tag sets
-  (PepsiCo resolves through EBIT with no mapped revenue tag, so both are needed), with a
-  contiguity cut and a wholesale-staleness check. Stale periods are **dropped, not flagged**: the
-  wrong year's data is not an assumption an analyst can weigh. The first attempt filtered every
-  period against the newest, which would have discarded the legitimate multi-year history every
-  chart is built from — Costco collapsed from five periods to two, and the control fixture that
-  existed to catch exactly that caught it. `PaymentsToAcquireProductiveAssets` added to
-  `_CAPEX_TAGS` after verifying real company facts (six of seventeen report no
-  `PaymentsToAcquirePropertyPlantAndEquipment` fact at all); `PaymentsForRepurchaseOfCommonStock`,
-  `PaymentsToAcquireBusinesses*` and `PaymentsToAcquireMarketableSecurities` deliberately **not**
-  added despite matching the same pattern at full coverage. Ford verified and left unfixed —
-  segment-dimensioned debt, structural rather than a mapping defect, pinned by a test. Coverage
-  reported separately from methodology limits: complete SEC-only coverage went **3 → 6** of the
-  basket (the valid-current baseline was 3, not 4 — J&J's apparent 5/5 was FY2010–FY2014 data),
-  with every remaining blocker an out-of-scope methodology question. Four focused fixtures cut
-  from real filings, **40 KB** against ~65 MB for the full basket; no network-dependent CI tests.
-  Committed `bcb649f`, CI run #38 green, deployed and production-verified (see Last verified
-  above) —
+- 2026-09-04 — **SEC period discovery: silent staleness, and a verified CapEx fallback.** Period
+  discovery anchored on a single tag, `OperatingIncomeLoss`; Johnson & Johnson stopped tagging it
+  after FY2014, so the app served **FY2014 financials as J&J's latest period** with `reported`
+  provenance and no warning — a silent substitution, the failure mode `CLAUDE.md` §6 names as
+  recurring. Discovery now anchors on the **union** of the revenue and EBIT tag sets with a
+  contiguity cut and a wholesale-staleness check, and stale periods are dropped rather than
+  flagged. `PaymentsToAcquireProductiveAssets` added to `_CAPEX_TAGS` after verifying real company
+  facts. Ford verified and deliberately left unfixed (segment-dimensioned debt). Complete SEC-only
+  coverage went **3 → 6** of the basket. Committed `bcb649f`, CI run #38 green, deployed and
+  production-verified —
   [decisions.md](docs/decisions.md#sec-period-discovery-silent-staleness-and-a-verified-capex-fallback)
 - 2026-09-04 — **DCF traceability: history→forecast continuity and enterprise-value composition.**
   One milestone framed around a single outcome — history → forecast → present value → enterprise
@@ -126,25 +150,28 @@ Older entries (2026-08-31 → 2026-09-02) moved out of current state — see
 
 ## Next Actions
 
-1. **Operational follow-up, not a milestone — Alpha Vantage retest.** AV was returning
-   `RateLimitedError` throughout the readiness review and at the time this milestone closed. Very
-   likely exhausted by the review's own 15-ticker probe (~75 requests against a 25/day free cap,
-   at 5 requests per uncached ticker), but the pre-probe baseline was never established. **It may
-   stay rate-limited for another day or two**, so this is deliberately not gating any milestone.
-   When it clears: load ≤4 uncached tickers and record `source.market_data_provider` and
-   `profile.reference_price` for each. If AV is unhealthy for a reason other than the probe, that
-   is its own finding — with no AV there is no reference price for any live ticker, which
-   silently removes Implied Upside/Downside and Reverse DCF, and it is the fallback whose absence
-   turned several SEC mapping gaps into total UFCF failures during the review.
-2. **Resume the paused DCF product-readiness review** using real-company archetypes. It was
-   paused when the pre-flight found the data layer could only load the archetype it was validated
-   on; complete SEC-only coverage is now 6 of 17 rather than 3, so more archetypes are reachable.
-   The modelling questions it was meant to rank are unchanged: scenario workflow, terminal-year
-   normalization, NOL handling, a professional summary artifact, or no further DCF feature.
-3. Out of scope from the coverage review, each needing its own decision: D&A component summation
-   (TSLA, GOOGL, MSFT, INTC), restricted-cash treatment (PG), derived EBIT (JNJ),
-   segment-dimensioned debt (F), loss-year tax treatment (AMZN, T, MU, BA).
-4. Real estate: no action planned until the user has the CRE-professional conversation.
+1. **Deploy and verify SEC D&A component summation in production.** Commit, push, confirm CI, then
+   load MSFT, GOOGL, TSLA and INTC against the deployed API. Expected: **MSFT** five SEC-sourced
+   D&A years and a complete unlevered-FCF series; **INTC** five D&A years but still 1/5 UFCF;
+   **GOOGL and TSLA** no D&A and 0/5, which is the corrected, intended refusal — not a
+   regression.
+2. **Resume the paused DCF product-readiness review** using real-company archetypes, once the
+   above is verified. It was paused when the pre-flight found the data layer could only load the
+   archetype it was validated on; complete SEC-only coverage is now **7** of 17 rather than 3, so
+   materially more archetypes are reachable. The modelling questions it was meant to rank are
+   unchanged: scenario workflow, terminal-year normalization, NOL handling, a professional summary
+   artifact, or no further DCF feature.
+3. **Alpha Vantage — retest on a later date.** Retested 2026-09-04 against production with four
+   uncached tickers: still no `market_data_provider` and no `reference_price`, while SEC
+   fundamentals resolved normally. That retest fell on the *same day* as the 15-ticker probe that
+   most likely exhausted the 25/day cap, so it neither confirms nor refutes quota exhaustion.
+   Gates nothing, but with no AV there is no reference price for any live ticker, which removes
+   Implied Upside/Downside and Reverse DCF outside the Costco demo.
+4. Out of scope from the coverage work, each needing its own decision: extension-tag ingestion
+   (the only route to Microsoft's and Tesla's own D&A lines), loss-year tax treatment
+   (AMZN, T, MU, BA, INTC FY2024), restricted-cash / short-term-investment mapping (PG, INTC
+   FY2021–23), derived EBIT (JNJ), segment-dimensioned debt (F).
+5. Real estate: no action planned until the user has the CRE-professional conversation.
 
 ## See Also
 

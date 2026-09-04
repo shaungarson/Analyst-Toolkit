@@ -83,6 +83,30 @@ Key backend modules:
   assumption an analyst can weigh. `_CAPEX_TAGS` carries a second, verified equivalent tag
   (`PaymentsToAcquireProductiveAssets`). See "SEC period discovery: silent staleness, and a
   verified CapEx fallback" in `docs/decisions.md`.
+
+  **D&A resolves from one combined tag where the filer reports one, and otherwise from an
+  explicit two-component sum available only to filers on a verified list.** Four basket filers
+  (MSFT, GOOGL, TSLA, INTC) report no combined D&A tag at all — Microsoft's and Tesla's own
+  cash-flow lines are company extension tags the companyfacts API never exposes. The combined tag
+  is preferred as a correctness rule, not an ordering preference: where both exist, components do
+  not reproduce the combined figure (Ford 0.49×, Amazon 0.65×, Home Depot 1.16×).
+
+  `_DA_COMPONENT_VERIFIED_FILERS` is an **allowlist keyed by SEC CIK**, not a heuristic. A filer
+  is added only after its component sum has been reconciled by hand against its own filed
+  statements in every displayed year — currently Microsoft (within ±5%, two-sided, against a line
+  carrying a non-D&A "other" bucket it also restated between filings) and Intel (exact in all
+  five). Alphabet and Tesla were examined and refused: Alphabet tags intangible amortization only
+  on 10-Qs while disclosing accumulated amortization of finite-lived intangibles in its 10-Ks,
+  and Tesla runs 18–35% below its own filed aggregate every year, including the single year it
+  tags both components. **An unknown filer that happens to tag both components is not summed** —
+  structural evidence is necessary but not sufficient, and a live ticker cannot be reconciled
+  after the app has already used it. Both components are required per displayed year; resolution
+  is per period, so a gap in the extra period fetched solely for the prior-year NWC balance
+  cannot erase D&A from the displayed years. The component list is explicit rather than a
+  tag-name pattern — `FinanceLeaseRightOfUseAssetAmortization` (a verified 15% double-count at
+  Microsoft), `AmortizationOfFinancingCosts`, securities amortized-cost and forward-looking
+  future-amortization tags all match `/depreciat|amorti/` and are all excluded. See "SEC D&A:
+  component summation for filers with no combined tag" in `docs/decisions.md`.
 - `app/services/alpha_vantage.py` — fundamentals/quote client, typed errors, request
   throttling, 24h fundamentals / 15min quote caches.
 - `app/services/company_data.py` — orchestrates both providers. Company periods are built

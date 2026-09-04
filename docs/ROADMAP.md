@@ -152,14 +152,41 @@ completed items, in the dependency order they were built:
     question. See "SEC period discovery: silent staleness, and a verified CapEx fallback" in
     [`decisions.md`](decisions.md).
 
+15. ~~**SEC D&A: component summation for filers with no combined tag.**~~ **Done
+    (2026-09-04).** A standalone data-coverage milestone, limited to D&A normalization. Four
+    basket filers (MSFT, GOOGL, TSLA, INTC) report no combined cash-flow D&A tag at any period,
+    so D&A — and therefore unlevered FCF — was `None` for all five years. A combined fact is now
+    always preferred (components do not reproduce it where both exist: Ford 0.49×, Amazon 0.65×,
+    Home Depot 1.16×), and only a period without one falls back to a two-component sum.
+
+    **That fallback is an explicit allowlist keyed by SEC CIK, not a rule the module infers.** A
+    filer is added only after its component sum has been reconciled by hand against its own filed
+    cash flow statements in every displayed year — currently **Microsoft and Intel**. An unknown
+    filer that happens to tag both components stays unmapped: structural evidence is necessary
+    but not sufficient, and a live ticker cannot be reconciled after the app has already served
+    its number. **Alphabet and Tesla were examined and refused.** Two earlier drafts were
+    corrected before commit: the first made amortization optional (arithmetically identical to
+    assuming zero) on the strength of Alphabet's match against its *depreciation line* — Alphabet
+    tags intangible amortization only on 10-Qs and that line is not its D&A — and attributed
+    Tesla's residual to impairment, though its filing reports none and the gap is systematic at
+    18–35% every year, including the one year it tags both components. The second replaced that
+    with a structural completeness gate that would still have admitted unexamined filers.
+    Validation is against filed statements across **all** displayed years, not the latest alone;
+    Microsoft's deviation is **two-sided** (+1.2% to −4.9%) and is not conservative. Measured
+    SEC-only coverage: **complete 6 → 7** (+MSFT), partial 4 → 5 (+INTC at 1/5), none 7 → 5. See
+    "SEC D&A: component summation for filers with no combined tag" in
+    [`decisions.md`](decisions.md) and [`MODELING_CONVENTIONS.md`](MODELING_CONVENTIONS.md).
+
 ## Later
 
-- **Alpha Vantage retest (operational follow-up, not a milestone).** AV returned
-  `RateLimitedError` throughout the 2026-09-04 data-layer readiness review and when the SEC
-  data-integrity milestone closed. Most likely exhausted by that review's own 15-ticker probe
-  (~75 requests against a 25/day free cap, at 5 per uncached ticker); the pre-probe baseline was
-  never established, and it may stay limited for a day or two. When it clears, load ≤4 uncached
-  tickers and record `source.market_data_provider` and `profile.reference_price`. Deliberately
+- **Alpha Vantage retest (operational follow-up, not a milestone).** **Retested 2026-09-04
+  against production with four uncached tickers (MSFT, GOOGL, TSLA, INTC): still unavailable** —
+  `source.market_data_provider` and `profile.reference_price` were `null` for all four, while
+  `fundamentals_provider` stayed `sec_edgar` and all five SEC periods resolved. The client cannot
+  distinguish rate-limited from unconfigured or unreachable (by design — the app never relays an
+  upstream error verbatim), and this retest fell on the *same day* as the 15-ticker probe that
+  most likely exhausted the 25/day cap, so it neither confirms nor refutes that explanation. Retest
+  on a later date before treating it as anything more than quota exhaustion. Deliberately
   gates nothing: SEC EDGAR is the primary fundamentals source and the app degrades correctly
   without AV. But the consequences are worth confirming — no AV means no reference price for any
   live ticker, which removes Implied Upside/Downside and Reverse DCF, and AV is the fallback

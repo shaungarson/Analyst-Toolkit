@@ -7,7 +7,12 @@ within the same company (e.g. Walmart's D&A moved from DepreciationDepletionAndA
 to DepreciationAmortizationAndAccretionNet starting FY2020). Every fallback chain below
 exists because a real company in that sample needed it, not speculatively.
 
-Two concepts can't be read off a single tag and are computed instead:
+Three concepts can't be read off a single tag and are computed instead:
+- D&A: most filers report one combined cash-flow D&A tag. Some report none and only tag the
+  components (Microsoft, Alphabet, Tesla and Intel), and those are summed from an explicit,
+  reviewed component list - never from a tag-name pattern - but only where the filer tags both
+  components in every period. Alphabet and Tesla do not, and are refused rather than served
+  depreciation alone, which would assert an amortization of zero their own filings contradict.
 - Cash: this app's "cash" has always meant cash-and-short-term-investments combined (see
   app/calculations/company_financials.py's net_working_capital docstring), matching Alpha
   Vantage's cashAndShortTermInvestments field. SEC's clean, universal tag
@@ -48,11 +53,84 @@ _PRETAX_INCOME_TAGS = [
     "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",
 ]
 _INCOME_TAX_EXPENSE_TAGS = ["IncomeTaxExpenseBenefit"]
+# One combined cash-flow D&A fact, in priority order. Thirteen of a seventeen-ticker basket
+# resolve here, and this chain is always tried first - see _extract_depreciation_and_amortization
+# for why preferring it matters rather than being a mere ordering preference.
 _DA_TAGS = [
     "DepreciationDepletionAndAmortization",
     "DepreciationAmortizationAndAccretionNet",
     "DepreciationAndAmortization",
 ]
+
+# Components, summed only when no combined fact exists for the period AND this filer appears in
+# the verified map below. The map is an allowlist, not a heuristic: a filer is added only after
+# its component sum has been reconciled by hand against its own filed cash flow statements, in
+# every year the app would display.
+#
+# Structural evidence is deliberately not enough. An earlier version admitted any filer that
+# tagged both components throughout the period set, while its own documentation conceded that
+# this was necessary but not sufficient evidence of complete D&A - which means an unknown filer
+# would have been served a figure on the promise of a reconciliation that can only happen after
+# the app has already used it. A live ticker cannot be reconciled later. So an unknown filer with
+# both component tags in every year stays unmapped, and the caller falls back or refuses exactly
+# as for any other field this module cannot confidently map.
+#
+# Reconciliation evidence for the two approved filers, checked across all five displayed years
+# against the aggregate on each filer's own cash flow statement:
+#
+#   MSFT (CIK 789019)  Its line is msft:DepreciationAmortizationAndOther, a company extension tag
+#       the companyfacts API never exposes, and it bundles an "other" bucket that is not D&A and
+#       falls either way: +1.2%, -4.9%, -4.6%, -2.6%, +1.0% across FY2026-FY2022. Microsoft also
+#       restated that line between filings (FY2025 34,153 -> 29,433), so the aggregate is not a
+#       fixed target. Deviation is two-sided and is NOT conservative.
+#   INTC (CIK 50863)   Depreciation and AmortizationOfIntangibleAssets ARE the two D&A lines on
+#       its cash flow statement. Exact in all five years; its impairment sits on a separate line
+#       this construction does not touch.
+#
+# Examined and deliberately NOT approved:
+#
+#   GOOGL  Reports AmortizationOfIntangibleAssets only on 10-Qs, never annually, while its 10-Ks
+#       carry FiniteLivedIntangibleAssetsAccumulatedAmortization and forward amortization
+#       schedules. It HAS intangible amortization; its cash-flow line "Depreciation of property
+#       and equipment" is depreciation only, and the amortization sits inside "Other".
+#       Depreciation alone matches that one line exactly and is still not this filer's D&A.
+#   TSLA   Its line is tsla:DepreciationAmortizationAndImpairment, and the filing reports no
+#       material long-lived-asset or goodwill impairments - so the residual is amortization and
+#       other depreciation, not impairment. Depreciation alone runs -18% to -35% low in every
+#       year, and FY2021, the one year it also tags intangible amortization, is still -32.6%:
+#       us-gaap:Depreciation is not even Tesla's whole depreciation.
+#
+# Both components are REQUIRED for every year an approved filer displays. An earlier version made
+# amortization optional on the strength of Alphabet's exact match against its depreciation line;
+# that was wrong twice over - the match was against one line rather than against Alphabet's D&A,
+# and "optional" is arithmetically identical to assuming zero for any filer that simply does not
+# tag the concept, which is the silent substitution CLAUDE.md's validation principle exists to
+# prevent.
+_DA_COMPONENT_VERIFIED_FILERS = {
+    789019: "MSFT",
+    50863: "INTC",
+}
+
+_DA_COMPONENT_DEPRECIATION_TAGS = ["Depreciation"]
+_DA_COMPONENT_AMORTIZATION_TAGS = ["AmortizationOfIntangibleAssets"]
+
+# Deliberately NOT components, each rejected against real facts in the same basket rather than
+# on the name alone. A tag-name pattern over /depreciat|amorti/ matches every one of these:
+#
+#   FinanceLeaseRightOfUseAssetAmortization - real amortization, but adding it double-counts:
+#     Microsoft's two components already sit within ~1% of its filed line, and adding its 5,403
+#     of finance-lease amortization would overshoot that line by 15%.
+#   AmortizationOfFinancingCosts, DebtInstrumentUnamortizedDiscount* - financing cost, not D&A
+#     (Tesla reports the former).
+#   AvailableForSaleSecurities*AmortizedCost* - a securities carrying basis, not an expense.
+#   FiniteLivedIntangibleAssetsAmortizationExpenseYear{Two..Five}, *NextTwelveMonths,
+#     *AfterYearFive - forward-looking disclosure of amortization not yet incurred (Alphabet and
+#     Microsoft both report these).
+#   OtherComprehensiveIncomeDefinedBenefitPlansNetUnamortizedGainLossArisingDuringPeriodNetOfTax
+#     - an OCI pension movement that matches only on the word "unamortized" (Intel reports it).
+#   DepreciationNonproduction - explicitly the non-production portion only, so for a
+#     manufacturer it silently omits the depreciation sitting in cost of sales.
+
 # Two genuinely equivalent names for the same cash-flow line. Verified against the real
 # company facts of a seventeen-ticker basket: PepsiCo, Home Depot, NVIDIA, Amazon, Ford and
 # AT&T report no PaymentsToAcquirePropertyPlantAndEquipment fact at all, and all six report
@@ -104,7 +182,6 @@ _SIMPLE_DURATION_FIELDS = {
     "ebit": (_EBIT_TAGS, "USD"),
     "pretax_income": (_PRETAX_INCOME_TAGS, "USD"),
     "income_tax_expense": (_INCOME_TAX_EXPENSE_TAGS, "USD"),
-    "depreciation_and_amortization": (_DA_TAGS, "USD"),
     "capital_expenditures": (_CAPEX_TAGS, "USD"),
     "diluted_shares_outstanding": (_DILUTED_SHARES_TAGS, "shares"),
 }
@@ -177,6 +254,62 @@ def _select_field(facts_by_tag, tags, period_end, is_instant, expected_unit):
     if fact is None:
         return None, None
     return fact["value"], {"confidence": "direct", "components": [fact]}
+
+
+def _da_component_summation_is_verified(company_facts):
+    """Whether this filer is one whose component sum has been reconciled against its own filed
+    statements and deliberately approved (see _DA_COMPONENT_VERIFIED_FILERS).
+
+    Keyed on SEC's CIK rather than on the ticker: CIK is the filer's stable identifier and does
+    not move with a ticker change, a re-listing, or a reorganization.
+    """
+    try:
+        return int(company_facts.get("cik")) in _DA_COMPONENT_VERIFIED_FILERS
+    except (TypeError, ValueError):
+        return False
+
+
+def _extract_depreciation_and_amortization(facts_by_tag, period_end, components_verified):
+    """One combined D&A fact when the filer reports one; otherwise a sum of both components,
+    but only for a filer in the verified map (see _DA_COMPONENT_VERIFIED_FILERS).
+
+    The combined tag is preferred as a correctness rule, not a convenience. Measured across the
+    basket, component summation does not reliably reproduce a filer's own combined figure where
+    both exist: Ford's components come to 49% of its combined line and Amazon's to 65% (both
+    report D&A this module does not decompose), while Home Depot's exceed it by 16%. Summing
+    whenever components happen to be present would therefore replace thirteen exact figures with
+    approximations, so components are consulted only for a period with no combined fact at all -
+    which also makes double-counting structurally impossible rather than merely unlikely.
+
+    Where the combined fact is absent and the filer is not in the verified map, this returns None
+    and the caller falls back or refuses exactly as for any other unmappable field. Nothing here
+    substitutes a partial figure for a complete one: a filer whose amortization is simply
+    untagged would otherwise be served depreciation alone, which is arithmetically the same as
+    assuming its amortization is zero.
+
+    Resolution is per period. An approved filer missing a component in one period loses only that
+    period - which matters because the caller requests one period more than it displays, purely
+    to supply the prior-year balance sheet for a working-capital delta. A gap in that extra,
+    never-displayed year must not erase D&A from the years the analyst actually sees.
+    """
+    combined = _select_component(facts_by_tag, _DA_TAGS, period_end, False, "USD")
+    if combined is not None:
+        return combined["value"], {"confidence": "direct", "components": [combined]}
+
+    if not components_verified:
+        return None, None
+
+    depreciation = _select_component(facts_by_tag, _DA_COMPONENT_DEPRECIATION_TAGS, period_end, False, "USD")
+    amortization = _select_component(facts_by_tag, _DA_COMPONENT_AMORTIZATION_TAGS, period_end, False, "USD")
+    if depreciation is None or amortization is None:
+        return None, None
+
+    # "calculated" becomes "combined" in the exposed vocabulary (app/schemas/company.py): summed
+    # from more than one fact, which is exactly what this is. Both tags are named in components.
+    return depreciation["value"] + amortization["value"], {
+        "confidence": "calculated",
+        "components": [depreciation, amortization],
+    }
 
 
 def _extract_cash(facts_by_tag, period_end):
@@ -343,6 +476,7 @@ def extract_annual_periods(company_facts, max_periods):
     """
     facts_by_tag = company_facts.get("facts", {}).get("us-gaap", {})
     period_ends = _annual_period_ends(facts_by_tag, max_periods)
+    da_components_verified = _da_component_summation_is_verified(company_facts)
 
     periods = []
     for period_end in period_ends:
@@ -360,6 +494,13 @@ def extract_annual_periods(company_facts, max_periods):
             values[field] = value
             if prov:
                 provenance[field] = prov
+
+        da_value, da_prov = _extract_depreciation_and_amortization(
+            facts_by_tag, period_end, da_components_verified
+        )
+        values["depreciation_and_amortization"] = da_value
+        if da_prov:
+            provenance["depreciation_and_amortization"] = da_prov
 
         cash_value, cash_prov = _extract_cash(facts_by_tag, period_end)
         values["cash"] = cash_value

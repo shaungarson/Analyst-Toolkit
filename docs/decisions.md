@@ -152,8 +152,10 @@ SEC EDGAR (XBRL company facts) is the primary source for DCF historical fundamen
 Vantage fills any field SEC can't confidently map for a period, and remains the sole current-
 price source. Every fallback chain was built from real tag variation confirmed against
 AAPL/CAT/WMT filings, not guessed from documentation (e.g. Walmart's D&A tag changed between
-2020 and 2025; Caterpillar never adopted the modern revenue tag at all). Two fields required
-an explicit methodology decision rather than a mechanical mapping: **cash** sums
+2020 and 2025; Caterpillar never adopted the modern revenue tag at all). Three fields required
+an explicit methodology decision rather than a mechanical mapping (**D&A** was the third, added
+2026-09-04 — see "SEC D&A: component summation for filers with no combined tag" below):
+**cash** sums
 cash-and-equivalents plus short-term investments, preserving the app's pre-existing combined
 meaning rather than SEC's narrower cash-only tag, which would have materially understated
 cash for a company like Apple. **Debt** sums a defined set of non-overlapping, recognized
@@ -2046,3 +2048,124 @@ collapsed, so `aria-controls` always has a target and print.css restores the ful
 on paper with no print-specific markup. Because three controls now read "How to read this",
 each names its own chart in its accessible name. Presentation only — no engine, endpoint,
 payload, warning, geometry or computed value changed.
+
+
+## SEC D&A: component summation for filers with no combined tag
+**Status:** Accepted
+
+A data-coverage milestone scoped to D&A normalization alone. Four of the seventeen-ticker basket
+— Microsoft, Alphabet, Tesla and Intel — report **no** combined cash-flow D&A tag at any period,
+so `_DA_TAGS` resolved nothing, D&A was `None`, and unlevered FCF was `None` for all five years.
+
+**Combined is preferred as a correctness rule, not an ordering preference.** Where a filer
+reports both a combined tag and components, the components do **not** reproduce it: Ford 0.49×,
+Amazon 0.65×, Home Depot 1.16× (components *exceeding* the combined line). Consulting components
+only for a period with no combined fact also makes double-counting structurally impossible.
+
+**Component summation is an allowlist, not a heuristic.** `_DA_COMPONENT_VERIFIED_FILERS` keys
+on SEC CIK — the filer's stable identifier, which does not move with a ticker change or a
+re-listing — and a filer is added only after its component sum has been reconciled by hand
+against its own filed cash flow statements in every year the app displays. Currently **Microsoft
+(789019) and Intel (50863)**. Both components are required for every displayed year; either
+missing, and that year has no D&A.
+
+**An unknown filer that happens to tag both components is refused.** An intermediate version of
+this milestone admitted any filer reporting both components throughout the period set, while its
+own documentation conceded that this was necessary but not sufficient evidence of complete D&A —
+which amounts to serving a figure on the promise of a reconciliation that could only happen after
+the app had already used it. A live ticker cannot be reconciled later. Structural evidence now
+gates nothing on its own; a new filer stays unmapped until someone checks it and adds it
+deliberately.
+
+**Resolution is per period, and the extra period is not the displayed set.** The caller requests
+`MAX_PERIODS + 1` periods, the last purely to supply a prior-year balance sheet for the
+working-capital delta; D&A is never read from it. A filer-level rule evaluated over the requested
+window would have let a gap in that never-displayed year withhold D&A from all five displayed
+years. A test pins that.
+
+### The correction that produced that rule
+
+A first version of this milestone made amortization **optional**, on the strength of Alphabet's
+depreciation-only figure matching its filed cash-flow line exactly, and attributed Tesla's
+residual to impairment. Both were wrong, and the review that caught it was right on both counts.
+
+- **"Optional" is arithmetically identical to assuming zero** for any filer that simply does not
+  tag the concept. That is the silent substitution this project's validation principle exists to
+  prevent — recorded again here because it is the same failure mode as the J&J staleness defect,
+  reached by a different route.
+- **Tesla's residual is not impairment.** Its line is "Depreciation, amortization and impairment"
+  ($6,148M FY2025) against `us-gaap:Depreciation` of $5,030M, but the filing reports no material
+  long-lived-asset or goodwill impairments. The residual is amortization and other depreciation.
+  It is also *systematic*, which impairment would not be: **−18.2%, −23.2%, −28.6%, −35.4%,
+  −32.6%** across FY2025–FY2021.
+- **Alphabet's exact match was against one line, not against its D&A.** Alphabet reports
+  `AmortizationOfIntangibleAssets` only on **10-Qs**, never annually, while its 10-Ks carry
+  `FiniteLivedIntangibleAssetsAccumulatedAmortization` and forward amortization schedules. It has
+  intangible amortization; that amortization sits inside "Other" on the cash flow statement. So
+  the exact match supported Alphabet's *depreciation line* and nothing more.
+- **Validating only the latest year is what allowed it.** Checking every relevant year is now the
+  standard, and is what exposed both Tesla's systematic gap and Microsoft's two-sided deviation.
+
+### Measured against the filings, every relevant year
+
+| Filer | Components vs. its own filed aggregate | Outcome |
+| --- | --- | --- |
+| INTC | **exact in all five years** — the components *are* the two D&A lines on its cash flow statement (impairment is a separate line) | **admitted** |
+| MSFT | +1.2%, −4.9%, −4.6%, −2.6%, +1.0% across FY2026–FY2022 | **admitted** |
+| GOOGL | matches its depreciation line exactly; that line is not its D&A | **refused** |
+| TSLA | −18.2% to −35.4% every year, including the one year it tags both components (−32.6%) | **refused** |
+
+**Microsoft's deviation is two-sided and must not be called conservative** — an earlier version
+of this record did call it that, and it is wrong: the latest year's component sum *exceeds* the
+filed aggregate. Its own line is `msft:DepreciationAmortizationAndOther`, which carries a
+non-D&A "other" bucket that can fall either way, and Microsoft **restated that line between
+filings** (FY2025 34,153 → 29,433), so the aggregate is not a fixed target either. A test pins
+the deviation as two-sided so the claim cannot be reintroduced.
+
+**Why no structural rule was sufficient.** Tesla tags intangible amortization in FY2021 only, so
+a per-period "both present" test would admit that single year — and FY2021 is still 32.6% low,
+because `us-gaap:Depreciation` is not even Tesla's whole depreciation. Requiring both components
+across the whole window excludes Tesla but would still have admitted any unexamined filer, and
+would additionally have made a gap in the never-displayed prior-balance year withhold the
+displayed ones. Only the allowlist answers both.
+
+**Approval is per filer and evidence-based, because structural completeness cannot be proved from
+the facts alone.** Microsoft is on the list and still sits a few percent from its own aggregate —
+which is exactly why membership rests on a hand reconciliation rather than on any property the
+module could compute. No approximation status was introduced: a filer is verified or it is not,
+and an unverified one is simply unmapped. Extension-tag ingestion — the only route to Microsoft's
+and Tesla's own D&A lines — stays out of scope.
+
+**Explicit reviewed slots, never a name pattern.** `/depreciat|amorti/` matches, in these filers'
+real facts: `FinanceLeaseRightOfUseAssetAmortization` (the decisive one — adding Microsoft's
+5,403 overshoots its filed line by 15%), `AmortizationOfFinancingCosts` (Tesla),
+`AvailableForSaleSecurities*AmortizedCost*`, the forward-looking
+`FiniteLivedIntangibleAssetsAmortizationExpenseYear{Two..Five}` family, and
+`OtherComprehensiveIncomeDefinedBenefitPlansNetUnamortizedGainLossArisingDuringPeriodNetOfTax` —
+an Intel OCI **pension** movement matching only on the word "unamortized", on a filer the gate
+admits. `DepreciationNonproduction` is excluded too: explicitly the non-production portion only,
+so for a manufacturer it would omit the depreciation sitting in cost of sales.
+
+**Measured coverage, re-run after the correction.** SEC-only, every real unlevered-FCF guard
+applied:
+
+- **Complete (5/5): 6 → 7** — COST, KO, WMT, PEP, HD, NVDA, **+ MSFT**
+- **Partial: 4 → 5** — AMZN, T, MU (4/5), BA (1/5), **+ INTC (1/5)**
+- **None: 7 → 5** — F, PG, JNJ, **GOOGL, TSLA**
+
+Alphabet and Tesla are unchanged at 0/5, now by explicit refusal rather than an unmapped tag.
+Intel gained D&A but not coverage: its remaining blockers are a `cash` mapping gap in FY2021–23
+and a FY2024 loss-year tax rate. The first version of this milestone claimed **9**; the corrected
+figure is **7**, and the earlier claim rested on the two reconstructions since withdrawn.
+
+**Five fixtures, 51 KB, cut from real filings, each carrying its filer's real CIK** (`backend/tests/fixtures/sec/`): a direct-tag
+control reporting a combined tag *and* both components (AMZN), the two admitted filers (MSFT,
+INTC) checked against filed aggregates in every year, and the two refused ones — Alphabet
+carrying its real 10-Q amortization facts and 10-K accumulated-amortization disclosure so the
+"unavailable, not zero" distinction is testable rather than asserted, and Tesla carrying the
+sporadic pattern that showed no structural rule would do. Completeness behaviour is synthetic
+and labelled as such. No network-dependent CI tests.
+
+**Deliberately out of scope**, each still needing its own decision: extension-tag ingestion, NOL
+/ loss-year tax treatment (AMZN, T, MU, BA, INTC FY2024), derived EBIT (JNJ), restricted-cash and
+short-term-investment mapping (PG, INTC FY2021–23), and segment-dimensioned debt (F).
