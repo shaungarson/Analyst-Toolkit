@@ -106,8 +106,9 @@ completed items, in the dependency order they were built:
     two-way Revenue Growth × EBIT Margin sensitivity" in [`decisions.md`](decisions.md) and
     [`MODELING_CONVENTIONS.md`](MODELING_CONVENTIONS.md).
 
-13. **DCF traceability: history→forecast continuity and PV composition.** **Locally verified;
-    not Done until deployed and production-verified.** One bundle framed around a single user
+13. ~~**DCF traceability: history→forecast continuity and PV composition.**~~ **Done
+    (2026-09-04).** Committed `c6b637d`, CI run #36 green, deployed and production-verified.
+    One bundle framed around a single user
     outcome — history → forecast → present value → enterprise value — rather than around the bar
     geometry the two charts share. Both are frontend-only against figures the valuation response
     already returns; no engine, endpoint or payload change.

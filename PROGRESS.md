@@ -1,42 +1,32 @@
 # Analyst Toolkit — Progress
 
 **Last verified:** 2026-09-04 (DCF traceability — history→forecast continuity and enterprise-value
-composition — verified against the running app on a fresh backend). 236 backend and 279 frontend
-tests green, lint and production build clean.
+composition — committed `c6b637d`, CI run #36 green, deployed and production-verified).
 
-Local verification, for reference: on the Costco Driver Base Case both continuity metrics render
-with **5 reported years and 5 forecast years** each, the divider at the 50% boundary, real fiscal
-labels (`FY21`…`FY25`, then `FY2026E`…`FY2030E`), and every figure as visible text. Composition
-sits directly above the Value Bridge — annual present values `$5.08B → $4.18B`, contribution
-`21% / 79%` totalling `$109.08B`, reconciling into the bridge's `$263.25`/share. Explain This
-Valuation now reports the same split in contribution language. Quick mode correctly charts
-Unlevered FCF only, since it projects no revenue.
+Production verification, for reference: on the deployed app the Costco Driver Base Case renders
+both continuity metrics with **5 reported years and 5 forecast years** each and the divider at
+the 50% boundary; the composition view sits directly above the Value Bridge with annual present
+values **$5.08B → $4.18B** and a **21% / 79%** contribution split; and Explain This Valuation
+states the same split in contribution language. Values are identical to local. No console errors.
 
-**The mixed-sign case was forced and verified honest:** a Custom NWC schedule driving four
-negative forecast years produced `−17%` explicit against `117%` terminal, drawn on a `−17…117`
-axis with the zero line at `12.66%` — negative segment left of it, positive right, nothing
-clamped or rescaled. Explain This Valuation agreed exactly.
+Locally verified before the commit: **the mixed-sign case was forced and is geometrically
+honest** — a Custom NWC schedule driving four negative forecast years produced **−17% explicit
+against 117% terminal**, drawn on a −17…117 axis with the zero line at **12.66%**, negative
+segment left of it and positive right, nothing clamped or rescaled, with Explain This Valuation
+agreeing exactly. Quick mode correctly charts Unlevered FCF only, since it projects no revenue.
 
-**One material defect was found by measurement and fixed:** at 320px the continuity value strip —
-the only way a sighted user reads exact figures without hovering — collided on **19 of 20 labels
-with four out of bounds**. Both charts now scroll plot and strip together below 720px with a
-minimum width per point. Re-measured: **zero collisions per metric**, 9–14px gaps, and the worst
-case (20 points) pans a 960px track inside 320px with no page overflow. Print forces the
-container back to visible so nothing is ever clipped on paper.
-
-**Deployment and production verification are still outstanding.**
+**One material defect was found by measurement and fixed before the commit:** at 320px the
+continuity value strip — the only way a sighted user reads exact figures without hovering —
+collided on **19 of 20 labels with four out of bounds**. Both charts now scroll plot and strip
+together below 720px with a minimum width per point. Re-measured: **zero collisions per metric**,
+9–14px gaps, and a 20-point worst case (five reported years against a fifteen-year forecast) pans
+a 960px track inside 320px with no page overflow. Print forces the container back to visible so
+nothing is ever clipped on paper.
 
 ## Current Milestone
 
-**DCF traceability: history→forecast continuity and PV composition — code complete and locally
-verified, pending deployment.** Two frontend-only charts over figures the valuation response
-already returns, framed around one outcome: history → forecast → present value → enterprise
-value. Scope, design, the two approved refinements and the mobile defect found in verification
-are recorded in
-[`decisions.md`](docs/decisions.md#dcf-traceability-history-to-forecast-continuity-and-pv-composition)
-and [`MODELING_CONVENTIONS.md`](docs/MODELING_CONVENTIONS.md).
-
-**Remaining:** commit, deploy, verify in production, then close the milestone documentation.
+**None in progress.** The DCF traceability milestone is complete, deployed and
+production-verified (see Recently Shipped).
 
 ## Blockers / Frozen Areas
 
@@ -45,6 +35,28 @@ and [`MODELING_CONVENTIONS.md`](docs/MODELING_CONVENTIONS.md).
 
 ## Recently Shipped
 
+- 2026-09-04 — **DCF traceability: history→forecast continuity and enterprise-value composition.**
+  One milestone framed around a single outcome — history → forecast → present value → enterprise
+  value — rather than around the bar geometry the two charts share. Both frontend-only against
+  figures the valuation response already returns; no engine, endpoint or payload change.
+  *Continuity* puts reported actuals and the forecast on one axis with a hard labelled break,
+  **nominal on both sides** because the question is whether the forecast continues the history.
+  Unlevered FCF in both modes (the only metric existing on both sides in both), Revenue in Driver
+  mode; each gates independently on **one** reported observation plus one forecast value, not the
+  two-period minimum the trend charts apply — that threshold belongs to a trend, a handoff needs
+  only a point to hand off from. *Composition* sits directly above the Value Bridge, which begins
+  at Enterprise Value as a given: two readings on two scales, and the aggregate is a **signed
+  axis, not a clamped 100% stack**, so a −18% / 118% case stays geometrically honest rather than
+  being clipped or rescaled. The aggregate explicit contribution uses `enterprise_value −
+  pv_terminal_value`, so the two reconcile to exactly 100% despite independent per-row rounding.
+  Terminal value's contribution became **one rule across the app**, superseding Explain This
+  Valuation's previous suppression of any share outside 0–100% — which hid precisely the case the
+  chart exists to surface. Values are visible text in a value strip, not only an `aria-label`;
+  that requirement surfaced the one real defect, a 19-of-20 label collision at 320px, fixed and
+  re-measured at zero. Geometry extraction stayed narrow: four pure functions into
+  `barGeometry.js`, still no charting layer and no library. Committed `c6b637d`, CI run #36 green,
+  deployed and production-verified (see Last verified above) —
+  [decisions.md](docs/decisions.md#dcf-traceability-history-to-forecast-continuity-and-pv-composition)
 - 2026-09-04 — **Driver-Based DCF: two-way Revenue Growth × EBIT Margin sensitivity.** The first
   surface showing two drivers *interacting* — the tornado moves one at a time and so cannot say
   whether growth creates or destroys value, which depends on the margin and reinvestment the
@@ -138,12 +150,12 @@ moved out of current state — each has its own record in
 
 ## Next Actions
 
-1. **Finish this milestone:** commit, deploy, production-verify, then close the documentation.
-2. Open in [`docs/ROADMAP.md`](docs/ROADMAP.md)'s Later column: **Quick DCF FCF-growth
-   sensitivity**, the one remaining assumption with no sensitivity surface of its own —
-   deliberately left unscheduled, since reverse DCF and Explain This Valuation already bear on
-   that single rate.
-3. Real estate: no action planned until the user has the CRE-professional conversation.
+1. **No milestone in progress.** The next candidate, open in
+   [`docs/ROADMAP.md`](docs/ROADMAP.md)'s Later column, is **Quick DCF FCF-growth sensitivity** —
+   the one remaining assumption with no sensitivity surface of its own. Deliberately left
+   unscheduled: reverse DCF and Explain This Valuation already bear on that single rate, so its
+   marginal value is genuinely lower than a new capability would be.
+2. Real estate: no action planned until the user has the CRE-professional conversation.
 
 ## See Also
 
