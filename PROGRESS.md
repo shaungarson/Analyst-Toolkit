@@ -1,31 +1,26 @@
 # Analyst Toolkit — Progress
 
-**Last verified:** 2026-09-04 (two-way Revenue Growth × EBIT Margin driver-interaction grid,
-verified against the running app on a fresh backend). 236 backend and 252 frontend tests green,
-lint and production build clean. Costco Driver Base Case renders with the centre cell equal to
-the base case ($263.25/share); all four inner cells match the tornado exactly ($248.94 / $278.22
-on revenue growth, $156.04 / $370.47 on EBIT margin); 320px and 375px show all 25 cells with no
-horizontal page overflow, the table scrolling inside its own container; a forced 3.0% flat
-margin marks the whole −2pp column with numbered footnotes, warning-level copy in the aggregate
-and per-cell years in the accessible text; print rules present and in scope; no console errors.
-Supplementary fetches add ~117 ms of wall clock after the headline valuation is already
-installed — not material, so the three requests stay sequential.
+**Last verified:** 2026-09-04 (two-way Revenue Growth × EBIT Margin driver-interaction grid —
+committed `671324c`, CI run #34 green, deployed and production-verified).
 
-**Deployment and production verification are still outstanding.**
+Production verification, for reference: on the deployed app the Costco Driver Base Case renders
+the grid with the centre cell equal to the base case (**$263.25/share**), and all four inner
+cells match the ±1pp tornado exactly — **$248.94 / $278.22** on revenue growth, **$156.04 /
+$370.47** on EBIT margin — values identical to local, no console errors. Locally verified before
+the commit: **320px and 375px** show all 25 cells with **no horizontal page overflow**, the table
+scrolling inside its own container; a forced 3.0% flat margin marks the whole −2pp column with
+numbered footnotes; print rules present and in scope. Driver-run latency was measured in
+production and the three supplementary surfaces were deliberately left sequential —
+[decisions.md](docs/decisions.md#driver-based-dcf-two-way-revenue-growth--ebit-margin-sensitivity).
+
+**Known gap, deliberately accepted:** multi-warning footnote numbering was not exercised live —
+shifting only these two drivers realistically introduces one warning type at a time on real
+inputs. Covered by five unit tests instead.
 
 ## Current Milestone
 
-**Driver-Based DCF: two-way Revenue Growth × EBIT Margin sensitivity — code complete, pending
-live verification.** A 5 × 5 grid of value per share over uniform ±1pp parallel shifts
-(−2pp…+2pp) applied to both drivers together, twenty-five `run_driver_dcf` calls behind `POST
-/api/dcf/driver-growth-margin`, rendered between the tornado and the WACC × terminal-growth
-grid in Driver mode.
-
-Scope, design and the four corrections applied before implementation are recorded in
-[`decisions.md`](docs/decisions.md#driver-based-dcf-two-way-revenue-growth--ebit-margin-sensitivity)
-and [`MODELING_CONVENTIONS.md`](docs/MODELING_CONVENTIONS.md).
-
-**Remaining:** deploy, verify in production, then close the milestone documentation.
+**None in progress.** The two-way Revenue Growth × EBIT Margin driver-interaction grid is
+complete, deployed and production-verified (see Recently Shipped).
 
 ## Blockers / Frozen Areas
 
@@ -34,6 +29,30 @@ and [`MODELING_CONVENTIONS.md`](docs/MODELING_CONVENTIONS.md).
 
 ## Recently Shipped
 
+- 2026-09-04 — **Driver-Based DCF: two-way Revenue Growth × EBIT Margin sensitivity.** The first
+  surface showing two drivers *interacting* — the tornado moves one at a time and so cannot say
+  whether growth creates or destroys value, which depends on the margin and reinvestment the
+  same schedule carries. A 5 × 5 grid over uniform ±1pp parallel shifts (−2pp…+2pp) applied to
+  both drivers together in every forecast year, behind `POST /api/dcf/driver-growth-margin`.
+  **Twenty-five** `run_driver_dcf` calls: the centre cell *is* the base case and reuses that run,
+  which also leaves it one possible origin — the same reason the base is computed in the
+  endpoint rather than supplied by the client. Neither axis is presented with an assumed
+  direction, and that is the load-bearing decision: on an ordinary reinvestment-heavy forecast
+  the direction reverses **inside one grid** (at −2pp margin, growth from −2pp to +2pp moves
+  value $2.32 → $1.40; at +2pp margin the same shifts move it $13.16 → $13.99). Exactly four
+  cells overlap the tornado and are asserted equal to it. Reuse over abstraction throughout: the
+  two-driver shift composes `_shift_driver`, per-cell warnings reuse `new_endpoint_warnings`,
+  tinting reuses the WACC grid's own classes, and the only new shared frontend export is a
+  one-line rate formatter — with a second chart built, that is what proved reusable, not a
+  charting layer. Warnings a cell introduces carry **numbered footnotes** identifying which
+  warning; the aggregate carries warning-level copy, because the engine writes explanations per
+  cell naming that cell's own years and figures. No monotonicity test on the growth axis —
+  encoding "more growth is worth more" would assert a belief the engine correctly refuses to
+  hold. Sequencing was contested against a charts-first proposal and settled on the roadmap's
+  side; six factual corrections were applied across two review rounds. No change to the
+  valuation engine, existing payloads, or any other surface. Committed `671324c`, CI run #34
+  green, deployed and production-verified (see Last verified above) —
+  [decisions.md](docs/decisions.md#driver-based-dcf-two-way-revenue-growth--ebit-margin-sensitivity)
 - 2026-09-04 — **UI audit closed; Phase 4 deliberately not built.** Reassessed by re-measuring
   the deployed build: the type scale is genuinely unchanged (23 distinct sizes, 51 nodes under
   12px, since Phases 1–3 were scoped not to touch it) but immaterial — nothing below 12px carries
@@ -150,6 +169,21 @@ Explain This Valuation, Driver-Based DCF v1, and the cross-company stale-input f
 moved out of current state — each has its own record in
 [docs/decisions.md](docs/decisions.md), with the full chronological log in
 [docs/archive/PROGRESS_HISTORY.md](docs/archive/PROGRESS_HISTORY.md).
+
+## Next Actions
+
+1. **Next feature, for separate scoping — DCF traceability: history→forecast continuity and PV
+   composition.** One bundle framed around history → forecast → present value → enterprise
+   value; both charts are frontend-only against data the valuation response already returns.
+   Requirements — including the `explainValuation.js` terminal-value-share reconciliation it
+   must settle, and the rule that a "share" is not claimed at all where enterprise value is zero
+   or negative — are recorded in [`docs/ROADMAP.md`](docs/ROADMAP.md)'s Later column. Not
+   started; scope it before building.
+2. Also open in [`docs/ROADMAP.md`](docs/ROADMAP.md)'s Later column: **Quick DCF FCF-growth
+   sensitivity**, the one remaining assumption with no sensitivity surface of its own —
+   deliberately left unscheduled, since reverse DCF and Explain This Valuation already bear on
+   that single rate.
+3. Real estate: no action planned until the user has the CRE-professional conversation.
 
 ## See Also
 

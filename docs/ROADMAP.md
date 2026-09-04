@@ -88,12 +88,8 @@ completed items, in the dependency order they were built:
     chart with tier, short name and affected years — never clamped or skipped. See
     "Driver-Based DCF: standardized ±1pp driver sensitivity (tornado)" in
     [`decisions.md`](decisions.md) and [`MODELING_CONVENTIONS.md`](MODELING_CONVENTIONS.md).
-12. **Driver-Based DCF: two-way Revenue Growth × EBIT Margin sensitivity.** **Locally verified;
-    not Done until deployed and production-verified.** Tests, lint and production build green;
-    verified against the running app — Costco Driver Base Case, all four inner cells matching
-    the tornado exactly, 320/375px with no page overflow, warning footnotes on a forced case,
-    print rules in scope, no console errors, and ~117 ms of supplementary-fetch wall clock after
-    the headline result (not material; no parallelization).
+12. ~~**Driver-Based DCF: two-way Revenue Growth × EBIT Margin sensitivity.**~~ **Done
+    (2026-09-04).** Committed `671324c`, CI run #34 green, deployed and production-verified.
     A 5 × 5 grid of value per share over uniform ±1pp parallel shifts
     (−2pp…+2pp) applied to revenue growth and EBIT margin together, twenty-five
     `run_driver_dcf` calls behind `POST /api/dcf/driver-growth-margin`, with the centre cell

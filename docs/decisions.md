@@ -1614,6 +1614,16 @@ marked cell shows the numbers rather than a bare `!` (so a grid raising two diff
 says which cell raised which), and the cell's accessible text names the affected forecast years
 alongside each warning.
 
+**Three supplementary surfaces stay sequential, on a production measurement rather than a
+guess.** Driver mode now fires four requests: the valuation, then the WACC grid, the tornado and
+this grid. Measured on the deployed app: `driver-valuation` **155 ms** — the headline result —
+then 76 ms, 74 ms and 95 ms, for **247 ms after the number the analyst is waiting for is already
+on screen**. Parallelizing would save roughly 150 ms nobody is blocked on, in exchange for three
+concurrent requests against a free-tier instance and the loss of a property worth keeping: a
+slow or failed supplementary surface can never delay or invalidate the headline valuation, which
+is why each is a separate best-effort request in the first place. Revisit only if a future
+surface changes the shape of that measurement.
+
 **Rejected in scope:**
 
 - **Configurable step size or grid dimensions.** Both existing grids fix their deltas
