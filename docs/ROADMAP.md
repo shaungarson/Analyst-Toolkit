@@ -138,6 +138,20 @@ completed items, in the dependency order they were built:
     [`MODELING_CONVENTIONS.md`](MODELING_CONVENTIONS.md).
 
 
+14. **SEC period discovery: silent staleness, and a verified CapEx fallback.** **Implemented; not
+    Done until deployed and production-verified.** A bounded data-layer readiness review found
+    that period discovery anchored on a single tag, and that J&J — which stopped tagging
+    `OperatingIncomeLoss` after FY2014 — was being served eleven-year-old financials as current,
+    silently. Discovery now anchors on the union of the revenue and EBIT tag sets, with a
+    contiguity guard and a wholesale-staleness check; `PaymentsToAcquireProductiveAssets` was
+    added to `_CAPEX_TAGS` after verification against real company facts. Ford was verified and
+    deliberately left unfixed (segment-dimensioned debt, not a mapping defect). Four focused
+    fixtures cut from real filings, 40 KB total, and no network-dependent CI tests. Coverage is
+    reported separately from methodology limits: complete SEC-only coverage went from **3 to 6**
+    of a seventeen-ticker basket, with every remaining blocker an out-of-scope methodology
+    question. See "SEC period discovery: silent staleness, and a verified CapEx fallback" in
+    [`decisions.md`](decisions.md).
+
 ## Later
 
 Reasonable follow-ups, not yet scheduled:

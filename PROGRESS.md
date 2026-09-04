@@ -1,32 +1,23 @@
 # Analyst Toolkit — Progress
 
-**Last verified:** 2026-09-04 (DCF traceability — history→forecast continuity and enterprise-value
-composition — committed `c6b637d`, CI run #36 green, deployed and production-verified).
-
-Production verification, for reference: on the deployed app the Costco Driver Base Case renders
-both continuity metrics with **5 reported years and 5 forecast years** each and the divider at
-the 50% boundary; the composition view sits directly above the Value Bridge with annual present
-values **$5.08B → $4.18B** and a **21% / 79%** contribution split; and Explain This Valuation
-states the same split in contribution language. Values are identical to local. No console errors.
-
-Locally verified before the commit: **the mixed-sign case was forced and is geometrically
-honest** — a Custom NWC schedule driving four negative forecast years produced **−17% explicit
-against 117% terminal**, drawn on a −17…117 axis with the zero line at **12.66%**, negative
-segment left of it and positive right, nothing clamped or rescaled, with Explain This Valuation
-agreeing exactly. Quick mode correctly charts Unlevered FCF only, since it projects no revenue.
-
-**One material defect was found by measurement and fixed before the commit:** at 320px the
-continuity value strip — the only way a sighted user reads exact figures without hovering —
-collided on **19 of 20 labels with four out of bounds**. Both charts now scroll plot and strip
-together below 720px with a minimum width per point. Re-measured: **zero collisions per metric**,
-9–14px gaps, and a 20-point worst case (five reported years against a fifteen-year forecast) pans
-a 960px track inside 320px with no page overflow. Print forces the container back to visible so
-nothing is ever clipped on paper.
+**Last verified:** 2026-09-04 (SEC data-integrity milestone — implemented, 249 backend and 279
+frontend tests green, lint and production build clean). **Not yet deployed or
+production-verified**, and the bounded Alpha Vantage retest is still outstanding.
 
 ## Current Milestone
 
-**None in progress.** The DCF traceability milestone is complete, deployed and
-production-verified (see Recently Shipped).
+**SEC period discovery: silent staleness and a verified CapEx fallback — code complete, pending
+Alpha Vantage retest, deployment and production verification.**
+
+Found by a bounded data-layer readiness review that was meant to pick the next *modelling*
+milestone. It found a data-integrity defect instead: period discovery anchored on
+`OperatingIncomeLoss` alone, and **Johnson & Johnson stopped tagging it after FY2014**, so the app
+served **FY2014 financials as J&J's latest period** with `reported` provenance and no warning.
+Full record:
+[`decisions.md`](docs/decisions.md#sec-period-discovery-silent-staleness-and-a-verified-capex-fallback).
+
+**Remaining:** bounded Alpha Vantage retest after the daily reset, deploy, verify production,
+then close.
 
 ## Blockers / Frozen Areas
 
@@ -150,12 +141,17 @@ moved out of current state — each has its own record in
 
 ## Next Actions
 
-1. **No milestone in progress.** The next candidate, open in
-   [`docs/ROADMAP.md`](docs/ROADMAP.md)'s Later column, is **Quick DCF FCF-growth sensitivity** —
-   the one remaining assumption with no sensitivity surface of its own. Deliberately left
-   unscheduled: reverse DCF and Explain This Valuation already bear on that single rate, so its
-   marginal value is genuinely lower than a new capability would be.
-2. Real estate: no action planned until the user has the CRE-professional conversation.
+1. **Finish this milestone:** bounded Alpha Vantage retest (≤4 uncached tickers, recording
+   `source.market_data_provider`), deploy, production-verify, close.
+2. **Then resume the paused DCF product-readiness review** using real-company archetypes. It was
+   paused when the pre-flight found the data layer could only load the archetype it was validated
+   on. Re-run it once coverage is known-good; the modelling questions it was meant to rank —
+   scenario workflow, terminal-year normalization, NOL handling, a professional summary artifact,
+   or no further DCF feature — are unchanged.
+3. Out of scope and each needing its own decision, from the coverage review: D&A component
+   summation (TSLA, GOOGL, MSFT, INTC), restricted-cash treatment (PG), derived EBIT (JNJ),
+   segment-dimensioned debt (F), loss-year tax treatment (AMZN, T, MU, BA).
+4. Real estate: no action planned until the user has the CRE-professional conversation.
 
 ## See Also
 

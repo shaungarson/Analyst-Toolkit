@@ -1716,6 +1716,96 @@ consistent with the standing note in `driverTornado.js`.
 - **Any charting library**, and any interaction that adopts a charted value back into the
   inputs — the latter already excluded from the tornado milestone.
 
+## SEC period discovery: silent staleness, and a verified CapEx fallback
+**Status:** Accepted
+
+Found by a bounded data-layer readiness review that was meant to choose the next *modelling*
+milestone and instead found a data-integrity defect. Recorded because the defect class matters
+more than the fix.
+
+**The defect: a company's entire history could silently rewind by a decade.** Period discovery
+anchored on a single tag, `OperatingIncomeLoss` (`sec_fundamentals.py`), whose docstring justified
+the choice as "confirmed present for every company in the validation sample." That sample was
+Apple, Caterpillar and Walmart. **Johnson & Johnson stopped tagging `OperatingIncomeLoss` after
+FY2014** — its income statement runs gross profit straight to pre-tax earnings with no
+operating-income subtotal — so discovery walked back eleven years and the app served **FY2014
+financials as J&J's latest period**, with `status: "reported"` provenance, no warning, and every
+downstream figure (trend charts, driver seeding, continuity chart, valuation) derived from
+eleven-year-old data.
+
+This inverts the project's own rule. Missing data already refused honestly; this *substituted*
+silently, which is the failure mode `CLAUDE.md` §6 names as the recurring one. A user could not
+have detected it except by recognising the fiscal-year labels as implausibly old.
+
+**Two guards, with different jobs.**
+
+1. **Union anchor.** Discovery now anchors on the union of the revenue and EBIT tag sets, so no
+   single tag's absence decides a company's period set. Revenue leads because it is the most
+   universally reported annual concept; EBIT is retained because PepsiCo, for one, resolves
+   through EBIT with no mapped revenue tag.
+2. **Contiguity, plus a wholesale-staleness check.** Ordinary history is a run of consecutive
+   fiscal years about twelve months apart; a decade-wide step between adjacent candidates means
+   the older side belongs to a tag that stopped being reported, so the run is cut there.
+   Separately, if the newest period the anchors can find is itself far behind the newest annual
+   period the filer reports at all, discovery has failed and **no** periods are returned rather
+   than a confident-looking set of old figures.
+
+Dropping rather than warning is deliberate. A stale period is not an unusual assumption an
+analyst can weigh — it is the wrong year's data, and every derived figure would be wrong in a way
+no downstream warning could repair.
+
+**A design error in the first attempt, caught by a control fixture.** The staleness guard
+initially filtered *every* period against the newest, which would have discarded the legitimate
+multi-year history every chart and statistic in the app is built from — Costco collapsed from
+five periods to two. The Costco control fixture existed precisely to catch "a fix that breaks an
+ordinary filer," and did. The rule is contiguity between adjacent periods, not distance from the
+newest.
+
+**CapEx: one verified equivalent fallback tag.** `PaymentsToAcquireProductiveAssets` added to
+`_CAPEX_TAGS`. Six of a seventeen-ticker basket (PepsiCo, Home Depot, NVIDIA, Amazon, Ford, AT&T)
+report **no** `PaymentsToAcquirePropertyPlantAndEquipment` fact at all and report the productive-
+assets tag for every annual period. Verified against the real company facts before adding, not
+inferred from a name.
+
+Deliberately **not** added, despite matching a `PaymentsToAcquire*` pattern at full coverage on
+the same filers: `PaymentsForRepurchaseOfCommonStock`, `PaymentsToAcquireBusinesses*`,
+`PaymentsToAcquireMarketableSecurities`. None is capital expenditure. A pattern-based chain would
+have absorbed all three silently.
+
+**Ford verified and deliberately left unfixed.** Ford reports no undifferentiated current-debt
+line annually — its debt sits in segment-dimensioned facts (Automotive vs Ford Credit) that this
+module does not read — and `net_working_capital` requires `current_debt`. This is a structural
+reporting difference, not a mapping defect; adding a tag would not fix it and defaulting the
+absence to zero would misstate NWC. Pinned by a test so the limitation is a checked fact rather
+than only prose.
+
+**Coverage is reported separately from methodology limits, and the projection was wrong.** A
+pre-implementation estimate of "4/17 → 10/17" counted *dependency presence*, not usable unlevered
+FCF. Measured with every real guard applied, SEC-only coverage is:
+
+- **Complete (5/5): 6** — COST, KO, WMT, PEP, HD, NVDA
+- **Partial: 4** — AMZN, T, MU (4/5 each) and BA (1/5), every gap a loss-year tax rate
+- **None: 7** — F, TSLA, GOOGL, MSFT, INTC, PG, JNJ
+
+The valid-current baseline was **3**, not 4: J&J's apparent "5/5" was five years of FY2010–FY2014
+data. So complete coverage went 3 → 6, and every remaining blocker is an out-of-scope methodology
+question — D&A component summation (TSLA, GOOGL, MSFT, INTC), restricted-cash treatment (PG),
+derived EBIT (JNJ), segment-dimensioned debt (F), loss-year tax treatment (AMZN, T, MU, BA).
+
+J&J's coverage did not improve and that is the correct outcome: it now refuses honestly on
+current periods instead of answering confidently with 2014 data.
+
+**Fixtures are focused slices of real filings, and CI stays offline.** Four fixtures
+(`backend/tests/fixtures/sec/`), 40 KB total: annual 10-K facts only, capped per tag, only the
+tags each behaviour needs. The full company-facts files are 3–5 MB each; committing the basket
+would have put ~65 MB of third-party data in the repo to test four behaviours. Real values, so a
+passing test is a statement about the actual filings. **No network-dependent CI tests** — live
+verification against the providers stays a separate, bounded, manual step.
+
+**Rejected in scope:** D&A component summation, derived EBIT for J&J, loss-year tax treatment,
+and the restricted-cash question. Each is a methodology decision needing its own record, not a
+tag addition.
+
 ## Dark-only interface, and a split accent token
 **Status:** Accepted
 

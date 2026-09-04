@@ -476,11 +476,14 @@ def test_get_company_data_matches_sec_period_despite_provider_date_mismatch(monk
 
 def test_get_company_data_does_not_match_sec_period_beyond_date_tolerance(monkeypatch):
     # A gap this large would only happen for a genuinely different fiscal year - must not
-    # be treated as a match. Moving only the anchor tag (OperatingIncomeLoss) is enough:
-    # period discovery finds no annual period near the Alpha Vantage target date at all.
+    # be treated as a match. Every period-anchor tag has to move, not just OperatingIncomeLoss:
+    # discovery now anchors on the union of revenue and EBIT tags precisely so one tag's absence
+    # (or, here, displacement) cannot decide a company's whole period set on its own.
     facts = _sec_facts_for_2025_only()
-    facts["facts"]["us-gaap"]["OperatingIncomeLoss"]["units"]["USD"][0]["end"] = "2025-11-01"
-    facts["facts"]["us-gaap"]["OperatingIncomeLoss"]["units"]["USD"][0]["start"] = "2024-11-01"
+    for anchor in ("Revenues", "OperatingIncomeLoss"):
+        fact = facts["facts"]["us-gaap"][anchor]["units"]["USD"][0]
+        fact["end"] = "2025-11-01"
+        fact["start"] = "2024-11-01"
     monkeypatch.setattr("app.services.company_data.sec_edgar.fetch_company_facts", lambda cik: facts)
 
     result = company_data.get_company_data("TEST")

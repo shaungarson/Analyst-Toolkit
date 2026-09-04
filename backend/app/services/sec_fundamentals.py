@@ -53,7 +53,19 @@ _DA_TAGS = [
     "DepreciationAmortizationAndAccretionNet",
     "DepreciationAndAmortization",
 ]
-_CAPEX_TAGS = ["PaymentsToAcquirePropertyPlantAndEquipment"]
+# Two genuinely equivalent names for the same cash-flow line. Verified against the real
+# company facts of a seventeen-ticker basket: PepsiCo, Home Depot, NVIDIA, Amazon, Ford and
+# AT&T report no PaymentsToAcquirePropertyPlantAndEquipment fact at all, and all six report
+# PaymentsToAcquireProductiveAssets for every one of their five most recent annual periods.
+#
+# Deliberately NOT added, despite matching a "PaymentsToAcquire*" pattern and appearing at full
+# coverage on the same filers: PaymentsForRepurchaseOfCommonStock, PaymentsToAcquireBusinesses*
+# and PaymentsToAcquireMarketableSecurities. None of them is capital expenditure, and a
+# pattern-based fallback chain would silently absorb all three.
+_CAPEX_TAGS = [
+    "PaymentsToAcquirePropertyPlantAndEquipment",
+    "PaymentsToAcquireProductiveAssets",
+]
 _DILUTED_SHARES_TAGS = ["WeightedAverageNumberOfDilutedSharesOutstanding"]
 
 _CURRENT_ASSETS_TAGS = ["AssetsCurrent"]
@@ -225,25 +237,93 @@ def _extract_debt(facts_by_tag, period_end):
     return {"total_debt": None, "current_debt": None}, None
 
 
-def _annual_period_ends(facts_by_tag, max_periods):
-    """Distinct fiscal-year-end dates with a confirmed annual (10-K, ~365-day) EBIT fact,
-    most recent first. EBIT anchors period discovery since it's a single universal tag
-    confirmed present for every company in the validation sample, and duration-based -
-    exercising the same annual-length filter every other concept is matched against."""
+# Period discovery anchors on the union of these tags rather than on EBIT alone.
+#
+# Anchoring on OperatingIncomeLoss by itself was a real, silent data-integrity defect, not a
+# coverage gap: Johnson & Johnson stopped tagging OperatingIncomeLoss after FY2014 (its income
+# statement runs gross profit straight to pre-tax earnings with no operating-income subtotal),
+# so discovery walked back a decade and the app served FY2014 financials as J&J's latest
+# period - with "reported" provenance, no warning, and every downstream figure derived from
+# eleven-year-old data. The original docstring's claim that EBIT is "present for every company
+# in the validation sample" was true of that three-company sample (Apple, Caterpillar, Walmart)
+# and false in general.
+#
+# Revenue leads the union because it is the most universally reported annual concept; EBIT is
+# retained so a filer that reports operating income but not a mapped revenue tag still resolves.
+_PERIOD_ANCHOR_TAGS = _REVENUE_TAGS + _EBIT_TAGS
+
+# Independent reference for the staleness guard below. NetIncomeLoss is not used for any mapped
+# value - it is here only because it is near-universally tagged, so it can corroborate how
+# recent a filer's data actually is without depending on the same tags the anchor uses.
+_STALENESS_REFERENCE_TAGS = _PERIOD_ANCHOR_TAGS + ["NetIncomeLoss"]
+
+# One fiscal year plus filing slack. A period end this far behind the newest annual period the
+# filer actually reports is not "the latest year" by any reading - it means discovery failed to
+# find the recent years, which is exactly the J&J failure. Deliberately generous: 52/53-week
+# fiscal years drift by days, and a company that genuinely has not filed recently should not be
+# punished for it, because the comparison is against its own newest fact rather than today.
+_MAX_PERIOD_STALENESS_DAYS = 400
+
+
+def _annual_ends_for_tags(facts_by_tag, tags):
+    """Distinct fiscal-year-end dates with a confirmed annual (10-K, ~365-day) fact for any of
+    `tags`, newest first. Duration-based, exercising the same annual-length filter every other
+    concept is matched against."""
     ends = set()
-    tag_data = facts_by_tag.get(_EBIT_TAGS[0], {})
-    for unit, facts in tag_data.get("units", {}).items():
-        if unit != "USD":
-            continue
-        for fact in facts:
-            if fact.get("form") != "10-K":
+    for tag in tags:
+        tag_data = facts_by_tag.get(tag, {})
+        for unit, facts in tag_data.get("units", {}).items():
+            if unit != "USD":
                 continue
-            start, end = fact.get("start"), fact.get("end")
-            if not start or not end:
-                continue
-            if _ANNUAL_DURATION_MIN_DAYS <= _duration_days(start, end) <= _ANNUAL_DURATION_MAX_DAYS:
-                ends.add(end)
-    return sorted(ends, reverse=True)[:max_periods]
+            for fact in facts:
+                if fact.get("form") != "10-K":
+                    continue
+                start, end = fact.get("start"), fact.get("end")
+                if not start or not end:
+                    continue
+                if _ANNUAL_DURATION_MIN_DAYS <= _duration_days(start, end) <= _ANNUAL_DURATION_MAX_DAYS:
+                    ends.add(end)
+    return sorted(ends, reverse=True)
+
+
+def _annual_period_ends(facts_by_tag, max_periods):
+    """Annual fiscal-year-end dates to map, most recent first.
+
+    Two guards, in order:
+
+    1. Discovery anchors on the union of _PERIOD_ANCHOR_TAGS, so no single tag's absence can
+       silently rewind a company's history (see the comment above).
+    2. Any candidate materially older than the newest period the filer reports at all is
+       dropped rather than returned. This is a backstop, not the primary fix: with the union
+       anchor it should never fire, and it exists so that a future tag change cannot reintroduce
+       silent staleness. Dropping is deliberate over warning - a stale period is not an unusual
+       assumption the analyst can weigh, it is the wrong year's data, and every figure derived
+       from it would be wrong in a way no downstream warning could repair. If that leaves
+       nothing, the caller sees no SEC periods and falls back exactly as for any other filer
+       this module cannot map.
+    """
+    candidates = _annual_ends_for_tags(facts_by_tag, _PERIOD_ANCHOR_TAGS)
+    if not candidates:
+        return []
+
+    # Guard 1 - wholesale staleness. If the newest period the anchors can find is itself far
+    # behind the newest annual period this filer reports at all, discovery has failed: return
+    # nothing rather than a confident-looking set of old figures.
+    reference = _annual_ends_for_tags(facts_by_tag, _STALENESS_REFERENCE_TAGS)
+    if reference and _duration_days(candidates[0], reference[0]) > _MAX_PERIOD_STALENESS_DAYS:
+        return []
+
+    # Guard 2 - contiguity. Ordinary history is a run of consecutive fiscal years, each about a
+    # year apart; a decade-wide gap between one candidate and the next means the older side
+    # belongs to a tag that stopped being reported, not to this company's recent history. Stop
+    # at the gap rather than filtering each period against the newest, which would discard the
+    # legitimate multi-year history every one of these charts and statistics is built from.
+    current = [candidates[0]]
+    for end in candidates[1:]:
+        if _duration_days(end, current[-1]) > _MAX_PERIOD_STALENESS_DAYS:
+            break
+        current.append(end)
+    return current[:max_periods]
 
 
 def extract_annual_periods(company_facts, max_periods):

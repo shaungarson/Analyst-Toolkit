@@ -247,7 +247,7 @@ Every calculation is a pure, tested function, separate from the API and UI layer
 Every calculation — cap rate, amortization, IRR, equity multiple, DSCR, debt yield, terminal
 value, enterprise value, unlevered FCF construction — is backed by automated tests checked
 against values computed independently by hand, not just "does the code agree with itself."
-236 backend tests and 279 frontend tests total, plus a GitHub Actions CI pipeline that runs
+249 backend tests and 279 frontend tests total, plus a GitHub Actions CI pipeline that runs
 the backend suite and the frontend lint/build checks on every push and pull request.
 
 ## Architecture

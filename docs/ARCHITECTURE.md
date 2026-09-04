@@ -71,6 +71,18 @@ Key backend modules:
   provenance (tag, accession number, filed date, form, confidence) — exposed via the API as
   of the per-value provenance milestone (2026-08-31); see `app/schemas/company.py` below and
   `docs/decisions.md`.
+
+  **Period discovery anchors on the union of the revenue and EBIT tag sets, never a single
+  tag.** Anchoring on `OperatingIncomeLoss` alone was a silent data-integrity defect: Johnson &
+  Johnson stopped tagging it after FY2014, so discovery rewound eleven years and the app served
+  FY2014 figures as J&J's latest period with "reported" provenance and no warning. Two guards
+  now apply — if the newest period the anchors find is far behind the newest annual period the
+  filer reports at all, **no** periods are returned rather than old ones; and the returned run
+  is cut at any gap wider than a fiscal year between adjacent periods, since ordinary history is
+  contiguous. Stale periods are dropped rather than flagged: the wrong year's data is not an
+  assumption an analyst can weigh. `_CAPEX_TAGS` carries a second, verified equivalent tag
+  (`PaymentsToAcquireProductiveAssets`). See "SEC period discovery: silent staleness, and a
+  verified CapEx fallback" in `docs/decisions.md`.
 - `app/services/alpha_vantage.py` — fundamentals/quote client, typed errors, request
   throttling, 24h fundamentals / 15min quote caches.
 - `app/services/company_data.py` — orchestrates both providers. Company periods are built
