@@ -1,21 +1,20 @@
 # Analyst Toolkit — Progress
 
-**Last verified:** 2026-09-04 (SEC D&A component summation — local verification complete;
-not yet committed, deployed or production-verified). 265 backend and 293 frontend tests green,
-lint and production build clean.
+**Last verified:** 2026-09-04 (SEC D&A component summation — committed `1338e38`, CI run #43
+green, deployed and production-verified). 265 backend and 293 frontend tests green, lint and
+production build clean.
 
-Component reconstructions were validated against the filers' own cash flow statements across
-**every** relevant year, not the latest alone: **Intel exact in all five**, **Microsoft within
-±5% and two-sided** (+1.2%, −4.9%, −4.6%, −2.6%, +1.0%) against a line that also carries a
-non-D&A "other" bucket and was itself restated between filings. **Alphabet and Tesla are
-refused** — see below. All thirteen combined-tag filers re-checked and unchanged.
+Production verification, for reference: **MSFT is now 5/5 unlevered FCF, was 0/5** — D&A
+$39,000M at FY2026, `combined` status naming both component tags, matching the local measurement
+exactly. **INTC** returns five D&A years but stays **1/5** UFCF, blocked by a FY2021–23 cash gap
+and a FY2024 loss-year tax rate, both out of scope. **GOOGL and TSLA return `null` D&A in every
+period** — the corrected refusal, not a regression. Combined-tag controls (COST, NVDA) are
+untouched: `reported`, 5/5.
 
 ## Current Milestone
 
-**SEC D&A component summation — code complete after a material correction, awaiting deploy
-verification.** Implemented, tested and live-verified locally. Scope limited to D&A normalization
-by instruction: no extension-tag ingestion, NOL handling, cash mapping, derived EBIT or DCF
-Professional Summary.
+**None in progress.** SEC D&A component summation is complete, deployed and
+production-verified (see Recently Shipped).
 
 ## Blockers / Frozen Areas
 
@@ -61,7 +60,8 @@ Professional Summary.
   forward-looking future-amortization disclosures, and an Intel OCI **pension** line matching
   only on "unamortized" — on a filer the gate admits. Measured, not projected: **complete 6 → 7**
   (+MSFT), partial 4 → 5 (+INTC at 1/5), none 7 → 5. Five fixtures cut from real filings, 51 KB;
-  no network-dependent CI tests —
+  no network-dependent CI tests. Committed `1338e38`, CI run #43 green, deployed and
+  production-verified (see Last verified above) —
   [decisions.md](docs/decisions.md#sec-da-component-summation-for-filers-with-no-combined-tag)
 
 - 2026-09-04 — **Analysis Outputs: progressive disclosure.** Presentation only, DCF Sensitivity
@@ -150,28 +150,23 @@ Older entries (2026-08-31 → 2026-09-02) moved out of current state — see
 
 ## Next Actions
 
-1. **Deploy and verify SEC D&A component summation in production.** Commit, push, confirm CI, then
-   load MSFT, GOOGL, TSLA and INTC against the deployed API. Expected: **MSFT** five SEC-sourced
-   D&A years and a complete unlevered-FCF series; **INTC** five D&A years but still 1/5 UFCF;
-   **GOOGL and TSLA** no D&A and 0/5, which is the corrected, intended refusal — not a
-   regression.
-2. **Resume the paused DCF product-readiness review** using real-company archetypes, once the
-   above is verified. It was paused when the pre-flight found the data layer could only load the
-   archetype it was validated on; complete SEC-only coverage is now **7** of 17 rather than 3, so
-   materially more archetypes are reachable. The modelling questions it was meant to rank are
-   unchanged: scenario workflow, terminal-year normalization, NOL handling, a professional summary
-   artifact, or no further DCF feature.
-3. **Alpha Vantage — retest on a later date.** Retested 2026-09-04 against production with four
-   uncached tickers: still no `market_data_provider` and no `reference_price`, while SEC
-   fundamentals resolved normally. That retest fell on the *same day* as the 15-ticker probe that
-   most likely exhausted the 25/day cap, so it neither confirms nor refutes quota exhaustion.
-   Gates nothing, but with no AV there is no reference price for any live ticker, which removes
-   Implied Upside/Downside and Reverse DCF outside the Costco demo.
-4. Out of scope from the coverage work, each needing its own decision: extension-tag ingestion
-   (the only route to Microsoft's and Tesla's own D&A lines), loss-year tax treatment
-   (AMZN, T, MU, BA, INTC FY2024), restricted-cash / short-term-investment mapping (PG, INTC
+1. **Resume the paused DCF product-readiness review** using real-company archetypes. It was
+   paused when the pre-flight found the data layer could only load the archetype it was validated
+   on; complete SEC-only coverage is now **7** of 17 rather than 3. The modelling questions it was
+   meant to rank are unchanged: scenario workflow, terminal-year normalization, NOL handling, a
+   professional summary artifact, or no further DCF feature.
+2. **Alpha Vantage — retest on a later date.** Retested 2026-09-04 against production: still no
+   `market_data_provider` and no `reference_price`, while SEC fundamentals resolved normally.
+   That retest fell on the *same day* as the 15-ticker probe that most likely exhausted the
+   25/day cap, so it neither confirms nor refutes quota exhaustion. Gates nothing, but with no AV
+   there is no reference price for any live ticker, which removes Implied Upside/Downside and
+   Reverse DCF outside the Costco demo.
+3. Out of scope from the coverage work, each needing its own decision: extension-tag ingestion
+   (the only route to Microsoft's and Tesla's own D&A lines, and to Alphabet's and Tesla's
+   coverage), loss-year tax treatment (AMZN, T, MU, BA, INTC FY2024) — the highest-count
+   remaining blocker at five tickers — restricted-cash / short-term-investment mapping (PG, INTC
    FY2021–23), derived EBIT (JNJ), segment-dimensioned debt (F).
-5. Real estate: no action planned until the user has the CRE-professional conversation.
+4. Real estate: no action planned until the user has the CRE-professional conversation.
 
 ## See Also
 
