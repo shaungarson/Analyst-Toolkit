@@ -1,3 +1,4 @@
+import ChartNotes from './ChartNotes.jsx'
 import {
   cellTierClass,
   describeCellWarnings,
@@ -5,7 +6,7 @@ import {
   summarizeGridWarnings,
   summarizeShiftedPath,
   warningFootnotes,
-} from './driverGrowthMargin'
+} from './driverGrowthMargin.js'
 
 // A real <table> with tinted cells, exactly as the WACC x terminal growth grid already
 // works - same tier classes, same base-case highlight, same table-wrap scroll container. The
@@ -49,9 +50,9 @@ function DriverGrowthMarginGrid({ grid }) {
         Driver Interaction: Value per Share by Revenue Growth &amp; EBIT Margin
       </h3>
       <p className="growth-margin-base">
-        Base case {dollarsPerShare(baseValue)}/share. Each cell shifts revenue growth and EBIT
-        margin by the stated amounts in every forecast year, holding all other drivers, WACC,
-        terminal growth, net debt and share count constant.
+        Rows shift revenue growth and columns shift EBIT margin. Each cell shows value per
+        share with all other assumptions held at the base case of {dollarsPerShare(baseValue)}{' '}
+        per share.
       </p>
 
       <div className="table-wrap">
@@ -131,12 +132,7 @@ function DriverGrowthMarginGrid({ grid }) {
       {warnings.length > 0 && (
         <div className="growth-margin-warnings">
           <p className="assumptions">
-            A cell carrying a superscript number is one where the combined shift moves the
-            schedule into territory the model itself flags; the number identifies which warning
-            below. Those cells are valued and shown as tested, never clamped to a more
-            comfortable number or quietly dropped, since substituting a different assumption
-            than the stated shift would make the comparison unreliable. Warnings the base case
-            already raises are not repeated here.
+            Superscripts mark cells whose combined shift triggers a model warning:
           </p>
           <ol className="growth-margin-warning-list">
             {warnings.map((warning) => (
@@ -156,26 +152,39 @@ function DriverGrowthMarginGrid({ grid }) {
         </div>
       )}
 
-      <p className="assumptions">
-        Read across a row to hold revenue growth and vary margin; read down a column to hold
-        margin and vary revenue growth. Neither axis is presented with an assumed direction:
-        whether more revenue growth raises or lowers value per share depends on the margin and
-        reinvestment the same schedule carries, and both outcomes are ordinary. The tornado
-        above moves one driver at a time and so cannot show that interaction, which is what
-        this grid is for.
-      </p>
-      <p className="assumptions">
-        The four cells one step from the centre along a single axis test exactly what the
-        &plusmn;{pp} tornado tests for revenue growth and EBIT margin, and agree with it. The
-        outer cells and every combination off those two lines have no tornado equivalent.
-      </p>
-      <p className="assumptions">
-        A {pp} shift is not the same proportional move for both drivers &mdash; on a schedule
-        whose EBIT margin runs 3.43%, &minus;2pp leaves 1.43%, a far larger relative move than
-        &minus;2pp on revenue growth &mdash; so each axis reports the schedule it actually
-        shifted. A cell is a mechanical recalculation of the model, not a probability, a
-        confidence interval, or an estimate of how likely either assumption is.
-      </p>
+      <ChartNotes label="Driver Interaction">
+        <p className="assumptions">
+          Both shifts apply in every forecast year, with every other driver &mdash; plus WACC,
+          terminal growth, net debt and share count &mdash; held at the base case.
+        </p>
+        <p className="assumptions">
+          Read across a row to hold revenue growth and vary margin; read down a column to hold
+          margin and vary revenue growth. Neither axis is presented with an assumed direction:
+          whether more revenue growth raises or lowers value per share depends on the margin and
+          reinvestment the same schedule carries, and both outcomes are ordinary. The tornado
+          above moves one driver at a time and so cannot show that interaction, which is what
+          this grid is for.
+        </p>
+        <p className="assumptions">
+          The four cells one step from the centre along a single axis test exactly what the
+          &plusmn;{pp} tornado tests for revenue growth and EBIT margin, and agree with it. The
+          outer cells and every combination off those two lines have no tornado equivalent.
+        </p>
+        <p className="assumptions">
+          A {pp} shift is not the same proportional move for both drivers &mdash; on a schedule
+          whose EBIT margin runs 3.43%, &minus;2pp leaves 1.43%, a far larger relative move than
+          &minus;2pp on revenue growth &mdash; so each axis reports the schedule it actually
+          shifted. This is a mechanical sensitivity, not a probability or confidence interval.
+        </p>
+        {warnings.length > 0 && (
+          <p className="assumptions">
+            Cells carrying a superscript are valued and shown as tested, never clamped to a more
+            comfortable number or quietly dropped, since substituting a different assumption
+            than the stated shift would make the comparison unreliable. Warnings the base case
+            already raises are not repeated in that list.
+          </p>
+        )}
+      </ChartNotes>
     </div>
   )
 }

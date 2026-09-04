@@ -143,9 +143,18 @@
     margin-bottom: 1rem;
   }
 
-  .sensitivity-legend {
+  .sensitivity-intro,
+  .bridge-note {
     color: #444;
     max-width: 100%;
+  }
+
+  /* Expanded on paper by .no-screen's print override above. Keep each chart's notes with
+     the chart they explain rather than letting a block break across pages on its own. */
+  .chart-notes-body {
+    max-width: 100%;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   .history-panel {

@@ -194,12 +194,9 @@ function ValueCompositionChart({ results, yearLabels }) {
       {rows.length > 0 && <AnnualPresentValues rows={rows} yearLabels={labels} />}
       <ContributionAxis contribution={contribution} forecastYearCount={rows.length} />
       <p className="assumptions">
-        Two readings on two scales rather than one: terminal value is typically several times
-        any single forecast year&rsquo;s present value, so a shared scale would flatten the
-        annual detail into slivers. The lower reading is a signed axis, not a stacked bar
-        &mdash; where the explicit period&rsquo;s present value is negative, terminal value
-        genuinely contributes more than 100% of enterprise value, and that is drawn as it is
-        rather than clipped to fit.
+        Annual cash flows and terminal value use separate scales so both remain readable.
+        Contributions are signed, so terminal value can exceed 100% when explicit-period
+        present value is negative.
       </p>
     </div>
   )

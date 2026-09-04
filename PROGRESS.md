@@ -1,7 +1,7 @@
 # Analyst Toolkit — Progress
 
 **Last verified:** 2026-09-04 (SEC data-integrity milestone — committed `bcb649f`, CI run #38
-green, deployed and production-verified). 249 backend and 279 frontend tests green, lint and
+green, deployed and production-verified). 249 backend and 293 frontend tests green, lint and
 production build clean.
 
 Production verification, for reference: **J&J's latest period is now 2025-12-28, was
@@ -13,8 +13,19 @@ control. Figures match the local SEC-only measurements exactly.
 
 ## Current Milestone
 
-**None in progress.** The SEC data-integrity milestone is complete, deployed and
-production-verified (see Recently Shipped).
+**Analysis Outputs: progressive disclosure — built and locally verified, not yet committed or
+deployed.** Presentation only, DCF Sensitivity & Bridge tab. The tab-level "How to read this"
+legend is gone (it explained three different outputs at once and pointed at the wrong one
+first); each output now carries a concise caption, and the two charts with real methodology
+behind them carry their own inline "How to read this" disclosure, collapsed by default. Roughly
+600 words of always-visible prose became ~150, with two controls where there were two before.
+Result-specific warnings stay visible in every state — that is the invariant, and it is what
+the new component tests pin. No engine, endpoint, payload, geometry or computed value changed —
+[decisions.md](docs/decisions.md#analysis-outputs-progressive-disclosure-and-where-warnings-live)
+
+Remaining: commit, deploy, production verification. Print behaviour was checked by emulating
+`@media print` in the CSSOM at paper width (toggles hidden, both regions expanded, headings
+intact); real pagination is unverified.
 
 ## Blockers / Frozen Areas
 

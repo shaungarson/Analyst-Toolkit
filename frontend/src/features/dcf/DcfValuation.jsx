@@ -152,7 +152,6 @@ function DcfValuation() {
   const [loading, setLoading] = useState(false)
   const [analysisTab, setAnalysisTab] = useState('sensitivity')
   const [showMethodology, setShowMethodology] = useState(false)
-  const [showSensitivityLegend, setShowSensitivityLegend] = useState(true)
   const [showHistory, setShowHistory] = useState(false)
 
   const [ticker, setTicker] = useState('')
@@ -1867,38 +1866,13 @@ function DcfValuation() {
             </div>
           }
         >
-          {activeSensitivity && (
-            <div
-              className={
-                analysisTab === 'sensitivity' ? 'sensitivity-legend-wrap' : 'sensitivity-legend-wrap no-screen'
-              }
-            >
-              <button
-                type="button"
-                className="sensitivity-legend-toggle no-print"
-                onClick={() => setShowSensitivityLegend((v) => !v)}
-                aria-expanded={showSensitivityLegend}
-              >
-                How to read this <span aria-hidden="true">{showSensitivityLegend ? '▲' : '▼'}</span>
-              </button>
-              <p
-                className={showSensitivityLegend ? 'sensitivity-legend' : 'sensitivity-legend no-screen'}
-              >
-                The highlighted cell is your base case &mdash; {form.wacc}% WACC (the discount
-                rate),{' '}
-                {form.terminalGrowthRate}% terminal growth (the assumed long-run growth rate)
-                &mdash; implying{' '}
-                {dollarsPerShare(activeResults.value_per_share)}/share. A lower WACC or higher terminal
-                growth generally increases value; the reverse generally decreases it.
-                &ldquo;n/a&rdquo; means that combination falls outside the Gordon Growth
-                formula&rsquo;s valid mathematical range &mdash; most commonly because terminal
-                growth equals or exceeds WACC. The Value Bridge subtracts net debt from
-                enterprise value, then divides by diluted shares. Sensitivity warnings below
-                describe how fragile a result is to small assumption changes, not whether the
-                assumptions themselves are reasonable.
-              </p>
-            </div>
-          )}
+          {/* One orienting line for the whole tab, in place of the former "How to read this"
+              block. Each output now carries its own caption, and the two that need more than
+              a caption carry their own inline disclosure. */}
+          <p className={analysisTab === 'sensitivity' ? 'sensitivity-intro' : 'sensitivity-intro no-screen'}>
+            Sensitivity views show how value changes as assumptions move; composition and
+            bridge views show how the base-case value is built.
+          </p>
 
           <div className={analysisTab === 'sensitivity' ? 'analysis-outputs-row' : 'analysis-outputs-row no-screen'}>
             <div className="sensitivity-panel">
@@ -1954,8 +1928,9 @@ function DcfValuation() {
                     </table>
                   </div>
                   <p className="assumptions">
-                    Base case held for all else. WACC-at-or-below-terminal-growth cells are n/a.
-                    Tint reflects relative value (green = higher, red = lower).
+                    Base case held for all else. Cells where WACC is at or below terminal growth
+                    are n/a &mdash; outside the Gordon Growth formula&rsquo;s valid range. Tint
+                    reflects relative value (green = higher, red = lower).
                   </p>
                 </>
               ) : (
@@ -1969,15 +1944,17 @@ function DcfValuation() {
                   present values -> EV -> equity -> value per share. */}
               <ValueCompositionChart results={activeResults} yearLabels={resultYearLabels} />
               <h3>Value Bridge</h3>
+              <p className="bridge-note">
+                Enterprise value less net debt, divided by diluted shares. Includes PV of
+                terminal value {compactCurrency(activeResults.pv_terminal_value)} (terminal
+                value {compactCurrency(activeResults.terminal_value)}).
+              </p>
               <ValueBridge
                 results={activeResults}
                 netDebt={netDebtNum}
                 dilutedSharesOutstanding={Number(form.dilutedSharesOutstanding)}
               />
-              <p className="assumptions">
-                Incl. PV of Terminal Value {compactCurrency(activeResults.pv_terminal_value)} (Terminal Value{' '}
-                {compactCurrency(activeResults.terminal_value)}).
-              </p>
+
               {(activeResults.terminal_growth_warnings?.length > 0 || secondaryWarnings.length > 0) && (
                 <ul className="terminal-growth-warning-list">
                   {[...activeResults.terminal_growth_warnings, ...secondaryWarnings].map(

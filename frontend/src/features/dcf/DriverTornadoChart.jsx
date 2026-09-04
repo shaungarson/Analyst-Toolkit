@@ -1,3 +1,4 @@
+import ChartNotes from './ChartNotes.jsx'
 import {
   ENDPOINT_WARNING_LABELS,
   TORNADO_DRIVER_LABELS,
@@ -5,7 +6,7 @@ import {
   formatWarningYears,
   summarizeTestedPath,
   tornadoScale,
-} from './driverTornado'
+} from './driverTornado.js'
 
 // Built as a real <table> with a bar column rather than as a standalone graphic, which is
 // how the sensitivity heatmap already works here. The consequence that matters: every
@@ -140,9 +141,9 @@ function DriverTornadoChart({ tornado }) {
         Driver Sensitivity: Value per Share at &plusmn;{pp} per Driver
       </h3>
       <p className="tornado-base">
-        Base case {dollars(baseValue)}/share. Each row shifts one driver by &plusmn;{pp} in
-        every forecast year, holding all other drivers, WACC, terminal growth, net debt and
-        share count constant.
+        Each row shifts one operating driver &plusmn;{pp} across all forecast years. Other
+        assumptions remain at the base case of {dollars(baseValue)} per share; rows are ranked
+        by valuation range.
       </p>
 
       <div className="table-wrap">
@@ -190,40 +191,43 @@ function DriverTornadoChart({ tornado }) {
         </table>
       </div>
 
-      {anyWarned && (
+      <ChartNotes label="Driver Sensitivity">
         <p className="assumptions">
-          A marked endpoint is one where the standardized shift moves that driver into
-          territory the model itself flags &mdash; a company whose D&amp;A runs under 1% of
-          revenue, for instance, has a negative D&amp;A percentage at &minus;{pp}. Those
-          endpoints are valued and shown as tested, never clamped to a more comfortable value
-          or quietly dropped, since substituting a different assumption than the stated
-          &plusmn;{pp} would make the whole comparison unreliable. Warnings the base case
-          already raises are not repeated here.
+          Every other driver &mdash; plus WACC, terminal growth, net debt and share count
+          &mdash; is held at the base case while one driver moves. This ranking therefore
+          covers operating drivers only; WACC and terminal growth are not drivers of the
+          forecast and are tested separately in the grid below.
         </p>
-      )}
-
-      <p className="assumptions">
-        Rows are ranked by the spread across the base value and both tested endpoints, not by
-        the distance between the endpoints alone &mdash; the two agree whenever the endpoints
-        straddle the base case, but a driver whose two directions both move value the same way
-        would otherwise be ranked as though it moved nothing. That case is real rather than
-        hypothetical: NWC investment is a percentage of the year-over-year <em>change</em> in
-        revenue, so in a declining-revenue year a higher percentage releases cash instead of
-        consuming it.
-      </p>
-      <p className="assumptions">
-        All six drivers are shifted in every forecast year. Revenue growth still stands apart,
-        because it compounds the revenue base into each later year &mdash; and so into the
-        final year terminal value is built from &mdash; while the other rate drivers apply to
-        each year&rsquo;s own revenue without carrying forward. A &plusmn;{pp} shift is also not
-        the same proportional move for every driver, so each row shows the assumption it
-        actually tested. This is a standardized mechanical sensitivity, not a probability, a
-        confidence interval, or an estimate of how uncertain any assumption is.
-      </p>
-      <p className="assumptions">
-        This ranking covers operating drivers only. WACC and terminal growth are tested
-        separately in the grid below.
-      </p>
+        {anyWarned && (
+          <p className="assumptions">
+            A marked endpoint is one where the standardized shift moves that driver into
+            territory the model itself flags &mdash; a company whose D&amp;A runs under 1% of
+            revenue, for instance, has a negative D&amp;A percentage at &minus;{pp}. Those
+            endpoints are valued and shown as tested, never clamped to a more comfortable value
+            or quietly dropped, since substituting a different assumption than the stated
+            &plusmn;{pp} would make the whole comparison unreliable. Warnings the base case
+            already raises are not repeated here.
+          </p>
+        )}
+        <p className="assumptions">
+          Rows are ranked by the spread across the base value and both tested endpoints, not by
+          the distance between the endpoints alone &mdash; the two agree whenever the endpoints
+          straddle the base case, but a driver whose two directions both move value the same way
+          would otherwise be ranked as though it moved nothing. That case is real rather than
+          hypothetical: NWC investment is a percentage of the year-over-year <em>change</em> in
+          revenue, so in a declining-revenue year a higher percentage releases cash instead of
+          consuming it.
+        </p>
+        <p className="assumptions">
+          All six drivers are shifted in every forecast year. Revenue growth still stands apart,
+          because it compounds the revenue base into each later year &mdash; and so into the
+          final year terminal value is built from &mdash; while the other rate drivers apply to
+          each year&rsquo;s own revenue without carrying forward. A &plusmn;{pp} shift is also not
+          the same proportional move for every driver, so each row shows the assumption it
+          actually tested. This is a standardized mechanical sensitivity, not a probability, a
+          confidence interval, or an estimate of how uncertain any assumption is.
+        </p>
+      </ChartNotes>
     </div>
   )
 }

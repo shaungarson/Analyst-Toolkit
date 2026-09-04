@@ -2014,3 +2014,35 @@ hidden decorative step numerals; the Driver Schedule evidence hierarchy and its 
 floating popover replaced by inline keyboard-operable guidance; and a flagship feature that could
 not be operated on a phone (1 of 7 forecast inputs reachable, now all of them at 320px with a
 15-year forecast).
+
+## Analysis Outputs: progressive disclosure and where warnings live
+**Status:** Accepted
+
+Each output in the DCF Analysis Outputs card owns a **concise always-visible caption** — what
+shifts, what is held constant, the base case, units — and deeper methodology sits behind a
+**per-chart "How to read this" disclosure**, on the two charts that need one (Driver
+Sensitivity, Revenue Growth × EBIT Margin). The WACC × terminal growth grid, the PV
+composition chart and the Value Bridge carry a one-line caption and **no control**: a
+disclosure per output would trade prose clutter for control clutter.
+
+The former tab-level "How to read this" legend was **deleted rather than redistributed**. It
+explained three different outputs in one paragraph, opened by describing the WACC grid's
+highlighted cell (the *third* chart on the page in Driver mode), and located the Value Bridge
+and its warnings "below" when both render in the right-hand column. Almost every sentence
+already existed as a caption somewhere. The tab now opens with one orienting line: sensitivity
+views show how value changes as assumptions move, composition and bridge views show how the
+base-case value is built — the distinction the deleted copy blurred, since neither the
+composition chart nor the bridge re-runs anything.
+
+**Warnings are never disclosed.** A warning *this run produced* — a tornado endpoint chip, a
+grid cell's superscript and its numbered entry, the bridge's warning list — stays visible
+whatever the disclosure state. Only the standing explanation of how flagged results are
+treated (valued and shown as tested, never clamped) moves behind the control. A collapsed
+disclosure must never be the reason an analyst misses a caution on the number they are reading.
+
+Mechanically this reuses the workspace's existing idiom rather than introducing a second one:
+`<button aria-expanded>` pointing at a region that stays mounted and carries `.no-screen` while
+collapsed, so `aria-controls` always has a target and print.css restores the full methodology
+on paper with no print-specific markup. Because three controls now read "How to read this",
+each names its own chart in its accessible name. Presentation only — no engine, endpoint,
+payload, warning, geometry or computed value changed.

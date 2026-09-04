@@ -1381,7 +1381,11 @@
   outline-offset: 2px;
 }
 
-.sensitivity-legend {
+/* One orienting sentence for the Analysis Outputs tab. Replaces the former collapsible
+   "How to read this" block, whose content described three different outputs at once - each
+   output now carries its own caption, and the two that need more carry their own
+   disclosure (.chart-notes below). */
+.sensitivity-intro {
   font-size: 0.82rem;
   color: var(--text);
   max-width: 72ch;
@@ -1389,7 +1393,7 @@
 }
 
 .workflow-card--dense .methodology-toggle,
-.workflow-card--dense .sensitivity-legend-toggle {
+.workflow-card--dense .chart-notes-toggle {
   background: none;
   border: none;
   padding: 0;
@@ -1400,12 +1404,30 @@
 }
 
 .workflow-card--dense .methodology-toggle:hover,
-.workflow-card--dense .sensitivity-legend-toggle:hover {
+.workflow-card--dense .chart-notes-toggle:hover {
   opacity: 1;
 }
 
-.workflow-card--dense .sensitivity-legend-toggle {
-  margin-bottom: 0.6rem;
+/* Sits below its chart, so it opens downward and never reflows the table above it. Same
+   quiet weight as the footer Methodology toggle: this is background material, not a
+   navigational control. */
+.workflow-card--dense .chart-notes-toggle {
+  margin-top: 0.5rem;
+}
+
+/* The first paragraph carries no top margin of its own - .assumptions' 1.5rem would
+   otherwise open a gap between the trigger and the region it just revealed - and the rest
+   sit closer together than free-standing notes do. */
+.chart-notes-body {
+  max-width: 78ch;
+}
+
+.chart-notes-body .assumptions {
+  margin-top: 0.7rem;
+}
+
+.chart-notes-body .assumptions:first-child {
+  margin-top: 0.4rem;
 }
 
 .analysis-outputs-row {
@@ -1437,6 +1459,15 @@
 .bridge-panel h3 {
   font-size: 0.88rem;
   margin: 0 0 0.55rem;
+}
+
+/* Caption weight, not .assumptions' free-standing-note weight: it introduces the bars
+   immediately below it rather than footnoting them, so it matches .tornado-base and
+   .growth-margin-base above. */
+.bridge-note {
+  font-size: 0.82rem;
+  color: var(--text);
+  margin: 0 0 0.7rem;
 }
 
 /* Deliberately quieter than the Sensitivity/Forecast tabs above it or the history/SEC
@@ -2498,7 +2529,7 @@
      links sit mid-sentence, where 44px would break the paragraph, so they take the largest
      increase that leaves the text flowing. */
   .link-toggle,
-  .sensitivity-legend-toggle,
+  .chart-notes-toggle,
   .methodology-toggle,
   .costco-demo-details-toggle {
     padding-top: 0.75rem;
