@@ -163,9 +163,12 @@ Older entries (2026-08-31 → 2026-09-02) moved out of current state — see
    Reverse DCF outside the Costco demo.
 3. Out of scope from the coverage work, each needing its own decision: extension-tag ingestion
    (the only route to Microsoft's and Tesla's own D&A lines, and to Alphabet's and Tesla's
-   coverage), loss-year tax treatment (AMZN, T, MU, BA, INTC FY2024) — the highest-count
-   remaining blocker at five tickers — restricted-cash / short-term-investment mapping (PG, INTC
-   FY2021–23), derived EBIT (JNJ), segment-dimensioned debt (F).
+   coverage), **historical loss-year effective tax rate** (AMZN, T, MU, BA, INTC FY2024) — the
+   highest-count remaining coverage blocker at five tickers, and distinct from forecast NOL
+   carryforwards in `docs/ROADMAP.md`'s Later list: one derives a tax rate for a reported loss
+   year, the other is Driver mode's forward `max(EBIT, 0) x rate` convention — restricted-cash /
+   short-term-investment mapping (PG, INTC FY2021–23), derived EBIT (JNJ), segment-dimensioned
+   debt (F).
 4. Real estate: no action planned until the user has the CRE-professional conversation.
 
 ## See Also

@@ -2166,6 +2166,14 @@ carrying its real 10-Q amortization facts and 10-K accumulated-amortization disc
 sporadic pattern that showed no structural rule would do. Completeness behaviour is synthetic
 and labelled as such. No network-dependent CI tests.
 
-**Deliberately out of scope**, each still needing its own decision: extension-tag ingestion, NOL
-/ loss-year tax treatment (AMZN, T, MU, BA, INTC FY2024), derived EBIT (JNJ), restricted-cash and
-short-term-investment mapping (PG, INTC FY2021–23), and segment-dimensioned debt (F).
+**Deliberately out of scope**, each still needing its own decision: extension-tag ingestion;
+**historical loss-year effective tax rate** (AMZN, T, MU, BA, INTC FY2024) — a sourced-data
+question, since `effective_tax_rate` is undefined when pretax income is not positive, so those
+years yield no unlevered FCF; derived EBIT (JNJ); restricted-cash and short-term-investment
+mapping (PG, INTC FY2021–23); and segment-dimensioned debt (F).
+
+The historical loss-year question is **related to but distinct from forecast NOL carryforwards**
+(see `ROADMAP.md`'s Later list). The first is about deriving a tax rate for a *reported* loss
+year; the second is about Driver mode's forward `max(EBIT, 0) x rate` convention giving a
+forecast loss year no benefit against a later profitable one. Different inputs, different
+surfaces, and each needs its own decision — they are not one milestone.
