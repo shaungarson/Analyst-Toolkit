@@ -53,14 +53,13 @@ function CostcoDemoPanel({ open, forecastMode }) {
             <strong>Driver Base Case</strong> - five forecast years, WACC{' '}
             {COSTCO_SHARED_ASSUMPTIONS.wacc}% and terminal growth{' '}
             {COSTCO_SHARED_ASSUMPTIONS.terminalGrowthRate}%. Revenue Growth, EBIT Margin, Tax
-            Rate, D&amp;A and CapEx are historical-derived starting points (badged{' '}
-            <strong>Seeded</strong>) from this same frozen history, same as Initialize Forecast
-            would produce for any company. NWC Investment is <strong>not</strong> seeded -
-            Costco's own working-capital history is classified Unstable (see that row's own
-            badge) - so it is pre-set instead to a flat, explicit, rounded demo assumption near
-            but not equal to the historical aggregate. Review every row, especially NWC, before
-            relying on the result; nothing here is Costco management guidance or a sourced
-            forecast.
+            Rate, D&amp;A and CapEx are <strong>history-informed</strong> starting points derived
+            from the same frozen history, matching what Initialize Forecast would produce. NWC
+            Investment is <strong>not</strong> history-informed, because Costco's working-capital
+            history is classified Unstable. It is instead preset to a flat, explicit, rounded demo
+            assumption near &mdash; but not equal to &mdash; the historical aggregate. Review every
+            row, especially NWC, before relying on the result; nothing here is Costco management
+            guidance or a sourced forecast.
           </p>
         ) : (
           <p className="costco-demo-note">

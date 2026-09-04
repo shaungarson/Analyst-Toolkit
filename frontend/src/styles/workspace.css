@@ -1816,10 +1816,13 @@
   display: inline-block;
   margin-left: 0.35rem;
   padding: 0.05rem 0.3rem;
-  font-size: 0.65rem;
+  font-size: 0.66rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  /* Sentence case, unlike the other small badges here: uppercase plus letter-spacing was
+     unobtrusive on the former six-character label but makes a sixteen-character one both
+     wider than the column comfortably allows and louder than a starting-point marker should
+     be. */
+  letter-spacing: 0.01em;
   border: 1px solid var(--prov-calculated);
   border-radius: 3px;
   color: var(--prov-calculated);
@@ -1850,12 +1853,15 @@
 }
 
 .driver-observation-year {
-  font-size: 0.62rem;
+  /* 0.62rem at 70% opacity previously - the smallest type in the table was carrying the axis
+     that makes the numbers mean anything. Now the same size as the value it labels. */
+  font-size: 0.78rem;
   color: var(--text);
-  opacity: 0.7;
 }
 
 .driver-observation-value {
+  font-size: 0.78rem;
+  color: var(--text-h);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1864,20 +1870,59 @@
   opacity: 0.8;
 }
 
-.driver-reference {
+/* --- Two labelled regions in one cell -------------------------------------------------
+   Separation comes from vertical rhythm and one weight step, not a rule and not uppercase
+   micro-caps: the cell was already too busy, so the fix could not be more decoration. */
+
+.driver-evidence-region {
+  display: block;
+  /* The schedule's cells are right-aligned for numeric columns, which the evidence cell
+     inherits. That reads incoherently here: a right-aligned region label floats away from the
+     left-starting observation grid beneath it. Per-observation values keep their own right
+     alignment via flex, which text-align does not touch. */
+  text-align: left;
+}
+
+.driver-evidence-region--benchmark {
+  margin-top: 0.5rem;
+}
+
+.driver-region-label {
   display: block;
   font-size: 0.75rem;
-  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.15rem;
+}
+
+.driver-benchmark-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.driver-benchmark {
+  font-size: 0.82rem;
+  font-weight: 500;
   color: var(--text-h);
   font-variant-numeric: tabular-nums;
 }
 
+/* Right-aligned on the benchmark line so the status can never abut the figure the way
+   `-3.26%UNSTABLE` did. */
 .driver-reliability {
-  margin-left: 0.35rem;
-  font-size: 0.65rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  font-size: 0.75rem;
+  /* Explicit, not inherited: the cell sits in a context that renders bold, and a bold
+     "Reliable" on five of six rows is the opposite of the quiet acknowledgement it is meant
+     to be. The exceptions below re-add weight for themselves. */
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+/* The healthy case is stated, not shouted - a blank read the same as "not assessed", but a
+   badge on five of six rows would drown the exceptions it exists to surface. */
+.driver-reliability--ok {
+  color: var(--text);
 }
 
 .driver-reliability--thin {
@@ -1887,131 +1932,74 @@
 .driver-reliability--unstable,
 .driver-reliability--insufficient {
   color: var(--loss);
+  font-weight: 600;
 }
 
-/* The NWC-unstable badge is a real <button> (see ReliabilityBadge.jsx), so feature-form.css's
-   `.feature-page button` (1 class + 1 type selector) otherwise beats a bare
-   `.driver-reliability-btn` class on specificity and silently renders it as a filled accent
-   button (see the `.sourced-data-links button.link-toggle` comment above for the same issue).
-   Scoped through the parent `.driver-history-col` cell instead of trying to out-rank
-   `.feature-page button` on a bare class alone, and every property that rule sets - padding,
-   border-radius, border, background, color, font-size - is repeated here, not just the ones
-   that look conflicting, restoring the exact plain-text look every other reliability badge
-   already has, plus just enough affordance (dotted underline, pointer cursor) to read as
-   interactive. */
-.driver-history-col .driver-reliability-btn {
+/* The consequence of the status, not a second copy of it: "Unstable" is said once, on the
+   benchmark line, and this says what follows from it. */
+.driver-benchmark-declined {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--flag);
+  margin-top: 0.15rem;
+}
+
+/* --- Inline NWC guidance disclosure ---------------------------------------------------- */
+
+/* Scoped through the parent row, not a bare class: feature-form.css's `.feature-page button`
+   (1 class + 1 type) outranks a lone `.driver-guidance-toggle`, and would silently render this
+   as a filled accent pill. Every property that rule sets is restated here - padding,
+   border-radius, border, background, color, font-size - not only the ones that look
+   conflicting. The retired reliability popover needed exactly this fix for exactly this
+   reason. */
+.driver-note-row .driver-guidance-toggle {
   padding: 0;
-  margin-left: 0.35rem;
-  border: none;
+  border: 0;
   border-radius: 0;
   background: none;
-  color: var(--loss);
-  font-size: 0.65rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
   cursor: pointer;
-  text-decoration: underline dotted;
-  text-underline-offset: 2px;
-}
-
-.driver-history-col .driver-reliability-btn:hover {
-  opacity: 0.8;
-}
-
-.driver-history-col .driver-reliability-btn:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-/* Fixed-position popover (see computePosition in ReliabilityBadge.jsx) so it always
-   renders above the table's own content regardless of the table's horizontal scroll
-   position, and stays clear of viewport edges on narrow screens. */
-.reliability-popover {
-  z-index: 40;
-  background: var(--panel-bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
-  padding: 0.75rem 0.85rem;
+  font: inherit;
   font-size: 0.78rem;
-  line-height: 1.4;
-  color: var(--text);
-  max-height: min(60vh, 420px);
-  overflow-y: auto;
+  color: var(--accent-text);
+  text-align: left;
 }
 
-.reliability-popover:focus-visible,
-.reliability-popover:focus {
-  outline: none;
+.driver-note-row .driver-guidance-toggle:hover {
+  text-decoration: underline;
 }
 
-.reliability-popover-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.4rem;
+.driver-guidance-body {
+  margin-top: 0.5rem;
+  max-width: 62ch;
 }
 
-.reliability-popover-head h4 {
+.driver-guidance-part {
   margin: 0;
-  font-size: 0.85rem;
-  color: var(--text-h);
 }
 
-/* Scoped through the parent `.reliability-popover` (same reason and same fix as
-   `.driver-history-col .driver-reliability-btn` above) so `.feature-page button` doesn't
-   silently win and render this as a filled accent button. */
-.reliability-popover .reliability-popover-close {
-  flex-shrink: 0;
-  padding: 0.1rem 0.4rem;
-  border: none;
-  border-radius: 4px;
-  background: none;
-  color: var(--text);
-  font-size: 0.8rem;
-  cursor: pointer;
+.driver-guidance-part + .driver-guidance-part {
+  margin-top: 0.5rem;
 }
 
-.reliability-popover .reliability-popover-close:hover,
-.reliability-popover .reliability-popover-close:focus-visible {
-  background: var(--bg);
-}
-
-.reliability-popover .reliability-popover-close:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
-.reliability-popover p {
-  margin: 0 0 0.5rem;
-}
-
-.reliability-popover-subhead {
+.driver-guidance-part-label {
+  display: block;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--text-h);
 }
 
-.reliability-popover ol {
-  margin: 0;
-  padding-left: 1.2rem;
-}
-
-.reliability-popover li {
-  margin-bottom: 0.3rem;
-}
-
-.reliability-popover li:last-child {
-  margin-bottom: 0;
+.driver-guidance-part-text {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text);
+  line-height: 1.45;
 }
 
 .driver-excluded-count {
-  margin-left: 0.35rem;
-  font-size: 0.65rem;
-  font-weight: 400;
+  display: block;
+  font-size: 0.72rem;
   color: var(--text);
-  opacity: 0.85;
+  margin-top: 0.15rem;
 }
 
 .driver-note-row td {

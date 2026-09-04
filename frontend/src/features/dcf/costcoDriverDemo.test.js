@@ -291,22 +291,142 @@ test('Costco demo: rowModes match the design (Revenue Growth Fade, everything el
   await unmount()
 })
 
-test('Costco demo: five rows are badged Seeded; NWC Investment is not, and still shows its Unstable badge', async () => {
+test('Costco demo: five rows are badged History-informed; NWC Investment is not', async () => {
   const fetchMock = makeFetchMock()
   const { container, unmount } = await mountApp(fetchMock)
   await clickButton(container, 'Driver-Based')
   await clickButton(container, 'Costco Demo ▼')
 
-  const seededBadges = [...container.querySelectorAll('.driver-schedule-table .driver-seed-badge')]
-  assert.equal(seededBadges.length, 5, 'exactly 5 rows should be badged Seeded')
+  const badges = [...container.querySelectorAll('.driver-schedule-table .driver-seed-badge')]
+  assert.equal(badges.length, 5, 'exactly 5 rows should be badged')
+  assert.ok(
+    badges.every((b) => b.textContent.trim() === 'History-informed'),
+    'the visible badge label is History-informed',
+  )
 
   const nwcRow = [...container.querySelectorAll('tr')].find((tr) =>
     tr.textContent.includes('NWC Investment (% of Δ Revenue)'),
   )
   assert.ok(nwcRow)
-  assert.equal(nwcRow.querySelector('.driver-seed-badge'), null, 'NWC Investment must never be badged Seeded')
-  const unstableBtn = [...nwcRow.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Unstable')
-  assert.ok(unstableBtn, 'NWC Investment should still show its own Unstable reliability badge')
+  assert.equal(
+    nwcRow.querySelector('.driver-seed-badge'),
+    null,
+    'NWC Investment is never populated from its own history, so it is never History-informed',
+  )
+  await unmount()
+})
+
+test('Costco demo: reliability is stated on every row, including the healthy ones', async () => {
+  const fetchMock = makeFetchMock()
+  const { container, unmount } = await mountApp(fetchMock)
+  await clickButton(container, 'Driver-Based')
+  await clickButton(container, 'Costco Demo ▼')
+
+  const statuses = [...container.querySelectorAll('.driver-schedule-table .driver-reliability')].map(
+    (n) => n.textContent.trim(),
+  )
+  // One per driver row - a blank previously meant "assessed and fine" and "not assessed"
+  // identically, which is the one thing a reliability status must not do.
+  assert.equal(statuses.length, 6)
+  assert.equal(statuses.filter((t) => t === 'Reliable').length, 5)
+  assert.equal(statuses.filter((t) => t === 'Unstable').length, 1)
+  await unmount()
+})
+
+test('Costco demo: the NWC benchmark is shown but explicitly declined, and Unstable is said once', async () => {
+  const fetchMock = makeFetchMock()
+  const { container, unmount } = await mountApp(fetchMock)
+  await clickButton(container, 'Driver-Based')
+  await clickButton(container, 'Costco Demo ▼')
+
+  const nwcRows = [...container.querySelectorAll('tr')].filter((tr) =>
+    tr.textContent.includes('NWC Investment (% of Δ Revenue)'),
+  )
+  const nwcRow = nwcRows[0]
+
+  // The refused aggregate is still reported as evidence - it is a real statistic - but the
+  // row says plainly that nothing was initialized from it.
+  assert.match(nwcRow.textContent, /Aggregate/)
+  assert.match(nwcRow.textContent, /Not used as starting point/)
+
+  // Static text, not a control: the status is a status.
+  const statusNode = nwcRow.querySelector('.driver-reliability')
+  assert.equal(statusNode.textContent.trim(), 'Unstable')
+  assert.equal(statusNode.tagName, 'SPAN')
+  assert.equal(
+    [...nwcRow.querySelectorAll('button')].filter((b) => /unstable/i.test(b.textContent)).length,
+    0,
+    'the reliability status must not be a button',
+  )
+
+  // Said once across the driver row and its note row - the old note row repeated it.
+  const noteRow = nwcRow.nextElementSibling
+  const combined = nwcRow.textContent + (noteRow?.textContent ?? '')
+  assert.equal((combined.match(/Unstable/gi) ?? []).length, 1, 'Unstable appears exactly once')
+  await unmount()
+})
+
+test('Driver Schedule terminology is consistent: no retired seeding vocabulary is visible', async () => {
+  const fetchMock = makeFetchMock()
+  const { container, unmount } = await mountApp(fetchMock)
+  await clickButton(container, 'Costco Demo ▼')
+  await clickButton(container, 'Driver-Based')
+
+  // The column header no longer repeats the cell's own first region label, and no longer uses
+  // "reference", which collides with the workspace's separate Reference Share Price.
+  const header = container.querySelector('.driver-schedule-table thead .driver-history-col')
+  assert.equal(header.textContent.trim(), 'History')
+
+  const visible = container.textContent
+  for (const retired of ['Not seeded', 'historical-derived', 'badged Seeded']) {
+    assert.ok(!visible.includes(retired), `retired wording still visible: ${retired}`)
+  }
+
+  // The consequence is stated once per screen - by the plan's heading and by the row's own
+  // benchmark caption - never a third time inside the explanation itself.
+  assert.equal(
+    (visible.match(/Not used as a starting point/g) ?? []).length,
+    0,
+    'the schedule view states the consequence via the row caption, not this phrasing',
+  )
+  // "Seeded" as a standalone badge label is gone; the badge reads History-informed.
+  assert.ok(!/\bSeeded\b/.test(visible), 'the word Seeded should not appear in visible copy')
+  await unmount()
+})
+
+test('Costco demo copy explains why NWC is not history-informed, as a complete sentence', async () => {
+  const fetchMock = makeFetchMock()
+  const { container, unmount } = await mountApp(fetchMock)
+  await clickButton(container, 'Costco Demo ▼')
+  await clickButton(container, 'Driver-Based')
+
+  const note = [...container.querySelectorAll('.costco-demo-note')]
+    .map((n) => n.textContent.replace(/\s+/g, ' '))
+    .join(' ')
+
+  assert.match(note, /history-informed starting points derived from the same frozen history/)
+  // The regression this guards: an earlier minimal edit left "NWC Investment is not -" dangling.
+  assert.match(note, /NWC Investment is not history-informed, because Costco's working-capital history is classified Unstable/)
+  assert.match(note, /preset to a flat, explicit, rounded demo assumption/)
+  // The review and non-guidance sentences are retained.
+  assert.match(note, /Review every row, especially NWC/)
+  assert.match(note, /nothing here is Costco management guidance or a sourced forecast/)
+  await unmount()
+})
+
+test('Costco demo: NWC guidance is an inline disclosure, collapsed by default', async () => {
+  const fetchMock = makeFetchMock()
+  const { container, unmount } = await mountApp(fetchMock)
+  await clickButton(container, 'Driver-Based')
+  await clickButton(container, 'Costco Demo ▼')
+
+  const toggle = [...container.querySelectorAll('.driver-guidance-toggle')]
+  assert.equal(toggle.length, 1, 'exactly one guidance disclosure, on the NWC row')
+  assert.equal(toggle[0].getAttribute('aria-expanded'), 'false')
+  assert.match(toggle[0].textContent, /Why this benchmark was not used/)
+
+  // No floating layer anywhere: the old popover rendered outside the table.
+  assert.equal(container.querySelector('.reliability-popover'), null)
   await unmount()
 })
 
@@ -406,7 +526,7 @@ test('state isolation: loading the same ticker live after the demo resets the dr
   // The ticker box already reads "COST" from activation; submit it as a live load.
   await clickButton(container, 'Load Company')
 
-  assert.equal(container.querySelectorAll('.driver-schedule-table .driver-seed-badge').length, 0, 'a live load must never inherit demo-derived Seeded badges')
+  assert.equal(container.querySelectorAll('.driver-schedule-table .driver-seed-badge').length, 0, 'a live load must never inherit demo-derived History-informed badges')
   assert.equal(
     [...container.querySelectorAll('input')].find((el) => el.value === '-3'),
     undefined,

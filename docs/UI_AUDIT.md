@@ -1,7 +1,7 @@
 # UI Audit — DCF workflow and shared app presentation
 
-**Status: audit approved 2026-09-03. Phase 1 is implemented and awaiting review; Phases 2–4
-are not started. Uncommitted — this file ships with the Phase 1 milestone commit, together with
+**Status: audit approved 2026-09-03. Phases 1 and 2 are implemented, approved and shipped;
+Phase 3 design is pending approval and Phase 4 is not started. Uncommitted — this file ships with the Phase 1 milestone commit, together with
 its `ROADMAP.md` / `PROGRESS.md` references, rather than as a documentation-only commit.**
 
 ## Scope decisions
@@ -261,9 +261,11 @@ twice and ship half a vocabulary.
 their names — no technical reason requires changing them, and doing so would enlarge the diff
 for no user benefit.
 
-**Design approval required before implementation:** desktop treatment showing at least one
-reliable row and the unstable NWC row, with the NWC guidance both collapsed and expanded,
-readable text sizes, full fiscal-year labels, and clear spacing without new micro-label clutter.
+**Status: shipped.** Column header is `History`; the cell carries Historical evidence /
+Historical benchmark / Reliability; `Reliable` is stated quietly on healthy rows; `Unstable` is
+said once with `Not used as starting point` as its consequence; the popover is replaced by an
+inline `<button aria-expanded>` disclosure. See "Driver Schedule evidence hierarchy and inline
+NWC guidance" in [`decisions.md`](decisions.md).
 
 ### Phase 3 — Mobile usability
 

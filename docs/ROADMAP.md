@@ -98,7 +98,9 @@ Reasonable follow-ups, not yet scheduled:
   type-scale/focus cleanup to be re-justified before it is built (Phase 4). Designs, measured
   evidence and priorities live in [`UI_AUDIT.md`](UI_AUDIT.md); each phase is presented for
   approval before implementation. Phase 1 (dark-only, split accent token, semantic
-  accessibility) is done — see [`decisions.md`](decisions.md).
+  accessibility) and Phase 2 (Driver Schedule evidence hierarchy, reliability on every row,
+  visible History-informed terminology, inline NWC guidance replacing the floating popover) are
+  done — see [`decisions.md`](decisions.md).
 
 - **Two-way Revenue Growth x EBIT Margin sensitivity table** — the tornado (item 11 above) has
   now settled the perturbation convention: a fixed, stated shift, transparently labeled, rather

@@ -293,7 +293,11 @@ test('driverHistory: an over-dispersed NWC history is refused even without a sig
   const nwc = driverHistory(data).drivers.nwcInvestmentPct
   assert.equal(nwc.seedable, false)
   assert.equal(nwc.reliability, 'unstable')
-  assert.match(nwc.note, /too dispersed/)
+  // Says why the evidence is unreliable, then what to do - and not the consequence, which the
+  // refusal heading and the row's own benchmark caption already carry.
+  assert.match(nwc.note, /so the aggregate is not representative/)
+  assert.match(nwc.note, /Review the observations and enter your own assumption/)
+  assert.ok(!/Not used as a starting point/.test(nwc.note))
 })
 
 test('driverHistory: a stable NWC history does seed', () => {

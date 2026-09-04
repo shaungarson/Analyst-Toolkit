@@ -2,7 +2,7 @@ import { Fragment } from 'react'
 import { compactCurrency } from '../../lib/format'
 import SourceBadge from '../../components/SourceBadge'
 import FormattedNumberInput from '../../components/FormattedNumberInput'
-import ReliabilityBadge from './ReliabilityBadge'
+import NwcGuidanceDisclosure from './NwcGuidanceDisclosure'
 import { ROW_MODES } from './driverSchedule'
 
 const pct = (v) => (v == null || !Number.isFinite(v) ? 'n/a' : `${v.toFixed(2)}%`)
@@ -28,49 +28,85 @@ const MODE_TITLES = {
   custom: 'Edit every forecast year individually',
 }
 
+// Every row states its reliability, including the healthy case - a blank meant "assessed and
+// fine" and "not assessed" identically, which is the one thing a reliability status must not
+// do. "Reliable" is rendered as quiet muted text rather than a badge so the exceptions still
+// carry the visual weight.
 const RELIABILITY_LABELS = {
-  ok: null,
+  ok: 'Reliable',
   thin: 'Thin history',
   unstable: 'Unstable',
   insufficient: 'No usable history',
 }
 
-// A two-digit fiscal-year-end label ('25), matching the year strip the historical trend
-// mini-charts already use. Shown as visible text beside each observation rather than only in a
-// tooltip: a hover-only label is unreadable on touch, unreachable by keyboard, and absent from
-// print - and a column of bare percentages the analyst can't date is not evidence.
-const shortFiscalYear = (fiscalYearEnd) =>
-  typeof fiscalYearEnd === 'string' && fiscalYearEnd.length >= 4 ? `’${fiscalYearEnd.slice(2, 4)}` : '--'
+// The full statistic name. `med`/`agg` were three-letter tokens defined nowhere near where
+// they were used.
+const STATISTIC_LABELS = { aggregate: 'Aggregate', median: 'Median' }
+
+// A full FY label (FY25) rather than the former two-digit `’25`. Measured against the live
+// DOM before the change: this costs nothing horizontally, because each year sits above its own
+// value and a value like -10.87 is already wider than any four-character year. Shown as visible
+// text beside each observation rather than only in a tooltip - a hover-only label is unreadable
+// on touch and unreachable by keyboard, and a column of bare percentages the analyst can't date
+// is not evidence.
+const fiscalYearLabel = (fiscalYearEnd) =>
+  typeof fiscalYearEnd === 'string' && fiscalYearEnd.length >= 4 ? `FY${fiscalYearEnd.slice(2, 4)}` : '--'
 
 // How many excluded periods to name individually before summarizing the rest.
 const MAX_LISTED_EXCLUSIONS = 4
 
-// The evidence cell: every usable annual observation with its fiscal year, then the normalized
-// reference statistic that seeding would use. Deliberately no standard deviation or confidence
-// interval - at most five observations those would imply a precision the history cannot
-// support.
-function DriverEvidence({ driver, field }) {
-  const reliabilityLabel = RELIABILITY_LABELS[driver.reliability]
+// The evidence cell, as two labelled regions inside one column rather than one undifferentiated
+// run of numbers. Previously this rendered as `’22 3.48 ’23 -10.87 ... agg -3.26%UNSTABLE`,
+// where the derived statistic read as another observation and the status collided with it.
+//
+// Two regions and not two columns: measured at 1440px on the default five-year horizon, the
+// schedule table already fills its container exactly, so a ninth column would force horizontal
+// scrolling in the most common configuration - and the observations and the statistic derived
+// from them are one evidence claim about one driver, not two independent facts.
+//
+// Still deliberately no standard deviation or confidence interval: at most five observations,
+// those would imply a precision the history cannot support.
+function DriverEvidence({ driver }) {
   const excludedCount = driver.excluded.length
+  // Keyed off `seedable` - the same flag buildBaseForecast actually branches on - rather than
+  // off the reliability string, so this caption can never claim something Initialize Forecast
+  // would contradict. Only meaningful when a benchmark exists to be declined.
+  const benchmarkDeclined = driver.reference != null && !driver.seedable
+
   return (
     <>
-      {driver.observations.length > 0 ? (
-        <span className="driver-observations">
-          {driver.observations.map((o) => (
-            <span className="driver-observation" key={o.fiscalYearEnd}>
-              <span className="driver-observation-year">{shortFiscalYear(o.fiscalYearEnd)}</span>
-              <span className="driver-observation-value">{o.value.toFixed(2)}</span>
-            </span>
-          ))}
+      <span className="driver-evidence-region">
+        <span className="driver-region-label">Historical evidence</span>
+        {driver.observations.length > 0 ? (
+          <span className="driver-observations">
+            {driver.observations.map((o) => (
+              <span className="driver-observation" key={o.fiscalYearEnd}>
+                <span className="driver-observation-year">{fiscalYearLabel(o.fiscalYearEnd)}</span>
+                <span className="driver-observation-value">{o.value.toFixed(2)}</span>
+              </span>
+            ))}
+          </span>
+        ) : (
+          <span className="driver-observations driver-observations-empty">no usable observations</span>
+        )}
+      </span>
+
+      <span className="driver-evidence-region driver-evidence-region--benchmark">
+        <span className="driver-region-label">Historical benchmark</span>
+        <span className="driver-benchmark-line">
+          <span className="driver-benchmark">
+            {driver.reference == null
+              ? 'None'
+              : `${STATISTIC_LABELS[driver.referenceStatistic] ?? 'Median'} ${pct(driver.reference)}`}
+          </span>
+          {/* Static text, not a control. The status is a status. */}
+          <span className={`driver-reliability driver-reliability--${driver.reliability}`}>
+            {RELIABILITY_LABELS[driver.reliability]}
+          </span>
         </span>
-      ) : (
-        <span className="driver-observations driver-observations-empty">no usable observations</span>
-      )}
-      <span className="driver-reference">
-        {driver.reference == null
-          ? '—'
-          : `${driver.referenceStatistic === 'aggregate' ? 'agg' : 'med'} ${pct(driver.reference)}`}
-        <ReliabilityBadge field={field} reliability={driver.reliability} label={reliabilityLabel} />
+        {benchmarkDeclined && (
+          <span className="driver-benchmark-declined">Not used as starting point</span>
+        )}
         {excludedCount > 0 && (
           <span className="driver-excluded-count">
             {excludedCount} period{excludedCount === 1 ? '' : 's'} excluded
@@ -231,8 +267,8 @@ function DriverScheduleBuilder({
         <div className="driver-initialize-plan no-print">
           <h3>Initialize from historical evidence</h3>
           <p>
-            These are historical-derived <strong>starting points</strong>, not forecasts produced or
-            endorsed by this application. Every seeded row needs your review before it is valued.
+            These are <strong>history-informed starting points</strong>, not forecasts produced
+            or endorsed by this application. Every one needs your review before it is valued.
           </p>
           <ul className="driver-plan-list">
             {initializePlan.seeds.map((seed) => (
@@ -247,7 +283,7 @@ function DriverScheduleBuilder({
           </ul>
           {initializePlan.refusals.length > 0 && (
             <>
-              <h4>Not seeded</h4>
+              <h4>Not used as a starting point</h4>
               <ul className="driver-plan-list driver-plan-refusals">
                 {initializePlan.refusals.map((refusal) => (
                   <li key={refusal.field}>
@@ -270,10 +306,10 @@ function DriverScheduleBuilder({
 
       {seededCount > 0 && (
         <p className="driver-seed-banner">
-          {seededCount} {seededCount === 1 ? 'row is a' : 'rows are'} historical-derived starting{' '}
+          {seededCount} {seededCount === 1 ? 'row is a' : 'rows are'} history-informed starting{' '}
           {seededCount === 1 ? 'point' : 'points'}, not {seededCount === 1 ? 'a forecast' : 'forecasts'}.
-          Review before valuing - each is marked <span className="driver-seed-badge">Seeded</span> until
-          you edit it.
+          Review before valuing - each keeps its{' '}
+          <span className="driver-seed-badge">History-informed</span> badge until you edit it.
         </p>
       )}
 
@@ -288,7 +324,7 @@ function DriverScheduleBuilder({
             <thead>
               <tr>
                 <th>Driver</th>
-                <th className="driver-history-col">History &amp; reference</th>
+                <th className="driver-history-col">History</th>
                 <th className="driver-mode-col">Mode</th>
                 {yearLabels.labels.map((label) => (
                   <th key={label}>{label}</th>
@@ -304,7 +340,10 @@ function DriverScheduleBuilder({
                 // The tax cash-proxy caution is company-specific and fires on histories that
                 // are otherwise perfectly reliable, so gating notes on reliability hid the one
                 // disclosure most likely to change an analyst's mind about a seeded rate.
-                const showNote = Boolean(driver.note) || driver.excluded.length > 0
+                // The NWC-unstable case swaps its raw note for the inline guidance
+                // disclosure, whose "What happened" says the same thing in fewer words.
+                const showGuidance = field === 'nwcInvestmentPct' && driver.reliability === 'unstable'
+                const showNote = showGuidance || Boolean(driver.note) || driver.excluded.length > 0
                 return (
                   <Fragment key={field}>
                     <tr>
@@ -313,14 +352,14 @@ function DriverScheduleBuilder({
                         {seeded && (
                           <span
                             className="driver-seed-badge"
-                            title="Historical-derived starting point - not a forecast. Edit to make it your own."
+                            title="History-informed starting point — not a forecast. Edit to make it your own."
                           >
-                            Seeded
+                            History-informed
                           </span>
                         )}
                       </td>
                       <td className="driver-history-col">
-                        <DriverEvidence driver={driver} field={field} />
+                        <DriverEvidence driver={driver} />
                       </td>
                       <td className="driver-mode-col">
                         <RowModeSwitch field={field} label={label} mode={mode} onChange={onRowModeChange} />
@@ -408,12 +447,13 @@ function DriverScheduleBuilder({
                     {showNote && (
                       <tr className="driver-note-row">
                         <td colSpan={3 + yearCount}>
-                          {RELIABILITY_LABELS[driver.reliability] && (
-                            <span className={`driver-reliability driver-reliability--${driver.reliability}`}>
-                              {RELIABILITY_LABELS[driver.reliability]}
-                            </span>
+                          {/* The reliability status is no longer repeated here - it is stated
+                              once, in the evidence cell above. */}
+                          {showGuidance ? (
+                            <NwcGuidanceDisclosure />
+                          ) : (
+                            driver.note && <span className="driver-note-text">{driver.note}</span>
                           )}
-                          {driver.note && <span className="driver-note-text">{driver.note}</span>}
                           {driver.excluded.length > 0 && <ExcludedPeriods excluded={driver.excluded} />}
                         </td>
                       </tr>

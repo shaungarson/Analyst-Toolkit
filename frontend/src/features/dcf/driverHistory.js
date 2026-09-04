@@ -115,6 +115,10 @@ function classify(observations, reference, statistic) {
   }
 }
 
+// Refusal notes deliberately say only WHY the evidence is unreliable and WHAT to do next.
+// They do not restate the consequence: buildBaseForecast lists them under a "Not used as a
+// starting point" heading, and the driver row carries the same caption beside its benchmark,
+// so a note repeating it made one fact appear three times on a single screen.
 // One "level" ratio per period: numerator over that same period's revenue, as a percent.
 // Used for EBIT margin, D&A, and CapEx. A period is excluded (with a stated reason, so the
 // UI can show what was dropped rather than silently shrinking the sample) when revenue isn't
@@ -282,7 +286,7 @@ function classifyNwc(observations) {
       referenceStatistic: null,
       reliability: 'unstable',
       seedable: false,
-      note: 'Revenue rose in some years and fell in others, so the cumulative revenue change is a residue of larger movements in both directions and an aggregate ratio against it is not meaningful. Not seeded; review the observations and enter your own assumption.',
+      note: 'Revenue rose in some years and fell in others, so the cumulative revenue change is a residue of larger movements in both directions and an aggregate ratio against it is not meaningful. Review the observations and enter your own assumption.',
     }
   }
   if (sumDeltaRevenue === 0 || !Number.isFinite(sumDeltaRevenue)) {
@@ -300,7 +304,7 @@ function classifyNwc(observations) {
       referenceStatistic: null,
       reliability: 'unstable',
       seedable: false,
-      note: `Net cumulative revenue change is only ${((Math.abs(sumDeltaRevenue) / grossDeltaRevenue) * 100).toFixed(0)}% of the gross annual movements, so the aggregate denominator is a small residue and the ratio it produces is not meaningful. Not seeded; review the observations and enter your own assumption.`,
+      note: `Net cumulative revenue change is only ${((Math.abs(sumDeltaRevenue) / grossDeltaRevenue) * 100).toFixed(0)}% of the gross annual movements, so the aggregate denominator is a small residue and the ratio it produces is not meaningful. Review the observations and enter your own assumption.`,
     }
   }
 
@@ -324,7 +328,7 @@ function classifyNwc(observations) {
       referenceStatistic: 'aggregate',
       reliability: 'unstable',
       seedable: false,
-      note: 'History changes sign - working capital was both consumed and released as revenue grew, so no single ratio describes it. Not seeded; review the observations and enter your own assumption.',
+      note: 'History changes sign - working capital was both consumed and released as revenue grew, so no single ratio describes it. Review the observations and enter your own assumption.',
     }
   }
   if (spread > NWC_INSTABILITY_SPREAD_MULTIPLE * Math.abs(aggregate)) {
@@ -333,7 +337,7 @@ function classifyNwc(observations) {
       referenceStatistic: 'aggregate',
       reliability: 'unstable',
       seedable: false,
-      note: `History spans ${spread.toFixed(1)}pp against an aggregate of ${aggregate.toFixed(1)}% - too dispersed to seed. Review the observations and enter your own assumption.`,
+      note: `History spans ${spread.toFixed(1)}pp against an aggregate of ${aggregate.toFixed(1)}%, so the aggregate is not representative. Review the observations and enter your own assumption.`,
     }
   }
   return {

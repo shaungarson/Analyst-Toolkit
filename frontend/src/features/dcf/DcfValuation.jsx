@@ -673,7 +673,7 @@ function DcfValuation() {
     if (!companyData) return 'Load a company above to initialize the forecast from its sourced historical financials.'
     if (history.periodCount < 2) return 'At least two sourced fiscal periods are needed to derive driver history.'
     if (driverForm.driverYears.length === 0) return 'Set a Forecast Period (years) above first.'
-    if (initializePlan.seeds.length === 0) return 'No driver has enough usable history to seed - enter the schedule manually.'
+    if (initializePlan.seeds.length === 0) return 'No driver has enough usable history to use as a starting point - enter the schedule manually.'
     return null
   })()
 

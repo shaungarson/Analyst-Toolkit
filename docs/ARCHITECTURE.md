@@ -208,7 +208,7 @@ mode generators (`setFlatValue`, `setFadeEndpoint`, `fadeValues`, `applyRowMode`
 for the Initialize Forecast action.
 
 `driverHistory.js` — per-driver historical evidence from the already-loaded sourced periods:
-observations, exclusions with stated reasons, the normalized reference statistic (median, or
+observations, exclusions with stated reasons, the normalized benchmark statistic (median, or
 aggregate ΣΔNWC ÷ ΣΔRevenue for working capital), and the reliability classification that
 decides whether a driver may be seeded at all. Pure and network-free; it reads
 `CompanyData.periods` and computes ratios only. **No part of the frontend reproduces

@@ -1,42 +1,38 @@
 # Analyst Toolkit — Progress
 
-**Last verified:** 2026-09-03 (UI audit Phase 1 — dark-only interface, split accent token, and
-semantic accessibility corrections). Committed, CI green, **deployed to Vercel and Render and
-production-verified**. Backend untouched by this milestone; frontend 223 tests, lint and
-production build clean.
+**Last verified:** 2026-09-03 (UI audit Phase 2 — Driver Schedule evidence hierarchy and inline
+NWC guidance). Committed, CI green, **deployed to Vercel and Render and production-verified**.
+Backend untouched by this milestone; frontend 227 tests, lint and production build clean.
 
-Production verification against the live app, with the operating-system preference forced to
-**light**: the app still renders dark (`--bg #0f1720`, `color-scheme: dark`, sensitivity tiers
-and gain/loss on their dark values), confirming the `prefers-color-scheme` switch is gone rather
-than merely overridden. A contrast sweep of the fully populated workspace returned **0 WCAG AA
-failures, down from 15**, while the Run Valuation surface stayed `rgb(74, 111, 146)` with white
-text at **5.28:1** — every accent surface unchanged. Semantics confirmed live: a `<main>`
-landmark, a visually-hidden DCF `<h1>`, `aria-current="page"` on the active module only, all six
-tables carrying accessible names that resolve (`aria-labelledby` to existing headings, or
-`aria-label` where no heading exists) with **no visible captions added**, and the decorative step
-numerals hidden from assistive technology. Quick and Driver-Based modes both run, the tornado
-renders with its `caution · Negative D&A % (yrs 1-5)` endpoint intact, and the browser console is
-clean throughout.
+Production verification against the live app, Costco demo in Driver-Based mode: the schedule's
+column header reads **History**, and each cell carries **Historical evidence** (full `FY22`
+labels) above **Historical benchmark** (`Median 7.46%` / `Aggregate -3.26%`) with reliability
+right-aligned beside it. Five rows read **Reliable** as quiet muted text and NWC reads
+**Unstable** — once, not twice — with **Not used as starting point** beneath its benchmark. The
+guidance under the NWC row is an inline `<button aria-expanded>` disclosure, collapsed by
+default, expanding to **What happened** / **What to do**; keyboard-verified — focusable,
+toggles its reported state, focus stays on the trigger, and `aria-controls` resolves. No
+floating popover renders anywhere. The Initialize Forecast panel heads its refusals **Not used
+as a starting point** and each note gives only the reason plus *"Review the observations and
+enter your own assumption."* Badges read **History-informed**. Browser console clean.
 
 ## Current Milestone
 
-**UI audit Phase 1 complete. Phase 2 design awaiting approval.** The comprehensive UI audit —
-measured against the deployed app across desktop, mobile, and both colour schemes — is in
-[`docs/UI_AUDIT.md`](docs/UI_AUDIT.md), with findings ranked Fix now / Defer / Informational and
-four agreed implementation phases. **Every phase presents a design for approval before it is
-built, and pauses again for approval before commit, deploy, or moving on.**
+**UI audit Phase 2 complete. Phase 3 design awaiting approval.** The audit
+([`docs/UI_AUDIT.md`](docs/UI_AUDIT.md)) holds the measured findings and the four-phase plan.
+**Every phase presents a design for approval before it is built, and pauses again for approval
+before commit, deploy, or moving on.**
 
-- **Phase 1 — done.** Dark-only, split accent token, semantic accessibility. No calculation,
-  payload, or engine change; no layout or typography change.
-- **Phase 2 — next, design not yet approved.** Driver Schedule clarity: the historical evidence /
-  historical benchmark / reliability hierarchy, the visible "History-informed" terminology
-  (internal `seededFields` and `clearSeed` names preserved), a static reliability badge, and the
-  floating NWC popover replaced by inline expandable guidance.
-- **Phase 3** — stacked mobile Driver Schedule and touch targets.
+- **Phase 1 — done.** Dark-only, split accent token, semantic accessibility.
+- **Phase 2 — done.** Driver Schedule evidence hierarchy, reliability stated on every row, the
+  visible "History-informed" terminology, and the floating NWC popover replaced by inline
+  expandable guidance. Presentation only — no calculation, payload, or state-model change.
+- **Phase 3 — next, design not yet approved.** Stacked mobile Driver Schedule below an
+  evidence-based breakpoint, the mobile Costco disclosure, and undersized touch targets.
 - **Phase 4** — optional type-scale/focus cleanup, to be re-justified before it is built.
 
-Print is **out of scope** for the audit and is not tracked; the existing Print controls and
-README wording are deliberately untouched.
+Print is **out of scope** for the audit and untracked; the existing Print controls and README
+wording are deliberately untouched.
 
 ## Blockers / Frozen Areas
 
@@ -45,6 +41,24 @@ README wording are deliberately untouched.
 
 ## Recently Shipped
 
+- 2026-09-03 — **UI audit Phase 2: Driver Schedule evidence hierarchy and inline NWC guidance.**
+  The evidence cell previously rendered as one undifferentiated run
+  (`’22 3.48 ’23 -10.87 … agg -3.26%UNSTABLE`), where the derived statistic read as another
+  observation and the status collided with the figure. It is now two labelled regions —
+  **Historical evidence** (full `FY22` labels, 10px → 12.5px) and **Historical benchmark**
+  (`Median` / `Aggregate`, retiring `med`/`agg`) — with reliability right-aligned beside the
+  benchmark. Two regions rather than two columns because the table already fills its container
+  exactly at 1440px; verified against the live DOM that the new strings need **no extra column
+  width**. Reliability is now stated on every row including `Reliable`, since a blank meant
+  "assessed and fine" and "not assessed" identically. `Unstable` is said once, with **Not used
+  as starting point** as its consequence, keyed off `driver.seedable` so it can never
+  contradict Initialize Forecast. The floating popover is deleted — the badge is static text and
+  the note row became an inline `<button aria-expanded>` disclosure — removing hand-computed
+  positioning, a flip-height guess, a document-level listener, manual focus return, and a CSS
+  specificity workaround. Visible "Seeded" → **History-informed**; internal `seededFields` /
+  `clearSeed` unchanged. No calculation, payload, or state-model change —
+  [decisions.md](docs/decisions.md#driver-schedule-evidence-hierarchy-and-inline-nwc-guidance) ·
+  [UI_AUDIT.md](docs/UI_AUDIT.md)
 - 2026-09-03 — **UI audit Phase 1: dark-only interface, split accent token, semantic
   accessibility.** A contrast sweep of the populated workspace found **15 WCAG AA failures in
   dark mode against 1 in light** — including the Load Company and Costco Demo buttons that begin
@@ -146,12 +160,11 @@ README wording are deliberately untouched.
 
 ## Next Actions
 
-1. **Present the Phase 2 Driver Schedule design for approval** — one reliable row and the
-   unstable NWC row, the NWC guidance collapsed and expanded, the evidence/benchmark/reliability
-   hierarchy, visible "History-informed" terminology, and full fiscal-year labels. Do not
-   implement before approval.
-2. Then Phase 3 (stacked mobile Driver Schedule, touch targets), each with its own design
-   approval, and Phase 4 only if still justified.
+1. **Present the Phase 3 mobile design for approval** — a 375px stacked per-driver layout
+   covering one complete reliable driver (name, History-informed status, historical evidence,
+   benchmark, reliability, mode controls, all five forecast inputs) and the unstable NWC version
+   with its guidance disclosure. Do not implement before approval.
+2. Then Phase 4 only if a reassessment still justifies it.
 3. Driver-Based modeling follow-ups in [`docs/ROADMAP.md`](docs/ROADMAP.md)'s Later column: the
    two-way **Revenue Growth × EBIT Margin** table, and **Quick DCF FCF-growth sensitivity**.
 4. Real estate: no action planned until the user has the CRE-professional conversation.

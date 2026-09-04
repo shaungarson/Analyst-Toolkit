@@ -1558,3 +1558,69 @@ announced a bare "1" before each section name.
 
 **Print was explicitly excluded** from this milestone and is not tracked as a finding. The
 existing Print controls and README wording are deliberately untouched.
+
+## Driver Schedule evidence hierarchy and inline NWC guidance
+**Status:** Accepted
+
+UI audit Phase 2. Presentation only - no calculation, payload, completeness rule or internal
+state model changed. Measured evidence and the phase plan: [`UI_AUDIT.md`](UI_AUDIT.md).
+
+**The evidence cell became two labelled regions.** It previously rendered as one
+undifferentiated run - `’22 3.48 ’23 -10.87 ’24 -2.10 ’25 -8.41 agg -3.26%UNSTABLE` - in which
+the derived statistic read as a fifth observation and the status collided with the figure. Now:
+**Historical evidence** (full `FY22` labels at 12.5px, up from 10px at 70% opacity) and
+**Historical benchmark** (`Median 7.46%` / `Aggregate -3.26%`, retiring the `med`/`agg` tokens),
+with **Reliability** right-aligned on the benchmark line so it can never abut the number.
+
+**Two regions, not two columns, and no extra width was needed.** At 1440px on the default
+five-year horizon the schedule table already fills its container exactly, so a ninth column
+would force horizontal scrolling in the most common configuration; and the observations and the
+statistic derived from them are one evidence claim, which sibling columns would present as two
+independent facts. Both width risks were tested by substituting the real strings into the live
+DOM first: `FY22` labels cost nothing horizontally (the year sits above its own value, and
+`-10.87` is already wider than any four-character year), and `Aggregate -3.26%` plus the status
+measures 176px in the 199px column.
+
+**Separation is vertical rhythm and one weight step - no hairline, no uppercase micro-caps.**
+The cell was already too dense; the fix could not be more decoration.
+
+**Reliability is now stated on every row, including the healthy case.** A blank previously meant
+"assessed and fine" and "not assessed" identically, which is the one thing a reliability status
+must not do. `Reliable` renders as quiet muted text at normal weight so the exceptions keep the
+visual weight.
+
+**One status word, said once.** The column header is now `History` (the cell labels its own
+first region, and "reference" collided with the workspace's separate Reference Share Price).
+`Unstable` appears once, on the benchmark line; the consequence is a separate caption, **`Not
+used as starting point`**, keyed off `driver.seedable` - the same flag `buildBaseForecast`
+branches on, so the caption can never claim something Initialize Forecast would contradict. The
+refusal notes in `driverHistory.js` say only why the evidence is unreliable and what to do,
+because the plan panel's `Not used as a starting point` heading and the row caption already
+carry the consequence; repeating it inside the note made one fact appear three times on a
+screen.
+
+**The floating popover is gone.** The reliability badge is static text - a status is not also a
+control - and the note row beneath the driver became the disclosure trigger: *"Why this
+benchmark was not used and how to set the assumption"*, expanding inline to **What happened** /
+**What to do**. This deleted the hand-computed fixed positioning, the `ESTIMATED_POPOVER_HEIGHT`
+flip guess, the document-level `mousedown` listener, the manual focus return, and the
+`.driver-history-col .driver-reliability-btn` specificity workaround that existed only because
+the trigger was a `<button>` inside `.feature-page`.
+
+**`<button aria-expanded>` rather than `<details>`/`<summary>`.** Print was excluded from this
+audit, which removed the original justification, so the choice was re-derived: clarity and
+accessibility are a tie and `<details>` is simpler, but this workspace already uses the
+button/region pattern in four places ("How to read this", "Methodology", "Sources", "5-yr
+history"), and a fifth disclosure with different keyboard semantics on the same page is worse
+than the small amount of state kept here.
+
+**Visible terminology: "Seeded" -> "History-informed",** completing one vocabulary with the two
+region labels. Internal names (`seededFields`, `clearSeed`, `seedFormatter`, `.driver-seed-badge`)
+are deliberately unchanged - renaming them would enlarge the diff with no user benefit.
+
+**Three defects were found during implementation, all from the same class of cause:** the
+disclosure trigger rendered as a filled accent pill (`.feature-page button` outranking a bare
+class - the exact trap the retired popover CSS had documented); the region labels inherited the
+numeric column's `text-align: right` and floated away from the left-starting observation grid;
+and `Reliable` inherited bold 700 from an ancestor, which is not the quiet acknowledgement it is
+meant to be. Each was caught by rendering the real component rather than trusting the CSS.
