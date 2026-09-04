@@ -30,6 +30,7 @@ export function explainValuation({
   showReverseResult,
   reverseResult,
   historicalFcfCagr,
+  historicalFcfCagrUnreliable = false,
   fcfGrowthRate,
   forecastYears,
 }) {
@@ -45,7 +46,15 @@ export function explainValuation({
     const impliedPct = reverseResult.implied_fcf_growth_rate * 100
     const analystPct = Number(fcfGrowthRate)
     const analystAvailable = fcfGrowthRate !== '' && Number.isFinite(analystPct)
-    const historicalAvailable = historicalFcfCagr != null
+    // A CAGR computed across endpoints whose working-capital history is unreliable is not a
+    // benchmark this observation may lean on: Coca-Cola's reads -42.4%/yr because FY2025
+    // absorbed $9.27B of working capital, and stating price-implied growth as "130 percentage
+    // points above" it presents a working-capital artifact as the analytical anchor. The line
+    // itself stays visible and qualified in the workspace (see baseYearRepresentativeness.js);
+    // what is dropped is its use here as a comparison. The analyst's own case is unaffected by
+    // working-capital history and still stands, so only this clause is withheld - when it is
+    // the only clause available, the observation is omitted entirely.
+    const historicalAvailable = historicalFcfCagr != null && !historicalFcfCagrUnreliable
 
     if (analystAvailable || historicalAvailable) {
       const parts = []

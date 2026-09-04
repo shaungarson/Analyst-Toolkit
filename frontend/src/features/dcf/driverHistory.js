@@ -24,7 +24,7 @@ export const NWC_MATERIALITY_FLOOR_PCT = 2
 const MIN_OBSERVATIONS = 2
 
 // Exactly this many usable observations still seeds, but says so on the row.
-const THIN_OBSERVATIONS = 2
+export const THIN_OBSERVATIONS = 2
 
 // The book effective tax rate is applied to EBIT as a cash-tax proxy. Where pre-tax income
 // and EBIT diverge materially (net interest), the book rate over pre-tax income is a poorer
@@ -256,6 +256,18 @@ function nwcObservations(periods) {
 //    still shown - never silently backfilled with the latest observation or a zero.
 export { NWC_NET_GROSS_MOVEMENT_FLOOR }
 
+// The Driver-mode call to action appended to an NWC note. Split out from the reason itself so
+// another surface can state why the history was downgraded without also telling the analyst to
+// edit a driver row that only exists in Driver-Based mode - see baseYearRepresentativeness.js.
+// `note` remains exactly the string Driver mode has always rendered.
+const NWC_DRIVER_ACTION = 'Review the observations and enter your own assumption.'
+
+const withReason = (reason, rest, action = NWC_DRIVER_ACTION) => ({
+  ...rest,
+  reason,
+  note: action ? `${reason} ${action}` : reason,
+})
+
 function classifyNwc(observations) {
   if (observations.length < MIN_OBSERVATIONS) {
     return {
@@ -263,10 +275,17 @@ function classifyNwc(observations) {
       referenceStatistic: null,
       reliability: 'insufficient',
       seedable: false,
-      note:
-        observations.length === 0
-          ? 'No usable observations - Δ NWC or a material revenue change is missing from the sourced history.'
-          : 'Only one usable observation - too thin to establish a working-capital run rate. Enter this driver manually.',
+      ...(observations.length === 0
+        ? withReason(
+            'No usable observations - Δ NWC or a material revenue change is missing from the sourced history.',
+            {},
+            null
+          )
+        : withReason(
+            'Only one usable observation - too thin to establish a working-capital run rate.',
+            {},
+            'Enter this driver manually.'
+          )),
     }
   }
 
@@ -286,7 +305,10 @@ function classifyNwc(observations) {
       referenceStatistic: null,
       reliability: 'unstable',
       seedable: false,
-      note: 'Revenue rose in some years and fell in others, so the cumulative revenue change is a residue of larger movements in both directions and an aggregate ratio against it is not meaningful. Review the observations and enter your own assumption.',
+      ...withReason(
+        'Revenue rose in some years and fell in others, so the cumulative revenue change is a residue of larger movements in both directions and an aggregate ratio against it is not meaningful.',
+        {}
+      ),
     }
   }
   if (sumDeltaRevenue === 0 || !Number.isFinite(sumDeltaRevenue)) {
@@ -295,7 +317,7 @@ function classifyNwc(observations) {
       referenceStatistic: null,
       reliability: 'insufficient',
       seedable: false,
-      note: 'Revenue changes over the window net to zero, so an aggregate ratio is undefined.',
+      ...withReason('Revenue changes over the window net to zero, so an aggregate ratio is undefined.', {}, null),
     }
   }
   if (Math.abs(sumDeltaRevenue) < NWC_NET_GROSS_MOVEMENT_FLOOR * grossDeltaRevenue) {
@@ -304,7 +326,10 @@ function classifyNwc(observations) {
       referenceStatistic: null,
       reliability: 'unstable',
       seedable: false,
-      note: `Net cumulative revenue change is only ${((Math.abs(sumDeltaRevenue) / grossDeltaRevenue) * 100).toFixed(0)}% of the gross annual movements, so the aggregate denominator is a small residue and the ratio it produces is not meaningful. Review the observations and enter your own assumption.`,
+      ...withReason(
+        `Net cumulative revenue change is only ${((Math.abs(sumDeltaRevenue) / grossDeltaRevenue) * 100).toFixed(0)}% of the gross annual movements, so the aggregate denominator is a small residue and the ratio it produces is not meaningful.`,
+        {}
+      ),
     }
   }
 
@@ -315,7 +340,7 @@ function classifyNwc(observations) {
       referenceStatistic: null,
       reliability: 'insufficient',
       seedable: false,
-      note: 'The aggregate working-capital ratio is not a finite number.',
+      ...withReason('The aggregate working-capital ratio is not a finite number.', {}, null),
     }
   }
 
@@ -328,7 +353,10 @@ function classifyNwc(observations) {
       referenceStatistic: 'aggregate',
       reliability: 'unstable',
       seedable: false,
-      note: 'History changes sign - working capital was both consumed and released as revenue grew, so no single ratio describes it. Review the observations and enter your own assumption.',
+      ...withReason(
+        'History changes sign - working capital was both consumed and released as revenue grew, so no single ratio describes it.',
+        {}
+      ),
     }
   }
   if (spread > NWC_INSTABILITY_SPREAD_MULTIPLE * Math.abs(aggregate)) {
@@ -337,7 +365,10 @@ function classifyNwc(observations) {
       referenceStatistic: 'aggregate',
       reliability: 'unstable',
       seedable: false,
-      note: `History spans ${spread.toFixed(1)}pp against an aggregate of ${aggregate.toFixed(1)}%, so the aggregate is not representative. Review the observations and enter your own assumption.`,
+      ...withReason(
+        `History spans ${spread.toFixed(1)}pp against an aggregate of ${aggregate.toFixed(1)}%, so the aggregate is not representative.`,
+        {}
+      ),
     }
   }
   return {
@@ -345,10 +376,9 @@ function classifyNwc(observations) {
     referenceStatistic: 'aggregate',
     reliability: observations.length === THIN_OBSERVATIONS ? 'thin' : 'ok',
     seedable: true,
-    note:
-      observations.length === THIN_OBSERVATIONS
-        ? 'Only two usable observations - a thin basis for a working-capital assumption.'
-        : null,
+    ...(observations.length === THIN_OBSERVATIONS
+      ? withReason('Only two usable observations - a thin basis for a working-capital assumption.', {}, null)
+      : { reason: null, note: null }),
   }
 }
 

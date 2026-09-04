@@ -3001,3 +3001,41 @@
     display: none;
   }
 }
+
+/* Base Year UFCF representativeness caution (Quick DCF). Deliberately quieter than a driver
+   warning: this reports a risk that the sourced figure may not be a typical year, never that it
+   is wrong, so it must not read as an error state. Borrows the muted-amber treatment the driver
+   reliability badges already use for "unstable" rather than introducing a third signal colour. */
+.base-year-caution {
+  margin: -0.35rem 0 0.75rem;
+  padding: 0.5rem 0.65rem;
+  border-left: 2px solid var(--flag);
+  background: color-mix(in srgb, var(--flag) 8%, transparent);
+  border-radius: 0 3px 3px 0;
+}
+
+.base-year-caution-label {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--flag);
+  margin-bottom: 0.2rem;
+}
+
+.base-year-caution-text {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--text-h);
+}
+
+.base-year-caution-text--secondary {
+  margin-top: 0.3rem;
+  color: var(--text);
+}
+
+.reverse-dcf-historical-qualified {
+  color: var(--flag);
+}

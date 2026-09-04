@@ -132,6 +132,33 @@ test('diagnostic 1: omitted entirely when both comparisons are unavailable', () 
   assert.equal(obs.length, 2)
 })
 
+test('diagnostic 1: an unreliable historical CAGR is not used as a benchmark', () => {
+  // Coca-Cola's UFCF CAGR reads -42.4%/yr because FY2025 absorbed $9.27B of working capital.
+  // Citing price-implied growth as "130 percentage points above" that presents a
+  // working-capital artifact as the analytical anchor. The analyst's own case does not depend
+  // on working-capital history, so only the historical clause is withheld.
+  const obs = explainValuation({ ...FULL_INPUT, historicalFcfCagrUnreliable: true })
+
+  assert.equal(obs.length, 3)
+  assert.match(obs[0].text, /8\.0%\/yr case/)
+  assert.doesNotMatch(obs[0].text, /historical/)
+})
+
+test('diagnostic 1: omitted entirely when the unreliable CAGR was the only comparison', () => {
+  const obs = explainValuation({
+    ...FULL_INPUT,
+    historicalFcfCagrUnreliable: true,
+    fcfGrowthRate: '',
+  })
+  assert.equal(obs.find((o) => o.id === 'price-implied-growth-gap'), undefined)
+  assert.equal(obs.length, 2)
+})
+
+test('diagnostic 1: a reliable historical CAGR is still used, so the flag is not always-on', () => {
+  const obs = explainValuation({ ...FULL_INPUT, historicalFcfCagrUnreliable: false })
+  assert.match(obs[0].text, /historical UFCF CAGR/)
+})
+
 test('diagnostic 1: omitted when reverse status is target_below_floor', () => {
   const obs = explainValuation({
     ...FULL_INPUT,

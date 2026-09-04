@@ -161,6 +161,15 @@ see [`docs/decisions.md`](docs/decisions.md).*
   and the sensitivity grid's downside/upside relative to the base-case value per share. Each
   observation appears only when its own inputs are current and meaningful — never merely
   repeating an existing output without synthesis.
+- **Base-year representativeness:** the base year a Quick DCF projects from is the company's
+  latest reported unlevered FCF — which is correctly sourced but, because unlevered FCF nets out
+  the change in working capital, is not always a typical year. Where a company's working-capital
+  history is too erratic to say what typical looks like, the workspace says so beside the field:
+  how much working capital the latest year absorbed or released, and why the history couldn't be
+  characterised. It never blocks the run, never substitutes a different number, and never claims
+  the reported figure is wrong — and it disappears the moment the analyst enters their own. The
+  same condition qualifies the historical FCF growth rate shown alongside reverse DCF instead of
+  letting it stand as a benchmark.
 - **Sensitivity analysis:** value per share across a grid of WACC × terminal growth rate
 - **Driver sensitivity (tornado), Driver-Based mode:** the six operating drivers ranked by how
   much value moves when each one is shifted by a standardized ±1 percentage point in every
@@ -259,7 +268,7 @@ Every calculation is a pure, tested function, separate from the API and UI layer
 Every calculation — cap rate, amortization, IRR, equity multiple, DSCR, debt yield, terminal
 value, enterprise value, unlevered FCF construction — is backed by automated tests checked
 against values computed independently by hand, not just "does the code agree with itself."
-265 backend tests and 293 frontend tests total, plus a GitHub Actions CI pipeline that runs
+265 backend tests and 316 frontend tests total, plus a GitHub Actions CI pipeline that runs
 the backend suite and the frontend lint/build checks on every push and pull request.
 
 ## Architecture

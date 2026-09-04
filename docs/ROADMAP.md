@@ -177,6 +177,23 @@ completed items, in the dependency order they were built:
     "SEC D&A: component summation for filers with no combined tag" in
     [`decisions.md`](decisions.md) and [`MODELING_CONVENTIONS.md`](MODELING_CONVENTIONS.md).
 
+16. ~~**Base-year representativeness in Quick DCF.**~~ **Done (2026-09-04).** Found by the bounded
+    product-readiness review, which was meant to rank the next feature and found a defect on the
+    default path instead: Quick DCF seeded Base Year UFCF from the latest reported year with no
+    signal about whether that year was typical, and Coca-Cola returned $6.65/share with a −90.5%
+    implied downside and 87.9%/yr price-implied growth, all rendered confidently. Caution-only:
+    the latest reported UFCF stays the sourced starting value and keeps its `Sourced` badge, and
+    where the company's working-capital history is unreliable — the same verdict Driver mode
+    already uses — a caution names the latest ΔNWC as an investment or release and states the
+    engine's own reason, while the historical UFCF CAGR stays visible with a qualification and
+    Explain This Valuation stops using it as a benchmark. Nothing blocked, substituted or
+    recomputed; no normalized value offered, both a median-dollar and a scale-aware margin
+    benchmark having been tested and rejected. The trigger is a proxy that under-fires by design:
+    it flags Costco, Coca-Cola and Microsoft and stays silent on NVIDIA, whose $65B
+    working-capital build accompanies 65% revenue growth. See "Base-year representativeness in
+    Quick DCF" in [`decisions.md`](decisions.md) and
+    [`MODELING_CONVENTIONS.md`](MODELING_CONVENTIONS.md).
+
 ## Later
 
 - **Alpha Vantage retest (operational follow-up, not a milestone).** **Retested 2026-09-04

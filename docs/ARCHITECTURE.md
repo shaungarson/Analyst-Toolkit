@@ -325,6 +325,38 @@ sensitivity-grid rendering all pick up Driver mode with zero Driver-specific bra
 `docs/decisions.md`'s "Driver-Based DCF (v1)" record for the full design history, including
 the deltas made during three rounds of review.
 
+## Base-year representativeness (Quick DCF)
+
+`frontend/src/features/dcf/baseYearRepresentativeness.js` — a pure module that answers a
+question the workspace previously left silent: is the sourced Base Year UFCF a *typical* year to
+project from? Quick DCF seeds it from the latest reported year, and unlevered FCF subtracts
+ΔNWC, a difference of two balance-sheet stocks that can swing far harder than the business.
+
+**The trigger reuses Driver mode's existing working-capital verdict** (`driverHistory.js`'s
+`nwcInvestmentPct.reliability`) rather than introducing a second statistic — that verdict is
+already computed for every loaded company, already validated, and already carries a stated
+reason. `driverHistory.js` now exposes that reason as `reason` alongside the composed `note`, so
+Quick DCF can state why the history was downgraded without also repeating the Driver-mode
+instruction to edit a row that does not exist in Quick mode; `note` is unchanged.
+
+Two surfaces, one trigger. The **Base Year UFCF caution** additionally requires the field to
+still hold its sourced value (`badgeType === 'sourced'`): once the analyst edits it, a warning
+aimed at the automatic seed no longer describes what is in the box. The **historical UFCF CAGR
+qualification** is not badge-gated — it describes the history itself — and its wording is
+tier-aware (`unstable` / `thin` / `insufficient` each say what they actually mean, sharing one
+consequence clause). Under the same condition `explainValuation.js` receives
+`historicalFcfCagrUnreliable` and drops its price-implied-growth-versus-historical clause while
+keeping the analyst-case clause. That flag and the caution both key off `nwcEvidenceIsUnreliable`
+rather than off the qualification string, so a verdict with no wording tier still withholds the
+benchmark.
+
+Nothing is blocked, substituted or recomputed, no engine or payload changed, and no normalized
+replacement value is offered — see the decision record for why both a median-dollar and a
+scale-aware margin benchmark were tested and rejected. The trigger is a **proxy** and
+under-fires by design: it measures the dispersion of the ΔNWC/Δrevenue ratio, not whether any
+one year is representative. Measured live, it flags Costco, Coca-Cola and Microsoft and stays
+silent on NVIDIA, whose $65B working-capital build accompanies 65% revenue growth.
+
 ## Explain This Valuation
 
 `frontend/src/features/dcf/explainValuation.js` - a pure function returning up to three

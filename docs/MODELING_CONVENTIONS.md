@@ -83,6 +83,18 @@ Every calculation named here is a pure, independently tested function — see
   is preserved.
 - **Debt (sourced data):** sum of recognized, non-overlapping, interest-bearing components
   (including finance leases; never operating leases).
+- **Base-year representativeness (Quick DCF, sourced data):** the latest reported UFCF remains
+  the sourced starting value and keeps its `Sourced` badge — provenance and representativeness
+  are separate axes. Where the company's working-capital history is unreliable (the same
+  classification Driver mode uses to decide whether the NWC driver may be seeded), a caution
+  beside Base Year UFCF names the latest ΔNWC as a working-capital investment or release and
+  states why the history was downgraded, and the historical UFCF CAGR carries a concise
+  qualification whose wording matches the verdict found — unstable history, limited evidence from
+  only two usable observations, or history too limited to assess. Evidence of *possible* representativeness risk, never a claim that the reported
+  figure is wrong: nothing is blocked, substituted, or recomputed, and no normalized alternative
+  is offered. The caution applies only while the field still holds its sourced value. The trigger
+  is a proxy for dispersion in working-capital behaviour and under-fires by design — see
+  `decisions.md`'s "Base-year representativeness in Quick DCF" record.
 - **Per-value provenance (sourced data):** every historical field carries a status —
   `reported` (one direct SEC fact), `combined` (summed from more than one SEC fact),
   `calculated` (derived by formula from other resolved fields, e.g. effective tax rate, ΔNWC,

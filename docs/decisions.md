@@ -2177,3 +2177,95 @@ The historical loss-year question is **related to but distinct from forecast NOL
 year; the second is about Driver mode's forward `max(EBIT, 0) x rate` convention giving a
 forecast loss year no benefit against a later profitable one. Different inputs, different
 surfaces, and each needs its own decision — they are not one milestone.
+
+
+## Base-year representativeness in Quick DCF
+**Status:** Accepted
+
+Found by the bounded DCF product-readiness review, which was meant to rank the next *feature*
+and found a defect on the default path instead.
+
+**The defect.** Quick DCF seeds Base Year UFCF from the latest reported year, unnormalized and
+badged `SOURCED`, with no signal about whether that year is typical. Unlevered FCF subtracts
+ΔNWC — a difference of two balance-sheet stocks — so the latest year routinely is not a run
+rate. Measured live on the deployed app, Coca-Cola returned **$6.65/share**, an **Implied
+Downside of −90.5%** against a manually entered $70, and **87.9%/yr price-implied FCF growth**,
+with the sensitivity grid, PV composition, value bridge and Explain This Valuation all rendered
+confidently around it. KO's FY2025 ΔNWC was $9.27B on $47.9B of revenue — displayed two panels
+above, unremarked. Nothing in the engine is wrong; the workspace simply never said whether the
+starting figure was usable.
+
+**The asymmetry that made the fix cheap.** Driver mode already applies medians, reliability
+grading, period exclusion with stated reasons, and outright refusal to seed an unstable driver —
+on the same company, same data, same session. Quick mode applied none of that to the one number
+it seeds. So the trigger reuses Driver mode's existing working-capital verdict rather than
+inventing a second statistic.
+
+**What ships.** One trigger, two surfaces:
+
+- A caution beside Base Year UFCF naming the latest ΔNWC as a working-capital **investment**
+  (cash consumed) or **release** (cash freed), plus the engine's own reason for the downgrade,
+  plus an explicit line that the reported figure is correct as sourced.
+- The historical UFCF CAGR stays visible and gains a concise qualification, and
+  `explainValuation.js` drops its price-implied-growth-versus-historical clause — keeping the
+  analyst-case clause, which does not depend on working-capital history.
+
+**The qualification is tier-aware, because "unreliable" was accurate for only one of the three
+verdicts it covers.** A `thin` history is genuinely usable — Driver mode will seed a driver from
+it — and it is the narrowness of the evidence that limits it; `insufficient` is an *absence* of
+evidence rather than evidence that misleads. Only `unstable` says the history does not hold
+together. So: *unstable* → "Working-capital history is unstable for this company"; *thin* → "Only
+two usable working-capital observations provide limited evidence"; *insufficient* →
+"Working-capital history is too limited to assess". One shared consequence clause follows all
+three, so only the lead varies. The caution and the Explain This Valuation suppression key off
+the non-`ok` test itself rather than off this copy, so an unrecognised future tier still withholds
+the benchmark instead of inventing wording for it.
+
+**The `SOURCED` badge is untouched.** Provenance and representativeness are different axes:
+where the figure came from is not a claim about whether it is typical. But the caution *is*
+gated on the badge still reading `sourced` — once the analyst edits the field it is their
+figure, and a warning aimed at the automatic seed no longer describes what is in the box.
+
+**Three corrections during scoping, all before implementation.**
+
+1. *Median-of-five UFCF dollars is not the normalized truth,* and differences against it are not
+   "errors" — the framing the review originally used. Absolute historical dollars ignore growth
+   and scale. NVIDIA's UFCF ran $8.3B → $42.5B while revenue ran $27B → $216B; its median is a
+   stale-scale number, not a better estimate.
+2. *A scale-aware benchmark was tested and rejected.* Median historical UFCF **margin** × latest
+   revenue fixes scale but relocates the dispersion into the margin: 10.6–32.3% across five
+   years for Microsoft, 10.9–45.5% for NVIDIA. It would assert an **$87B** benchmark against
+   Microsoft's **$35B** actual during a disclosed capex regime change (12% → 34.9% of revenue) —
+   contradicting current reality rather than normalizing it. The app also has no reliability
+   machinery for UFCF margin; that exists only for the six drivers. **No normalized value and no
+   one-click adoption ship.**
+3. *UFCF CAGR diverging from revenue CAGR is not evidence of a working-capital artifact.* An
+   earlier draft proposed inferring one from that gap. Divergence has legitimate causes; the
+   inference would have been a heuristic dressed as evidence — the failure mode `CLAUDE.md` §6
+   names. The trigger is the NWC verdict, and only that.
+
+**The trigger is a proxy, and under-fires by design.** NWC reliability measures the dispersion
+of the ΔNWC/Δrevenue ratio across years, not whether any single year is representative: a one-off
+distortion inside an otherwise stable history is not caught. That limit is stated in the module
+rather than implied away. **NVIDIA is the discriminating case** — its latest year carries a
+$64.97B working-capital build, the largest here in dollars, and is deliberately *not* flagged,
+because that build accompanies 65% revenue growth and its history is consistent enough to
+characterise. A trigger that fired on NVIDIA too would be reacting to size rather than to
+representativeness.
+
+**The Costco demo now carries a caution** (its ΔNWC is a $1.75B *release*, and its
+working-capital history changes sign). This was raised before approval and accepted: the demo is
+the first thing a visitor sees, and showing the app declining to assume a figure is typical
+reads as rigor rather than as a defect.
+
+**Live-verified on real companies**, in addition to the pinned tests: COST, KO and MSFT
+cautioned with their own reasons and their own ΔNWC direction; NVDA not cautioned, CAGR
+unqualified, and its price-implied-growth-versus-historical comparison (50.9% vs 50.5%)
+correctly retained. Live verification also caught the one real defect: the
+`historicalFcfCagrUnreliable` flag was not actually wired into the `explainValuation` call — the
+unit tests passed because the flag itself worked, and only the running app showed the
+observation still citing the unreliable CAGR.
+
+**Out of scope and unchanged:** the valuation engine, every payload, `SOURCED` semantics,
+blocking, auto-substitution, Driver-mode behaviour, provenance, scenarios, and the Quick-mode
+book-tax-rate caution.

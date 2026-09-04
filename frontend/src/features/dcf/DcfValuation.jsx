@@ -39,6 +39,11 @@ import {
 } from './driverSchedule'
 import { driverHistory, formatSeedValue, referenceBasisLabel } from './driverHistory'
 import {
+  baseYearCaution,
+  historicalCagrQualification,
+  nwcEvidenceIsUnreliable,
+} from './baseYearRepresentativeness'
+import {
   COSTCO_CASES,
   COSTCO_COMPANY_DATA,
   COSTCO_DRIVER_BASE_CASE,
@@ -657,6 +662,17 @@ function DcfValuation() {
   // loaded. Pure - it reads the periods already in state and never fetches or projects
   // anything; the backend remains the only place a schedule becomes cash flows.
   const history = useMemo(() => driverHistory(companyData), [companyData])
+
+  // Representativeness of the sourced Base Year UFCF, and of the historical UFCF CAGR built
+  // from the same periods. Both read Driver mode's existing working-capital verdict rather than
+  // introducing a second statistic; neither disputes the reported figure. See
+  // baseYearRepresentativeness.js for why this trigger, and what it deliberately does not do.
+  const baseYearRepresentativeness = baseYearCaution({
+    history,
+    latestPeriod: companyData?.periods?.[0],
+    badgeType: fieldBadgeType('baseYearFcf'),
+  })
+  const cagrQualification = historicalCagrQualification(history)
 
   const yearLabels = forecastYearLabels(companyData, driverForm.driverYears.length)
 
@@ -1309,6 +1325,10 @@ function DcfValuation() {
     showReverseResult,
     reverseResult,
     historicalFcfCagr,
+    // Keyed off the evidence itself, not off whether the qualification produced copy: every
+    // non-`ok` verdict withholds this benchmark, including one whose wording tier is not
+    // recognised. The CAGR stays visible either way; only its use as a comparison is dropped.
+    historicalFcfCagrUnreliable: nwcEvidenceIsUnreliable(history),
     fcfGrowthRate: form.fcfGrowthRate,
     forecastYears: form.forecastYears,
   })
@@ -1428,6 +1448,19 @@ function DcfValuation() {
                       formatter={compactCurrency}
                     />
                   </label>
+                  {baseYearRepresentativeness && (
+                    <div className="base-year-caution" role="note">
+                      <span className="base-year-caution-label">Representativeness</span>
+                      <p className="base-year-caution-text">
+                        {baseYearRepresentativeness.headline}{' '}
+                        {baseYearRepresentativeness.reason}
+                      </p>
+                      <p className="base-year-caution-text base-year-caution-text--secondary">
+                        The reported figure is correct as sourced — this is about whether it is a
+                        typical year to project from, not whether it is right.
+                      </p>
+                    </div>
+                  )}
                   <label className="field-row">
                     <span className="field-row-head">
                       <span className="field-row-label">FCF Growth Rate (%/yr)</span>
@@ -1803,6 +1836,9 @@ function DcfValuation() {
                         {' '}
                         (revenue CAGR over the same span: {percent(historicalRevenueCagr.cagr)})
                       </span>
+                    )}
+                    {historicalFcfCagr && cagrQualification && (
+                      <span className="reverse-dcf-historical-qualified"> {cagrQualification}</span>
                     )}
                   </p>
                 </>

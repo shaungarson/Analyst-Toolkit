@@ -1,20 +1,21 @@
 # Analyst Toolkit — Progress
 
-**Last verified:** 2026-09-04 (SEC D&A component summation — committed `1338e38`, CI run #43
-green, deployed and production-verified). 265 backend and 293 frontend tests green, lint and
-production build clean.
+**Last verified:** 2026-09-04 (Base-year representativeness — local verification complete;
+not yet committed, deployed or production-verified. The SEC D&A milestone before it was committed
+`1338e38`, CI run #43 green, deployed and production-verified). 265 backend and 316 frontend tests
+green, lint and production build clean.
 
-Production verification, for reference: **MSFT is now 5/5 unlevered FCF, was 0/5** — D&A
-$39,000M at FY2026, `combined` status naming both component tags, matching the local measurement
-exactly. **INTC** returns five D&A years but stays **1/5** UFCF, blocked by a FY2021–23 cash gap
-and a FY2024 loss-year tax rate, both out of scope. **GOOGL and TSLA return `null` D&A in every
-period** — the corrected refusal, not a regression. Combined-tag controls (COST, NVDA) are
-untouched: `reported`, 5/5.
+Live-verified against real companies on a local build: **COST (demo), KO and MSFT cautioned**,
+each with its own reason and its own ΔNWC direction — Costco a **$1.75B release**, KO a **$9.27B
+investment**, MSFT a **$12.92B investment**. **NVDA not cautioned**, its CAGR unqualified, and its
+price-implied-growth-versus-historical comparison (50.9% vs 50.5%) correctly retained. The caution
+clears and the badge flips to `ADJUSTED` the moment the base year is edited.
 
 ## Current Milestone
 
-**None in progress.** SEC D&A component summation is complete, deployed and
-production-verified (see Recently Shipped).
+**Base-year representativeness — code complete, awaiting review and deploy.** Caution-only, as
+scoped: no normalized value, no adoption action, no blocking, no engine change. Found by the
+bounded product-readiness review (see Recently Shipped).
 
 ## Blockers / Frozen Areas
 
@@ -23,47 +24,48 @@ production-verified (see Recently Shipped).
 
 ## Recently Shipped
 
+- 2026-09-04 — **Base-year representativeness in Quick DCF.** The bounded product-readiness
+  review was meant to rank the next feature and found a defect on the default path instead: Quick
+  DCF seeded Base Year UFCF from the latest reported year, unnormalized and badged `SOURCED`, with
+  no signal about whether that year was typical. Live on the deployed app, **Coca-Cola returned
+  $6.65/share, a −90.5% implied downside, and 87.9%/yr price-implied growth**, with the
+  sensitivity grid, PV composition, bridge and Explain This Valuation all rendered confidently
+  around it — while KO's $9.27B ΔNWC sat displayed two panels above, unremarked. Nothing in the
+  engine was wrong; the workspace never said whether the starting figure was usable.
+
+  **The fix reuses Driver mode's own working-capital verdict rather than inventing a second
+  statistic** — Driver mode already applied medians, reliability grading and outright refusal to
+  the same company, same data, same session. One trigger, two surfaces: a caution beside Base
+  Year UFCF naming the latest ΔNWC as a working-capital **investment** or **release** plus the
+  engine's stated reason, and a qualification on the historical UFCF CAGR that also stops Explain
+  This Valuation using it as a benchmark (the analyst-case clause, which does not depend on
+  working-capital history, is kept). **`SOURCED` is untouched** — provenance and representativeness
+  are different axes — but the caution is gated on the field still holding its sourced value.
+
+  **Three corrections landed during scoping, all before implementation:** median-of-five UFCF
+  dollars is not the normalized truth and differences against it are not "errors"; a scale-aware
+  benchmark (median UFCF margin × latest revenue) was tested and **rejected** — it would assert
+  $87B against Microsoft's $35B actual during a disclosed capex regime change; and inferring a
+  working-capital artifact from UFCF-vs-revenue CAGR divergence was dropped as a heuristic dressed
+  as evidence. **No normalized value ships.** The trigger is a proxy that under-fires by design,
+  stated as such in the module. Live verification caught the one real defect — the suppression
+  flag was never wired into the `explainValuation` call, which the unit tests could not see —
+  [decisions.md](docs/decisions.md#base-year-representativeness-in-quick-dcf)
+
 - 2026-09-04 — **SEC D&A: component summation for filers with no combined tag.** Four basket
   filers — MSFT, GOOGL, TSLA, INTC — report **no** combined cash-flow D&A tag at any period, so
   D&A and therefore unlevered FCF were `None` for all five years. A combined fact is now always
   preferred (**a correctness rule, not ordering**: where both exist, components do not reproduce
-  it — Ford 0.49×, Amazon 0.65×, Home Depot 1.16×), and only a period without one falls back to
-  an explicit two-component sum with **both components required in every period**, gated at
-  filer level.
-
-  **Two admitted, two refused — and the refusals are the substance.** A first version made
-  amortization *optional* and returned depreciation-only figures for Alphabet and Tesla. That was
-  wrong and was corrected before commit. "Optional" is arithmetically identical to **assuming
-  zero** for a filer that does not tag the concept — the same silent-substitution failure mode as
-  the J&J staleness defect, reached by a different route. Alphabet reports
-  `AmortizationOfIntangibleAssets` **only on 10-Qs**, never annually, while its 10-Ks disclose
-  accumulated amortization of finite-lived intangibles: it *has* amortization, so its
-  depreciation line is not its D&A and the "exact match" supported only that line. Tesla's
-  residual was attributed to impairment; its filing reports **no material impairments**, and the
-  gap is **systematic** — −18.2%, −23.2%, −28.6%, −35.4%, −32.6% across FY2025–FY2021 — including
-  the single year it tags both components. Both now return `None`.
-
-  **Validating only the latest year is what let that through**; all displayed years are now
-  checked, which is also what exposed Microsoft's deviation as **two-sided**, not conservative —
-  its latest component sum *exceeds* its filed aggregate, and Microsoft restated that line
-  between filings (FY2025 34,153 → 29,433).
-
-  **The fallback is an explicit allowlist keyed by SEC CIK, not a rule the module infers.** A
-  second correction replaced a structural completeness gate that would have admitted *any*
-  unexamined filer tagging both components — necessary but not sufficient evidence, and a live
-  ticker cannot be reconciled after the app has already served its number. A filer is added only
-  after hand reconciliation against its own filed statements in every displayed year: currently
-  **MSFT and INTC**. Resolution is per period, so a gap in the extra period fetched solely for
-  the prior-year NWC balance cannot erase D&A from the five displayed years — a defect the
-  window-based gate had, now pinned by a test. Slots stay explicit, never a name pattern: finance-lease ROU amortization (**a verified 15%
-  double-count at Microsoft**), financing-cost amortization, securities amortized cost,
-  forward-looking future-amortization disclosures, and an Intel OCI **pension** line matching
-  only on "unamortized" — on a filer the gate admits. Measured, not projected: **complete 6 → 7**
-  (+MSFT), partial 4 → 5 (+INTC at 1/5), none 7 → 5. Five fixtures cut from real filings, 51 KB;
-  no network-dependent CI tests. Committed `1338e38`, CI run #43 green, deployed and
-  production-verified (see Last verified above) —
+  it — Ford 0.49×, Amazon 0.65×, Home Depot 1.16×), and only a period without one falls back to a
+  two-component sum available solely to filers on an **explicit allowlist keyed by SEC CIK**,
+  added after hand reconciliation against their own filed statements in every displayed year —
+  currently MSFT and INTC. **Alphabet and Tesla were examined and refused**, and two earlier
+  drafts were corrected before commit: the first made amortization *optional* (arithmetically
+  identical to assuming zero), the second admitted any filer tagging both components on
+  structural evidence its own docs called insufficient. Measured coverage: **complete 6 → 7**,
+  partial 4 → 5, none 7 → 5. Committed `1338e38`, CI run #43 green, deployed and
+  production-verified —
   [decisions.md](docs/decisions.md#sec-da-component-summation-for-filers-with-no-combined-tag)
-
 - 2026-09-04 — **Analysis Outputs: progressive disclosure.** Presentation only, DCF Sensitivity
   & Bridge tab. The tab-level "How to read this" legend is gone (it explained three different
   outputs at once and pointed at the wrong one first); each output now carries a concise
@@ -150,26 +152,29 @@ Older entries (2026-08-31 → 2026-09-02) moved out of current state — see
 
 ## Next Actions
 
-1. **Resume the paused DCF product-readiness review** using real-company archetypes. It was
-   paused when the pre-flight found the data layer could only load the archetype it was validated
-   on; complete SEC-only coverage is now **7** of 17 rather than 3. The modelling questions it was
-   meant to rank are unchanged: scenario workflow, terminal-year normalization, NOL handling, a
-   professional summary artifact, or no further DCF feature.
-2. **Alpha Vantage — retest on a later date.** Retested 2026-09-04 against production: still no
-   `market_data_provider` and no `reference_price`, while SEC fundamentals resolved normally.
-   That retest fell on the *same day* as the 15-ticker probe that most likely exhausted the
-   25/day cap, so it neither confirms nor refutes quota exhaustion. Gates nothing, but with no AV
-   there is no reference price for any live ticker, which removes Implied Upside/Downside and
-   Reverse DCF outside the Costco demo.
-3. Out of scope from the coverage work, each needing its own decision: extension-tag ingestion
+1. **Review, commit and deploy base-year representativeness**, then verify on the deployed build:
+   COST/KO/MSFT cautioned, NVDA not.
+2. **DCF Professional Summary** — the readiness review's top-ranked item of the six considered,
+   and the one structural gap against real estate, which has `RealEstateDealSummary.jsx` while DCF
+   has no equivalent. Deliberately sequenced after the above: a summary makes a valuation
+   shareable, and shipping one before the base year carried a representativeness statement would
+   have propagated the defect rather than contained it.
+3. **Then reassess further DCF work.** The readiness review ranked the remaining candidates:
+   historical loss-year effective tax rate (5 tickers), terminal-year normalization (methodology
+   sophistication rather than workflow improvement), another data-coverage milestone (diminishing).
+   Scenario/case management was found to be **already built** — save, load, duplicate, compare,
+   driver schedules included, Quick/Driver mixing guarded.
+4. **Alpha Vantage — retest on a later date.** Still no `market_data_provider` and no
+   `reference_price` as of 2026-09-04, while SEC fundamentals resolve normally. Reference-price
+   features were evaluated with a manually entered dated price and behaved correctly, so this is a
+   data-source outage rather than a product-design question.
+5. Out of scope from the coverage work, each needing its own decision: extension-tag ingestion
    (the only route to Microsoft's and Tesla's own D&A lines, and to Alphabet's and Tesla's
-   coverage), **historical loss-year effective tax rate** (AMZN, T, MU, BA, INTC FY2024) — the
-   highest-count remaining coverage blocker at five tickers, and distinct from forecast NOL
-   carryforwards in `docs/ROADMAP.md`'s Later list: one derives a tax rate for a reported loss
-   year, the other is Driver mode's forward `max(EBIT, 0) x rate` convention — restricted-cash /
+   coverage), **historical loss-year effective tax rate** (AMZN, T, MU, BA, INTC FY2024) —
+   distinct from forecast NOL carryforwards in `docs/ROADMAP.md`'s Later list — restricted-cash /
    short-term-investment mapping (PG, INTC FY2021–23), derived EBIT (JNJ), segment-dimensioned
    debt (F).
-4. Real estate: no action planned until the user has the CRE-professional conversation.
+6. Real estate: no action planned until the user has the CRE-professional conversation.
 
 ## See Also
 
