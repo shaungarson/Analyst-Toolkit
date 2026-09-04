@@ -1638,6 +1638,84 @@ surface changes the shape of that measurement.
 - **Extending it to Quick DCF.** EBIT margin does not exist there. Quick's flat FCF growth rate
   still has no sensitivity treatment of its own, and remains parked in `ROADMAP.md`'s Later.
 
+## DCF traceability: history-to-forecast continuity and PV composition
+**Status:** Accepted
+
+One milestone framed around a single user outcome — history → forecast → present value →
+enterprise value — rather than around the bar geometry the two charts happen to share. That
+framing was a correction: the first proposal led with the shared implementation, which is the
+weakest possible justification for a milestone's shape and inconsistent with this project's own
+stance against abstraction-driven design. Full methodology: `MODELING_CONVENTIONS.md`.
+
+**Both charts are frontend-only.** Every figure already comes back in the valuation response —
+`forecast[].present_value`, `pv_terminal_value`, `enterprise_value`, and the sourced `periods`
+already on `companyData`. No engine change, no new endpoint, no payload change.
+
+**Terminal value's contribution is now one rule across the app.** Explain This Valuation
+previously suppressed any share outside `[0, 1]`, with a code comment calling it "arithmetically
+real but confusing." That hid exactly the case the composition chart exists to surface, and one
+number cannot have two rules in one app. The rule now lives in `valueComposition.js` and both
+consumers read it: report a contribution whenever enterprise value is finite and positive,
+including above 100% or below 0%; claim no percentage at all where enterprise value is zero,
+negative or non-finite. Wording moved to *contributes*, because "the remaining X%" is false as
+soon as a contribution goes negative. This changed shipped behaviour and was approved
+explicitly rather than folded in silently.
+
+**The aggregate uses `enterprise_value − pv_terminal_value`, not the sum of the rows.** The
+backend rounds each forecast row's `present_value` and `enterprise_value` independently, so
+summing rows can miss enterprise value by cents and the two contributions would not reconcile
+to 100%. Subtraction makes it exact by construction. Caught in design review, before
+implementation.
+
+**Two readings on two scales, and deliberately not a clamped 100% stack.** Terminal value is
+routinely 70–90% of enterprise value, so a shared scale flattens the annual bars into slivers
+and destroys the only thing this adds over the existing observation. A conventional stack is
+worse still: it can only draw two same-signed parts summing to the whole, so a −18% / 118% case
+would have to be clipped or rescaled — a picture that is not the number. The axis spans the
+signed range actually present. Verified live on a forced case: at −17% / 117% the zero line
+renders at 12.66% of a −17…117 axis, the negative segment left of it and the positive segment
+right, nothing clamped.
+
+**The continuity gate is one reported observation, not two.** An earlier draft borrowed the
+historical trend charts' two-period minimum. That threshold belongs to a *trend*, which needs
+two points to have one; a handoff needs only a point to hand off from. Corrected before
+implementation, and the two metrics gate independently — a company can report revenue for a
+period whose unlevered FCF could not be constructed.
+
+**Values are visible text, not only an accessible label.** A first draft put exact figures in
+`aria-label` and `title` only. That satisfies assistive technology and fails sighted users, who
+would have to hover. Each chart now carries a value strip: the label and the amount as real
+text under each bar.
+
+That requirement then produced the milestone's one genuine defect, caught by measurement rather
+than by eye. At 320px a ten-point continuity series collided on **19 of 20 labels with four
+pushed out of bounds** — the without-hover channel was unreadable on a phone. Fixed by scrolling
+the plot and its strip together inside a container with a minimum width per point below 720px,
+the same treatment every wide table here already uses. Re-measured: **zero collisions per
+metric**, 9–14px minimum gaps, and the worst case (five reported years against a fifteen-year
+forecast, twenty points) gives a 960px track that pans inside a 320px viewport with no page
+overflow. Print forces the container back to `overflow: visible` so nothing is ever clipped on
+paper — a truncated chart is worse than a cramped one, because a reader cannot tell truncated
+data from absent data, and the Forecast & Discounting table below prints every figure anyway.
+
+**Nominal on both sides of the continuity chart**, deliberately. The question is whether the
+forecast continues the history, and history is nominal; discounting is the composition chart's
+question. Charting discounted forecast values against nominal actuals would make a flat forecast
+appear to decay.
+
+**Geometry extraction stayed narrow.** `slotPercents`, `signedDomain`, `baselinePercent` and
+`barStyle` moved out of `HistoricalTrendCharts.jsx` into `barGeometry.js` once a third consumer
+existed — four pure functions about positioning a bar against a zero line. Scales, labels, tone
+classes and what a bar means stay with each chart. Still no charting layer and still no library,
+consistent with the standing note in `driverTornado.js`.
+
+**Rejected in scope:**
+
+- **A UFCF build-up waterfall** (NOPAT → D&A → CapEx → ΔNWC) — a third chart answering a
+  different question, not part of this outcome.
+- **Any charting library**, and any interaction that adopts a charted value back into the
+  inputs — the latter already excluded from the tornado milestone.
+
 ## Dark-only interface, and a split accent token
 **Status:** Accepted
 

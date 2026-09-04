@@ -640,6 +640,72 @@ attached to the cell it belongs to.
 A negative EBIT margin is **not** itself something this engine warns about — only a resulting
 condition, such as a non-positive final-year UFCF, raises a warning of its own.
 
+### DCF traceability: reported history to forecast, and where enterprise value comes from
+
+Two presentation-only views over figures the valuation response already returns. No engine,
+payload or methodology change; both are frontend-only.
+
+**Reported history to forecast.** Reported actuals and the analyst's forecast on one axis, so
+a forecast that breaks from the company's own history is visible rather than inferred. Both
+sides are **nominal** — deliberately not discounted, because the question is whether the
+forecast continues the history, and history is nominal. Discounting is the composition view's
+question, and mixing the two would make a flat forecast look like it decays.
+
+Unlevered FCF is charted in **both** forecast modes — the only metric that exists on both
+sides in both, since Quick DCF projects FCF directly and carries no revenue at all. Revenue is
+added in **Driver mode only**, where the projection builds it explicitly.
+
+**Each metric is gated on its own usable data: one reported observation plus one forecast
+value.** Not two observations — the two-period minimum belongs to the historical trend
+mini-charts, which draw a *trend* and need two points to have one, whereas a handoff needs
+only a point to hand off from. The two metrics gate independently, because a company can
+report revenue for a period whose unlevered FCF could not be constructed from the filing. A
+period missing the metric is dropped rather than carried as a null, so a gap can never push
+the reported/forecast boundary around.
+
+**Where enterprise value comes from.** Two readings on two scales, never one. Terminal value
+is routinely 70–90% of enterprise value, so drawn on a shared scale the annual bars collapse
+into slivers and the annual breakdown — the only thing this adds over the existing
+terminal-value observation — becomes decorative. The same reasoning the historical trend
+charts already apply to Revenue against Unlevered FCF.
+
+1. **Annual present values**, on their own signed scale.
+2. **The aggregate contribution to enterprise value**, on a signed axis.
+
+Reading 2 is **not a clamped 100% stack**. A stack can only draw two same-signed parts summing
+to the whole, so a −18% / 118% case would have to be clipped or rescaled — drawing a picture
+that is not the number. The axis spans the signed range actually present and each segment runs
+from the zero line in the direction of its own sign, so a mixed-sign case looks mixed.
+
+**The aggregate explicit contribution is `enterprise_value − pv_terminal_value`, never the sum
+of the per-year present values.** The backend rounds each forecast row's `present_value` and
+`enterprise_value` independently from the unrounded figures, so summing the rows can miss
+enterprise value by a few cents and the two contributions would not reconcile to exactly 100%.
+Deriving it by subtraction from the same two rounded numbers the rest of the UI shows makes
+the reconciliation exact by construction. The per-year rows remain what the annual bars plot —
+they are the detail, not the total.
+
+### Terminal value's contribution to enterprise value: one rule
+
+A percentage contribution is reported whenever enterprise value is **finite and strictly
+positive** — *including* contributions **above 100% or below 0%**, which are real whenever the
+explicit period's own present value is negative. A reinvestment-heavy forecast reaches this
+with every driver in a normal range. Where enterprise value is zero, negative or non-finite,
+**no percentage is claimed at all**: a share of nothing is not a smaller share, and a share of
+a negative denominator inverts the intuitive reading rather than describing it. The dollar
+components are still stated in that case; only the proportion is withheld.
+
+**Contribution language, not "the remaining X%."** At 118% terminal and −18% explicit, "the
+remaining" is false. Both halves are stated as contributions, which stays true across the whole
+sign range: *"Terminal value contributes 118% of enterprise value; the explicit 5-year forecast
+period contributes −18%."*
+
+This supersedes the narrower rule Explain This Valuation previously applied, which suppressed
+any share outside `[0, 1]` as confusing. That hid a real and informative case — precisely the
+one the composition view exists to surface. The rule now lives in one module and both the chart
+and the observation read it from there, so the two cannot state different things about the same
+number.
+
 ## Shared conventions
 
 - **Scenario comparison** recalculates every scenario from its saved *inputs* at view time,

@@ -1,3 +1,5 @@
+import { valueContribution } from './valueComposition.js'
+
 const dollarsPerShare = (v) => v.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 
 // A signed percentage-point gap as a full predicate clause ("is X.X percentage points
@@ -66,30 +68,32 @@ export function explainValuation({
     }
   }
 
-  // 2. Terminal value's share of enterprise value - states only what the ratio actually
-  // supports (where the value comes from), never a sensitivity claim the ratio alone can't
-  // prove. Omitted when enterprise value is non-positive/non-finite, or when the resulting
-  // share falls outside [0, 1] (possible when explicit-period PV is itself negative, making
-  // terminal value exceed 100% of a smaller enterprise value) - arithmetically real but
-  // confusing stated as "X% of enterprise value," so it's specifically excluded rather than
-  // shown. Explicit-period length is read from forecastYears, never hardcoded.
+  // 2. Terminal value's contribution to enterprise value - states only what the ratio
+  // actually supports (where the value comes from), never a sensitivity claim the ratio alone
+  // can't prove. The rule itself lives in valueComposition.js, shared with the composition
+  // chart so the two can never disagree about the same number.
+  //
+  // Previously this suppressed any share outside [0, 1] as "confusing." That hid a real and
+  // informative case: when the explicit period's own present value is negative, terminal value
+  // genuinely does exceed 100% of a smaller enterprise value, and a reinvestment-heavy
+  // forecast reaches it with every driver in a normal range. It is now reported, in
+  // contribution language - "the remaining X%" is simply false at 118% and -18%, whereas two
+  // contributions stay true across the whole sign range. What is still never claimed is a
+  // percentage against a zero, negative or non-finite enterprise value.
+  //
+  // Explicit-period length is read from forecastYears, never hardcoded.
   if (showActiveResults) {
-    const ev = activeResults.enterprise_value
-    const tv = activeResults.pv_terminal_value
-    if (Number.isFinite(ev) && Number.isFinite(tv) && ev > 0) {
-      const share = tv / ev
-      if (share >= 0 && share <= 1) {
-        const sharePct = share * 100
-        const years = Number(forecastYears)
-        const yearsLabel = Number.isFinite(years) && years > 0 ? `${years}-year` : 'explicit'
-        observations.push({
-          id: 'terminal-value-share',
-          text:
-            `Terminal value accounts for ${sharePct.toFixed(0)}% of enterprise value; the ` +
-            `remaining ${(100 - sharePct).toFixed(0)}% comes from the explicit ${yearsLabel} ` +
-            `forecast period.`,
-        })
-      }
+    const contribution = valueContribution(activeResults)
+    if (contribution && contribution.reportable) {
+      const years = Number(forecastYears)
+      const yearsLabel = Number.isFinite(years) && years > 0 ? `${years}-year` : 'explicit'
+      observations.push({
+        id: 'terminal-value-share',
+        text:
+          `Terminal value contributes ${contribution.terminalPct.toFixed(0)}% of enterprise ` +
+          `value; the explicit ${yearsLabel} forecast period contributes ` +
+          `${contribution.explicitPct.toFixed(0)}%.`,
+      })
     }
   }
 

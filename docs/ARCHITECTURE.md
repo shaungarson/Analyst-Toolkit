@@ -196,7 +196,7 @@ Route: `POST /api/dcf/driver-growth-margin` (`DriverDCFInputs` → `DriverGrowth
 again with no client-supplied base. No `/driver-implied-growth` route exists; Reverse DCF stays
 Quick DCF-only (see `MODELING_CONVENTIONS.md`).
 
-Frontend: four pure modules plus three components, with all state held by `DcfValuation.jsx`.
+Frontend: seven pure modules plus five components, with all state held by `DcfValuation.jsx`.
 
 `driverTornado.js` / `DriverTornadoChart.jsx` — the ±1pp sensitivity chart. The module holds
 chart-specific pure helpers (driver labels, tested-path summarization across Flat/Fade/Custom
@@ -226,6 +226,31 @@ same terms, and that shared formatter is the whole of what a second chart proved
 general charting layer was extracted. `driverGrowthMargin` state has the same lifecycle as
 `driverTornado` and `driverSensitivity` in every respect, and the three are always reset
 together.
+
+`barGeometry.js` — the signed-baseline bar geometry shared by the three CSS charts
+(`slotPercents`, `signedDomain`, `baselinePercent`, `barStyle`), extracted from
+`HistoricalTrendCharts.jsx` once a third consumer existed and deliberately no wider: four pure
+functions about positioning a bar against a zero line. Scales, labels and meaning stay with each
+chart; there is still no charting layer and no library.
+
+`forecastContinuity.js` / `ForecastContinuityChart.jsx` — reported actuals against the forecast
+on one axis, nominal on both sides. Unlevered FCF in both modes, Revenue in Driver mode only
+(Quick's forecast rows carry no revenue). Each metric gates independently on one usable reported
+observation plus one forecast value — not the two-period minimum the historical trend charts
+apply, which belongs to a trend rather than a handoff. Below 720px the plot and its value strip
+scroll together inside a container with a minimum width per point, because the strip is the only
+way a sighted user reads exact figures without hovering and a ten-point series otherwise
+collides; print forces that container back to visible so nothing is clipped. Rendered in the
+Forecast & Discounting tab above the schedule.
+
+`valueComposition.js` / `ValueCompositionChart.jsx` — where enterprise value comes from, rendered
+in the bridge panel directly above `ValueBridge`, which begins at Enterprise Value as a given.
+The module owns the single rule for reporting terminal value's contribution, which
+`explainValuation.js` also imports so the chart and the observation cannot disagree. Two readings
+on two scales: annual present values on their own signed scale, and the aggregate contribution on
+a signed axis that is not a clamped stack. The aggregate explicit contribution is
+`enterprise_value - pv_terminal_value` rather than the sum of the rounded forecast rows, so the
+two contributions reconcile to exactly 100%.
 
 `driverSchedule.js` — resizing the per-year array to the shared forecast length, building the
 request payload, the `driverInputsError` completeness check covering every field that payload

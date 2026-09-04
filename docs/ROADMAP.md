@@ -106,6 +106,37 @@ completed items, in the dependency order they were built:
     two-way Revenue Growth × EBIT Margin sensitivity" in [`decisions.md`](decisions.md) and
     [`MODELING_CONVENTIONS.md`](MODELING_CONVENTIONS.md).
 
+13. **DCF traceability: history→forecast continuity and PV composition.** **Locally verified;
+    not Done until deployed and production-verified.** One bundle framed around a single user
+    outcome — history → forecast → present value → enterprise value — rather than around the bar
+    geometry the two charts share. Both are frontend-only against figures the valuation response
+    already returns; no engine, endpoint or payload change.
+
+    *Continuity* puts reported actuals and the forecast on one axis with a hard labelled break,
+    nominal on both sides. Unlevered FCF in both modes (the only metric that exists on both sides
+    in both), Revenue in Driver mode only. Each metric gates independently on **one** reported
+    observation plus one forecast value — not the two-period minimum the historical trend charts
+    apply, which belongs to a trend rather than a handoff.
+
+    *Composition* shows the present value of each forecast year and the split between explicit
+    period and terminal value, directly above the Value Bridge, which begins at Enterprise Value
+    as a given. Two readings on two scales, and the aggregate is a signed axis rather than a
+    clamped 100% stack, so a −18% / 118% case stays geometrically honest. The aggregate explicit
+    contribution is `enterprise_value − pv_terminal_value`, so the two reconcile to exactly 100%
+    despite independent per-row rounding.
+
+    Terminal value's contribution became **one rule across the app**, superseding Explain This
+    Valuation's previous suppression of any share outside `[0, 1]`: reported wherever enterprise
+    value is finite and positive, including above 100% or below 0%, in contribution language;
+    no percentage claimed at all where enterprise value is zero, negative or non-finite.
+
+    Geometry extraction stayed narrow — four pure functions into `barGeometry.js`, no charting
+    layer, no library. Rejected in scope: a UFCF build-up waterfall, any charting library, and
+    adopting a charted value back into the inputs. See "DCF traceability: history-to-forecast
+    continuity and PV composition" in [`decisions.md`](decisions.md) and
+    [`MODELING_CONVENTIONS.md`](MODELING_CONVENTIONS.md).
+
+
 ## Later
 
 Reasonable follow-ups, not yet scheduled:
@@ -125,27 +156,6 @@ Reasonable follow-ups, not yet scheduled:
   changes for another reason; a token migration is not scheduled. The UI-audit milestone is
   complete.
 
-- **DCF traceability: history→forecast continuity and PV composition** — **the recommended
-  next milestone, pending its own scoping.** One bundle framed around a single user outcome:
-  history → forecast → present value → enterprise value. Two charts, both frontend-only against
-  data the valuation response already returns. (1) *Continuity* — historical actuals and the
-  forecast on one axis with a hard labelled break, Unlevered FCF in both modes (the only metric
-  that exists in both) and Revenue additionally in Driver mode, positioned above the forecast
-  schedule. (2) *PV composition* — the present value of each explicit forecast year against the
-  present value of terminal value, positioned immediately above the Value Bridge, which
-  currently begins at Enterprise Value as a given and never shows where it came from; its
-  incremental contribution over the existing terminal-value observation is the **annual**
-  breakdown, so that must stay the visual focus.
-
-  Required in the design rather than discovered later: exact values readable without hover;
-  responsive, accessible and print-safe presentation; missing historical periods rendered as
-  gaps, never fabricated zeros; negative values below a true zero baseline. Terminal value's
-  share of enterprise value must be given **one** rule across the app — shown honestly above
-  100% where a positive EV is reduced by negative explicit-period PV, and not claimed as a
-  "share" at all where EV is zero or negative — which requires reconciling with
-  `explainValuation.js`, whose current rule suppresses the observation entirely outside 0–100%
-  (`ev > 0 && share >= 0 && share <= 1`). Extract only the signed-baseline bar geometry
-  genuinely shared with `HistoricalTrendCharts.jsx`; no generalized charting layer.
 - **Quick DCF FCF-growth sensitivity** — Quick mode's flat FCF growth rate still has no
   sensitivity treatment of its own. The WACC x terminal-growth grid does not cover it, and the
   Driver tornado does not apply (it measures the six operating drivers, which exist only in

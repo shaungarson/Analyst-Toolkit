@@ -20,6 +20,8 @@ import { explainValuation } from './explainValuation'
 import DriverScheduleBuilder from './DriverScheduleBuilder'
 import DriverTornadoChart from './DriverTornadoChart'
 import DriverGrowthMarginGrid from './DriverGrowthMarginGrid'
+import ForecastContinuityChart from './ForecastContinuityChart'
+import ValueCompositionChart from './ValueCompositionChart'
 import {
   applyRowMode,
   buildBaseForecast,
@@ -1244,6 +1246,12 @@ function DcfValuation() {
     return `sens-tier-${Math.min(4, Math.floor(t * 5))}`
   }
 
+  // Fiscal-year labels sized to the active result's own forecast length rather than the
+  // driver schedule's - Quick mode has no driver rows but still needs labelled years.
+  const resultYearLabels = activeResults
+    ? forecastYearLabels(companyData, activeResults.forecast.length).labels
+    : []
+
   const netDebtNum = Number(form.netDebt)
 
   // Deterministic arithmetic only - never a recommendation. Requires both a valid positive
@@ -1956,6 +1964,10 @@ function DcfValuation() {
             </div>
 
             <div className="bridge-panel">
+              {/* Above the bridge on purpose: the bridge starts at Enterprise Value as a
+                  given, and this is what produced it. Together they run annual cash flows ->
+                  present values -> EV -> equity -> value per share. */}
+              <ValueCompositionChart results={activeResults} yearLabels={resultYearLabels} />
               <h3>Value Bridge</h3>
               <ValueBridge
                 results={activeResults}
@@ -1994,6 +2006,14 @@ function DcfValuation() {
           </div>
 
           <div className={analysisTab === 'schedule' ? undefined : 'no-screen'}>
+            {/* Above the schedule it contextualizes: the handoff from reported history to
+                this forecast, nominal on both sides. */}
+            <ForecastContinuityChart
+              periods={companyData?.periods}
+              results={activeResults}
+              yearLabels={resultYearLabels}
+              forecastMode={forecastMode}
+            />
             <h3 id="dcf-forecast-heading">Forecast &amp; Discounting</h3>
             <div className="table-wrap">
               <table aria-labelledby="dcf-forecast-heading">

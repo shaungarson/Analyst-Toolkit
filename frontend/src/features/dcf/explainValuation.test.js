@@ -157,12 +157,15 @@ test('diagnostic 1: omitted when showReverseResult is false (stale, loading, or 
   assert.ok(obs.find((o) => o.id === 'sensitivity-range'))
 })
 
-test('diagnostic 2: states only the proportion, no sensitivity claim', () => {
+test('diagnostic 2: states both contributions, no sensitivity claim', () => {
   const obs = explainValuation(FULL_INPUT)
   const text = obs.find((o) => o.id === 'terminal-value-share').text
-  assert.match(text, /82% of enterprise value/)
-  assert.match(text, /remaining 18% comes from the explicit 5-year forecast period/)
+  assert.match(text, /Terminal value contributes 82% of enterprise value/)
+  assert.match(text, /explicit 5-year forecast period contributes 18%/)
   assert.doesNotMatch(text, /sensitiv/i)
+  // "The remaining X%" is false as soon as a contribution goes negative, so the wording is
+  // symmetrical across the whole sign range instead.
+  assert.doesNotMatch(text, /remaining/i)
 })
 
 test('diagnostic 2: explicit-period length is read from forecastYears, not hardcoded', () => {
@@ -194,22 +197,45 @@ test('diagnostic 2: omitted when enterprise_value is non-finite', () => {
   assert.equal(obs.find((o) => o.id === 'terminal-value-share'), undefined)
 })
 
-test('diagnostic 2: omitted when pv_terminal_value is negative (share below 0)', () => {
+test('diagnostic 2: reports a negative terminal contribution rather than suppressing it', () => {
+  // pv_terminal_value below zero against a positive enterprise value: real, and previously
+  // hidden. -1M / 100M = -1%, leaving the explicit period contributing 101%.
   const obs = explainValuation({
     ...FULL_INPUT,
     activeResults: { ...RESULTS, pv_terminal_value: -1_000_000 },
   })
-  assert.equal(obs.find((o) => o.id === 'terminal-value-share'), undefined)
+  const text = obs.find((o) => o.id === 'terminal-value-share').text
+  assert.match(text, /Terminal value contributes -1% of enterprise value/)
+  assert.match(text, /contributes 101%/)
 })
 
-test('diagnostic 2: omitted when pv_terminal_value exceeds enterprise_value (share above 1)', () => {
+test('diagnostic 2: reports a contribution above 100% rather than suppressing it', () => {
   // Negative explicit-period PV: enterprise_value = pv_fcfs + pv_terminal_value, so a
-  // sufficiently negative pv_fcfs makes pv_terminal_value > enterprise_value.
+  // sufficiently negative pv_fcfs makes pv_terminal_value exceed enterprise_value. This is
+  // the reinvestment-heavy case an ordinary-looking forecast reaches, and it is exactly the
+  // finding the composition chart exists to surface - so it is stated, not hidden.
   const obs = explainValuation({
     ...FULL_INPUT,
-    activeResults: { ...RESULTS, enterprise_value: 50_000_000, pv_terminal_value: 82_000_000 },
+    activeResults: { ...RESULTS, enterprise_value: 50_000_000, pv_terminal_value: 59_000_000 },
   })
-  assert.equal(obs.find((o) => o.id === 'terminal-value-share'), undefined)
+  const text = obs.find((o) => o.id === 'terminal-value-share').text
+  assert.match(text, /Terminal value contributes 118% of enterprise value/)
+  assert.match(text, /contributes -18%/)
+})
+
+test('diagnostic 2: the two contributions always sum to 100% of enterprise value', () => {
+  // Derived from enterprise_value - pv_terminal_value rather than from the forecast rows,
+  // which the backend rounds independently of enterprise_value.
+  for (const [ev, pvTv] of [[100_000_000, 82_000_000], [50_000_000, 59_000_000], [100_000_000, -1_000_000]]) {
+    const obs = explainValuation({
+      ...FULL_INPUT,
+      activeResults: { ...RESULTS, enterprise_value: ev, pv_terminal_value: pvTv },
+    })
+    const text = obs.find((o) => o.id === 'terminal-value-share').text
+    const pcts = [...text.matchAll(/(-?\d+)%/g)].map((m) => Number(m[1]))
+    assert.equal(pcts.length, 2)
+    assert.equal(pcts[0] + pcts[1], 100)
+  }
 })
 
 test('diagnostic 3: reports downside/upside in dollars and percent, relative to base', () => {

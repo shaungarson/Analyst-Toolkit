@@ -139,7 +139,8 @@ see [`docs/decisions.md`](docs/decisions.md).*
   Year 1…N labels when it does not.
 - Gordon Growth terminal value, with WACC and terminal growth as direct inputs
 - Enterprise value → equity value → value per share bridge, shown as a proportional value
-  bridge visualization
+  bridge visualization, directly beneath the composition view that shows where enterprise value
+  itself came from
 - **Editable, dated reference price vs. implied value:** an explicit Reference Price (sourced
   from Alpha Vantage when available, or entered manually) shown alongside the model's implied
   value per share, with a deterministic Implied Upside/Downside — arithmetic only, never a
@@ -185,6 +186,27 @@ see [`docs/decisions.md`](docs/decisions.md).*
   other cell is this grid's own contribution. A cell whose combined shift moves the forecast
   into territory the model flags is valued and marked, never clamped to a more comfortable
   number.
+- **Reported history to forecast:** the company's reported actuals and the analyst's forecast on
+  one axis, with a hard labelled break between them, so a forecast that departs from the
+  company's own history is visible rather than inferred. Both sides are nominal — deliberately
+  not discounted, since the question is whether the forecast continues the history. Unlevered
+  FCF in both forecast modes; Revenue additionally in Driver-Based mode, where the projection
+  builds it explicitly. Each metric appears on its own usable data — one reported observation
+  plus one forecast value — so a company whose working-capital history blocks an unlevered FCF
+  figure still gets its revenue handoff. Reported bars are solid, forecast bars outlined, and the
+  distinction never rests on colour alone.
+- **Where enterprise value comes from:** the present value of each explicit forecast year, then
+  the split between the explicit period and terminal value, sitting directly above the Value
+  Bridge — which begins at Enterprise Value as a given. Together they are a complete chain from
+  annual cash flows through present values to enterprise value, equity value, and value per
+  share. Two readings on two scales rather than one, because terminal value is routinely 70–90%
+  of enterprise value and a shared scale would flatten the annual detail into slivers. The
+  aggregate reading is a signed axis, **not** a clamped 100% stack: where the explicit period's
+  present value is negative, terminal value genuinely contributes more than 100% of enterprise
+  value, and that is drawn as it is rather than clipped to fit. Terminal value's contribution is
+  reported wherever enterprise value is positive — including above 100% or below 0% — and no
+  percentage is claimed at all where enterprise value is zero or negative, since a proportion of
+  a non-positive total inverts the reading rather than describing it.
 - Save, load, **duplicate**, and **compare named scenarios** side by side
 - CSV export and print-friendly output
 
@@ -225,7 +247,7 @@ Every calculation is a pure, tested function, separate from the API and UI layer
 Every calculation — cap rate, amortization, IRR, equity multiple, DSCR, debt yield, terminal
 value, enterprise value, unlevered FCF construction — is backed by automated tests checked
 against values computed independently by hand, not just "does the code agree with itself."
-236 backend tests and 252 frontend tests total, plus a GitHub Actions CI pipeline that runs
+236 backend tests and 279 frontend tests total, plus a GitHub Actions CI pipeline that runs
 the backend suite and the frontend lint/build checks on every push and pull request.
 
 ## Architecture
@@ -285,7 +307,8 @@ dependency) → per-value provenance and an editable, dated reference price → 
 provider-independent Costco DCF demo → compact historical Revenue/Unlevered FCF trend
 mini-charts → reverse DCF (price-implied FCF growth) → Driver-Based DCF (evidence-led
 forecast entry) → standardized ±1pp driver sensitivity (tornado) → two-way Revenue Growth ×
-EBIT Margin driver-interaction grid. Detail:
+EBIT Margin driver-interaction grid → DCF traceability (reported-history-to-forecast
+continuity and enterprise-value composition). Detail:
 [`PROGRESS.md`](PROGRESS.md), [`docs/decisions.md`](docs/decisions.md).
 What's next: [`docs/ROADMAP.md`](docs/ROADMAP.md).
 

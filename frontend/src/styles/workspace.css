@@ -2684,3 +2684,289 @@
     white-space: normal;
   }
 }
+
+/* --- DCF traceability: continuity and value composition ---------------------------------
+   Both charts use the shared signed-baseline geometry (barGeometry.js) and the same
+   library-free CSS-percentage approach as ValueBridge, HistoricalTrendCharts and the tornado.
+   Every plotted figure also appears as text in a value strip beneath its own bar, so no value
+   is reachable only by hovering. */
+
+.continuity,
+.composition {
+  margin-bottom: 1.1rem;
+}
+
+.continuity-intro,
+.composition-unavailable {
+  color: var(--text);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  margin: 0.2rem 0 0.5rem;
+}
+
+.continuity-legend {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 0.7rem;
+  gap: 0.3rem;
+  margin: 0 0 0.6rem;
+}
+
+.continuity-key {
+  border-radius: 1px;
+  display: inline-block;
+  height: 0.62rem;
+  width: 0.62rem;
+}
+
+.continuity-key--actual {
+  background: var(--accent);
+}
+
+/* Outline rather than fill, matching the forecast bars: the distinction never rests on hue
+   alone, which also keeps it legible in print where both go black. */
+.continuity-key--forecast {
+  background: transparent;
+  border: 1px dashed var(--accent-text);
+}
+
+.continuity-key + .continuity-key {
+  margin-left: 0.55rem;
+}
+
+.continuity-subhead,
+.composition-subhead {
+  align-items: baseline;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.continuity-subtitle,
+.composition-subtitle {
+  color: var(--text-h);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.continuity-range,
+.composition-range {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.continuity-plot,
+.composition-plot {
+  position: relative;
+  width: 100%;
+}
+
+.continuity-baseline,
+.composition-baseline {
+  border-top: 1px solid var(--border);
+  left: 0;
+  position: absolute;
+  right: 0;
+}
+
+/* The break between reported and forecast. Dashed and full-height so it reads as a boundary
+   rather than as another gridline. */
+.continuity-divider {
+  border-left: 1px dashed var(--accent-text);
+  bottom: 0;
+  position: absolute;
+  top: 0;
+}
+
+.continuity-bar,
+.composition-bar {
+  position: absolute;
+  transform: translateX(-50%);
+}
+
+.continuity-bar--actual {
+  background: var(--accent);
+}
+
+/* Forecast bars are outlined, not filled - a forecast is not a reported figure and must not
+   look like one. */
+.continuity-bar--forecast {
+  background: transparent;
+  border: 1px dashed var(--accent-text);
+}
+
+.continuity-bar--negative,
+.composition-bar--negative {
+  background: var(--flag);
+}
+
+.continuity-bar--forecast.continuity-bar--negative {
+  background: transparent;
+  border-color: var(--flag);
+}
+
+.composition-bar {
+  background: var(--accent);
+}
+
+/* The "without hover" channel for sighted users: the same figures the aria-label carries,
+   aligned under their own bars. */
+.continuity-value-strip,
+.composition-value-strip {
+  height: 2.1rem;
+  margin-top: 0.2rem;
+  position: relative;
+  width: 100%;
+}
+
+.continuity-divider-strip {
+  border-left: 1px dashed var(--accent-text);
+  bottom: 0.2rem;
+  position: absolute;
+  top: 0;
+}
+
+.continuity-value,
+.composition-value {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.25;
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.continuity-value-label,
+.composition-value-label {
+  color: var(--muted);
+  font-size: 0.62rem;
+}
+
+.continuity-value-amount,
+.composition-value-amount {
+  color: var(--text);
+  font-size: 0.66rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.composition-annual {
+  margin-bottom: 0.9rem;
+}
+
+.composition-contrib-row {
+  align-items: center;
+  display: grid;
+  gap: 0.45rem;
+  grid-template-columns: minmax(6.5rem, 1fr) 2.2fr auto auto;
+  margin-bottom: 0.3rem;
+}
+
+.composition-contrib-label {
+  color: var(--text);
+  font-size: 0.7rem;
+}
+
+.composition-contrib-track {
+  background: var(--panel-bg);
+  border-radius: 2px;
+  height: 0.85rem;
+  position: relative;
+}
+
+.composition-contrib-zero {
+  border-left: 1px solid var(--border);
+  bottom: 0;
+  position: absolute;
+  top: 0;
+}
+
+.composition-contrib-bar {
+  bottom: 1px;
+  position: absolute;
+  top: 1px;
+}
+
+.composition-contrib-bar--explicit {
+  background: var(--accent);
+}
+
+.composition-contrib-bar--terminal {
+  background: var(--accent-text);
+}
+
+.composition-contrib-bar--negative {
+  background: var(--flag);
+}
+
+.composition-contrib-pct,
+.composition-contrib-amount {
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.composition-contrib-pct {
+  color: var(--text-h);
+  font-weight: 600;
+  min-width: 3rem;
+}
+
+.composition-contrib-amount {
+  color: var(--muted);
+  min-width: 4.5rem;
+}
+
+/* On desktop both charts fit their column, so the track is simply full width and the
+   container does nothing. Below 720px the track takes a minimum width per point and the
+   container scrolls - see the components for why: the value strip is the only way a sighted
+   user reads exact figures without hovering, and measured at 320px a ten-point series
+   collided on 19 of 20 labels with four pushed out of bounds. */
+.continuity-scroll,
+.composition-scroll {
+  overflow-x: visible;
+}
+
+.continuity-track,
+.composition-track {
+  min-width: 100%;
+}
+
+@media (max-width: 720px) {
+  .continuity-scroll,
+  .composition-scroll {
+    overflow-x: auto;
+    /* Keeps the scrollbar clear of the value strip. */
+    padding-bottom: 0.15rem;
+  }
+
+  .continuity-track,
+  .composition-track {
+    min-width: calc(var(--point-count) * 48px);
+  }
+}
+
+@media (max-width: 720px) {
+  /* Labels and amounts stack tighter, and the contribution row drops the dollar column -
+     the percentage and the bar carry the reading, and the dollar figures are already stated
+     in the Value Bridge directly below. */
+  .continuity-value-label,
+  .composition-value-label {
+    font-size: 0.58rem;
+  }
+
+  .continuity-value-amount,
+  .composition-value-amount {
+    font-size: 0.6rem;
+  }
+
+  .composition-contrib-row {
+    grid-template-columns: minmax(5rem, 1fr) 1.6fr auto;
+  }
+
+  .composition-contrib-amount {
+    display: none;
+  }
+}

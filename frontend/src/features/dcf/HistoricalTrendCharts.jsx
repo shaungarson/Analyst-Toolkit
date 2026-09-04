@@ -1,43 +1,18 @@
 import { compactCurrency } from '../../lib/format'
+import { barStyle, baselinePercent, signedDomain, slotPercents } from './barGeometry.js'
 
 // Pure CSS, no chart library - matches the same convention as ValueBridge (proportional
 // div-width bars) and the sensitivity heatmap (background-tinted cells). Height is fixed in
 // px; every horizontal position is a percentage, so the chart is fluid at any column width
 // (narrow desktop Step 1 column, full-width mobile) without a breakpoint of its own.
-const PLOT_HEIGHT_PX = 44
-const MIN_BAR_PX = 2
-const MIN_BAR_PCT = (MIN_BAR_PX / PLOT_HEIGHT_PX) * 100
-
+//
+// The signed-baseline geometry itself now lives in barGeometry.js, shared with the forecast
+// continuity and value composition charts - behaviour here is unchanged, since those helpers
+// default to exactly this chart's plot height and minimum bar.
 const METRICS = [
   { key: 'revenue', label: 'Revenue', tone: 'revenue' },
   { key: 'unlevered_fcf', label: 'Unlevered FCF', tone: 'fcf' },
 ]
-
-// Evenly spaced bar-center positions (0-100%) for n periods - shared by both metric charts
-// and the year-label strip below them, so all three line up on the same fiscal-year grid.
-function slotPercents(count) {
-  return Array.from({ length: count }, (_, i) => ((i + 0.5) / count) * 100)
-}
-
-// Bar geometry as CSS top/height percentages within the plot, extending away from the
-// zero baseline in the correct direction - up for positive, down for negative, a small
-// centered tick for exactly zero (so a real zero value still reads as "present," not as
-// nothing). `value` is never null here; null periods are filtered out before this is
-// called, which is what keeps a missing year from ever rendering as a zero-height bar.
-function barStyle(value, domainMin, domainMax) {
-  const range = domainMax - domainMin || 1
-  const baselinePct = ((domainMax - 0) / range) * 100
-  if (value === 0) {
-    return { top: `calc(${baselinePct}% - ${MIN_BAR_PX / 2}px)`, height: `${MIN_BAR_PX}px` }
-  }
-  const valueTopPct = ((domainMax - value) / range) * 100
-  if (value > 0) {
-    const heightPct = Math.max(baselinePct - valueTopPct, MIN_BAR_PCT)
-    return { top: `${baselinePct - heightPct}%`, height: `${heightPct}%` }
-  }
-  const heightPct = Math.max(valueTopPct - baselinePct, MIN_BAR_PCT)
-  return { top: `${baselinePct}%`, height: `${heightPct}%` }
-}
 
 // One metric's mini chart. Falls back to plain text rather than a chart when fewer than
 // two fiscal years actually have a value for this metric - a single bar (or none) isn't a
@@ -56,10 +31,8 @@ function MiniBarChart({ label, tone, values, fiscalYears, slotPcts, barWidthPct 
     )
   }
 
-  const domainMin = Math.min(0, ...usable)
-  const domainMax = Math.max(0, ...usable)
-  const range = domainMax - domainMin || 1
-  const baselinePct = ((domainMax - 0) / range) * 100
+  const { min: domainMin, max: domainMax } = signedDomain(values)
+  const baselinePct = baselinePercent(domainMin, domainMax)
 
   // Not hover-only: this is the chart's real accessible label (role="img" + aria-label),
   // read by assistive tech regardless of pointer input. The SVG-free markup underneath is

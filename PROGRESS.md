@@ -1,26 +1,42 @@
 # Analyst Toolkit — Progress
 
-**Last verified:** 2026-09-04 (two-way Revenue Growth × EBIT Margin driver-interaction grid —
-committed `671324c`, CI run #34 green, deployed and production-verified).
+**Last verified:** 2026-09-04 (DCF traceability — history→forecast continuity and enterprise-value
+composition — verified against the running app on a fresh backend). 236 backend and 279 frontend
+tests green, lint and production build clean.
 
-Production verification, for reference: on the deployed app the Costco Driver Base Case renders
-the grid with the centre cell equal to the base case (**$263.25/share**), and all four inner
-cells match the ±1pp tornado exactly — **$248.94 / $278.22** on revenue growth, **$156.04 /
-$370.47** on EBIT margin — values identical to local, no console errors. Locally verified before
-the commit: **320px and 375px** show all 25 cells with **no horizontal page overflow**, the table
-scrolling inside its own container; a forced 3.0% flat margin marks the whole −2pp column with
-numbered footnotes; print rules present and in scope. Driver-run latency was measured in
-production and the three supplementary surfaces were deliberately left sequential —
-[decisions.md](docs/decisions.md#driver-based-dcf-two-way-revenue-growth--ebit-margin-sensitivity).
+Local verification, for reference: on the Costco Driver Base Case both continuity metrics render
+with **5 reported years and 5 forecast years** each, the divider at the 50% boundary, real fiscal
+labels (`FY21`…`FY25`, then `FY2026E`…`FY2030E`), and every figure as visible text. Composition
+sits directly above the Value Bridge — annual present values `$5.08B → $4.18B`, contribution
+`21% / 79%` totalling `$109.08B`, reconciling into the bridge's `$263.25`/share. Explain This
+Valuation now reports the same split in contribution language. Quick mode correctly charts
+Unlevered FCF only, since it projects no revenue.
 
-**Known gap, deliberately accepted:** multi-warning footnote numbering was not exercised live —
-shifting only these two drivers realistically introduces one warning type at a time on real
-inputs. Covered by five unit tests instead.
+**The mixed-sign case was forced and verified honest:** a Custom NWC schedule driving four
+negative forecast years produced `−17%` explicit against `117%` terminal, drawn on a `−17…117`
+axis with the zero line at `12.66%` — negative segment left of it, positive right, nothing
+clamped or rescaled. Explain This Valuation agreed exactly.
+
+**One material defect was found by measurement and fixed:** at 320px the continuity value strip —
+the only way a sighted user reads exact figures without hovering — collided on **19 of 20 labels
+with four out of bounds**. Both charts now scroll plot and strip together below 720px with a
+minimum width per point. Re-measured: **zero collisions per metric**, 9–14px gaps, and the worst
+case (20 points) pans a 960px track inside 320px with no page overflow. Print forces the
+container back to visible so nothing is ever clipped on paper.
+
+**Deployment and production verification are still outstanding.**
 
 ## Current Milestone
 
-**None in progress.** The two-way Revenue Growth × EBIT Margin driver-interaction grid is
-complete, deployed and production-verified (see Recently Shipped).
+**DCF traceability: history→forecast continuity and PV composition — code complete and locally
+verified, pending deployment.** Two frontend-only charts over figures the valuation response
+already returns, framed around one outcome: history → forecast → present value → enterprise
+value. Scope, design, the two approved refinements and the mobile defect found in verification
+are recorded in
+[`decisions.md`](docs/decisions.md#dcf-traceability-history-to-forecast-continuity-and-pv-composition)
+and [`MODELING_CONVENTIONS.md`](docs/MODELING_CONVENTIONS.md).
+
+**Remaining:** commit, deploy, verify in production, then close the milestone documentation.
 
 ## Blockers / Frozen Areas
 
@@ -53,61 +69,11 @@ complete, deployed and production-verified (see Recently Shipped).
   valuation engine, existing payloads, or any other surface. Committed `671324c`, CI run #34
   green, deployed and production-verified (see Last verified above) —
   [decisions.md](docs/decisions.md#driver-based-dcf-two-way-revenue-growth--ebit-margin-sensitivity)
-- 2026-09-04 — **UI audit closed; Phase 4 deliberately not built.** Reassessed by re-measuring
-  the deployed build: the type scale is genuinely unchanged (23 distinct sizes, 51 nodes under
-  12px, since Phases 1–3 were scoped not to touch it) but immaterial — nothing below 12px carries
-  a number, contrast failures are at zero, and every editable mobile field is 16px. Keyboard focus
-  measured at **7.53:1**, above the 3:1 non-text requirement. A broad refactor would touch nearly
-  every component and risk regressions in a theme with zero contrast failures, to fix a
-  maintenance concern with no user-facing symptom. Documentation-only —
-  [decisions.md](docs/decisions.md#ui-audit-closed-phase-4-type-scale-and-focus-styling-deliberately-not-built)
-- 2026-09-03 — **UI audit Phase 3: stacked Driver Schedule below 720px.** Driver-Based DCF was
-  unusable on a phone: the table was 956px in a 285px container with the Driver column pinned
-  `sticky` at 224px, leaving 61px for inputs 88px wide — **1 of 7 inputs reachable**, and none at
-  the default scroll position. Below 720px the table now renders as one panel per driver, as a
-  **CSS presentation switch over the same markup, handlers and state** — no second layout
-  component, no `matchMedia` branch, nothing duplicated to drift. A `<tbody>` per driver keeps
-  each driver's row and note row in one panel; `data-year` on each forecast cell renders the
-  fiscal year through `::before` without duplicating the input. Editable fields are **16px** (the
-  floor below which iOS zooms the page on focus) and **44px** tall, as is the Flat/Fade/Custom
-  control. The Costco disclosure collapses behind "Demo data and assumptions" on mobile only —
-  with no unscoped collapse rule, so widening can never strand the content. **All 90 inputs
-  visible and focusable at 320px and 375px with a 15-year forecast, no horizontal overflow,
-  desktop unchanged.** No calculation, payload, or state-model change —
-  [decisions.md](docs/decisions.md#stacked-driver-schedule-below-720px) ·
-  [UI_AUDIT.md](docs/UI_AUDIT.md)
-- 2026-09-03 — **UI audit Phase 2: Driver Schedule evidence hierarchy and inline NWC guidance.**
-  The evidence cell previously rendered as one undifferentiated run
-  (`’22 3.48 ’23 -10.87 … agg -3.26%UNSTABLE`), where the derived statistic read as another
-  observation and the status collided with the figure. It is now two labelled regions —
-  **Historical evidence** (full `FY22` labels, 10px → 12.5px) and **Historical benchmark**
-  (`Median` / `Aggregate`, retiring `med`/`agg`) — with reliability right-aligned beside the
-  benchmark. Two regions rather than two columns because the table already fills its container
-  exactly at 1440px; verified against the live DOM that the new strings need **no extra column
-  width**. Reliability is now stated on every row including `Reliable`, since a blank meant
-  "assessed and fine" and "not assessed" identically. `Unstable` is said once, with **Not used
-  as starting point** as its consequence, keyed off `driver.seedable` so it can never
-  contradict Initialize Forecast. The floating popover is deleted — the badge is static text and
-  the note row became an inline `<button aria-expanded>` disclosure — removing hand-computed
-  positioning, a flip-height guess, a document-level listener, manual focus return, and a CSS
-  specificity workaround. Visible "Seeded" → **History-informed**; internal `seededFields` /
-  `clearSeed` unchanged. No calculation, payload, or state-model change —
-  [decisions.md](docs/decisions.md#driver-schedule-evidence-hierarchy-and-inline-nwc-guidance) ·
-  [UI_AUDIT.md](docs/UI_AUDIT.md)
-- 2026-09-03 — **UI audit Phase 1: dark-only interface, split accent token, semantic
-  accessibility.** A contrast sweep of the populated workspace found **15 WCAG AA failures in
-  dark mode against 1 in light** — including the Load Company and Costco Demo buttons that begin
-  every session, and a sourced value (`$6.45B`). The dark palette was promoted to `:root` and
-  both `prefers-color-scheme` blocks removed, so the app is dark-only with no toggle and no
-  second palette to keep passing. `--accent` was split by role: `--accent` (`#4a6f92`) for
-  surfaces, `--accent-text` (`#6b89a6`) for foreground text — because one token cannot serve
-  both, with white-on-accent at 5.28:1 and accent-as-text at 3.12:1. Result: **0 contrast
-  failures with every accent surface unchanged.** Semantics: `<main>`, a visually-hidden DCF
-  `<h1>` (the workspace has no visible page title by design), `aria-current` on the active
-  module, accessible names for all six tables via existing headings, and decorative step
-  numerals hidden. No engine, payload, or layout change —
-  [decisions.md](docs/decisions.md#dark-only-interface-and-a-split-accent-token) ·
-  [UI_AUDIT.md](docs/UI_AUDIT.md)
+- 2026-09-03/04 — **UI audit, Phases 1–3 shipped and Phase 4 closed unbuilt.** Dark-only
+  interface with a split accent token, Driver Schedule evidence hierarchy and inline NWC
+  guidance, and a stacked mobile Driver Schedule; the type-scale/focus phase was reassessed on
+  the deployed build and deliberately not built. Full measured findings and per-phase records:
+  [UI_AUDIT.md](docs/UI_AUDIT.md) · [decisions.md](docs/decisions.md)
 - 2026-09-03 — **Driver-Based DCF: standardized ±1pp driver sensitivity (tornado).** The first
   sensitivity treatment of Driver mode's own drivers — the existing grid tests WACC × terminal
   growth, neither of which is a driver. `POST /api/dcf/driver-tornado` runs thirteen
@@ -172,14 +138,8 @@ moved out of current state — each has its own record in
 
 ## Next Actions
 
-1. **Next feature, for separate scoping — DCF traceability: history→forecast continuity and PV
-   composition.** One bundle framed around history → forecast → present value → enterprise
-   value; both charts are frontend-only against data the valuation response already returns.
-   Requirements — including the `explainValuation.js` terminal-value-share reconciliation it
-   must settle, and the rule that a "share" is not claimed at all where enterprise value is zero
-   or negative — are recorded in [`docs/ROADMAP.md`](docs/ROADMAP.md)'s Later column. Not
-   started; scope it before building.
-2. Also open in [`docs/ROADMAP.md`](docs/ROADMAP.md)'s Later column: **Quick DCF FCF-growth
+1. **Finish this milestone:** commit, deploy, production-verify, then close the documentation.
+2. Open in [`docs/ROADMAP.md`](docs/ROADMAP.md)'s Later column: **Quick DCF FCF-growth
    sensitivity**, the one remaining assumption with no sensitivity surface of its own —
    deliberately left unscheduled, since reverse DCF and Explain This Valuation already bear on
    that single rate.

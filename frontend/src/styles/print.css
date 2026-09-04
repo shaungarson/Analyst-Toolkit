@@ -460,4 +460,86 @@
     color: #000 !important;
   }
 
+  /* Continuity and value composition. Same dark-mode token problem as everything above -
+     --text, --muted, --text-h and --accent all go near-invisible on paper. The bars ARE part
+     of the data here (unlike the tornado's, which restate numbers beside them), but every
+     plotted figure is also printed as text in its value strip, so a lost fill costs nothing
+     analytically - the fills are forced solid anyway so the charts do not read as broken. */
+  .continuity-subtitle,
+  .composition-subtitle,
+  .continuity-value-amount,
+  .composition-value-amount,
+  .composition-contrib-label,
+  .composition-contrib-pct {
+    color: #000 !important;
+  }
+
+  .continuity-intro,
+  .continuity-legend,
+  .continuity-range,
+  .composition-range,
+  .composition-unavailable,
+  .continuity-value-label,
+  .composition-value-label,
+  .composition-contrib-amount {
+    color: #444 !important;
+  }
+
+  .continuity-bar--actual,
+  .composition-bar,
+  .composition-contrib-bar,
+  .composition-contrib-bar--explicit,
+  .composition-contrib-bar--terminal,
+  .composition-contrib-bar--negative,
+  .continuity-key--actual {
+    background: #000 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* Forecast stays outlined on paper too - the reported/forecast distinction must survive
+     the loss of colour, which is exactly why it was never carried by hue alone. */
+  .continuity-bar--forecast,
+  .continuity-key--forecast {
+    background: transparent !important;
+    border-color: #000 !important;
+  }
+
+  .continuity-divider,
+  .continuity-divider-strip {
+    border-left-color: #444 !important;
+  }
+
+  .continuity-baseline,
+  .composition-baseline,
+  .composition-contrib-zero {
+    border-color: #444 !important;
+  }
+
+  .composition-contrib-track {
+    background: transparent !important;
+    border: 1px solid #ccc !important;
+  }
+
+  /* The dollar column is hidden below 720px on screen only; print gets the full row. */
+  .composition-contrib-amount {
+    display: inline !important;
+  }
+
+  /* The mobile scroll container must never clip on paper. Print lays out at page width,
+     which can fall under the 720px breakpoint, and a 960px track inside an overflow:auto box
+     would silently lose its right-hand years - the one failure mode worse than a cramped
+     chart, since a reader cannot tell truncated data from absent data. Falling back to page
+     width can crowd the labels instead, which is acceptable here: the Forecast & Discounting
+     table directly below prints every one of these figures in full. */
+  .continuity-scroll,
+  .composition-scroll {
+    overflow: visible !important;
+  }
+
+  .continuity-track,
+  .composition-track {
+    min-width: 0 !important;
+  }
+
 }
