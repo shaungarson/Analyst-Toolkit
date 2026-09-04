@@ -1,8 +1,9 @@
 # Analyst Toolkit — Progress
 
-**Last verified:** 2026-09-04 (SEC data-integrity milestone — committed `bcb649f`, CI run #38
-green, deployed and production-verified). 249 backend and 293 frontend tests green, lint and
-production build clean.
+**Last verified:** 2026-09-04 (Analysis Outputs disclosure hierarchy — committed `b8aeb02`,
+deployed and production-verified; the SEC data-integrity milestone before it was committed
+`bcb649f`, CI run #38 green, deployed and production-verified). 249 backend and 293 frontend
+tests green, lint and production build clean.
 
 Production verification, for reference: **J&J's latest period is now 2025-12-28, was
 2014-12-28** — and its unlevered FCF is 0/5, which is the correct outcome: honest refusal on
@@ -13,19 +14,8 @@ control. Figures match the local SEC-only measurements exactly.
 
 ## Current Milestone
 
-**Analysis Outputs: progressive disclosure — built and locally verified, not yet committed or
-deployed.** Presentation only, DCF Sensitivity & Bridge tab. The tab-level "How to read this"
-legend is gone (it explained three different outputs at once and pointed at the wrong one
-first); each output now carries a concise caption, and the two charts with real methodology
-behind them carry their own inline "How to read this" disclosure, collapsed by default. Roughly
-600 words of always-visible prose became ~150, with two controls where there were two before.
-Result-specific warnings stay visible in every state — that is the invariant, and it is what
-the new component tests pin. No engine, endpoint, payload, geometry or computed value changed —
-[decisions.md](docs/decisions.md#analysis-outputs-progressive-disclosure-and-where-warnings-live)
-
-Remaining: commit, deploy, production verification. Print behaviour was checked by emulating
-`@media print` in the CSSOM at paper width (toggles hidden, both regions expanded, headings
-intact); real pagination is unverified.
+**None in progress.** The Analysis Outputs disclosure hierarchy is complete, deployed and
+production-verified (see Recently Shipped).
 
 ## Blockers / Frozen Areas
 
@@ -34,6 +24,19 @@ intact); real pagination is unverified.
 
 ## Recently Shipped
 
+- 2026-09-04 — **Analysis Outputs: progressive disclosure.** Presentation only, DCF Sensitivity
+  & Bridge tab. The tab-level "How to read this" legend is gone (it explained three different
+  outputs at once and pointed at the wrong one first); each output now carries a concise
+  caption, and the two charts with real methodology behind them carry their own inline "How to
+  read this" disclosure, collapsed by default. Roughly 600 words of always-visible prose became
+  ~150, with two controls where there were two before. Result-specific warnings stay visible in
+  every state — that is the invariant, and it is what the new component tests pin. No engine,
+  endpoint, payload, geometry or computed value changed. Print behaviour was checked by
+  emulating `@media print` in the CSSOM at paper width (toggles hidden, both regions expanded,
+  headings intact); real pagination remains unverified. Committed `b8aeb02`, deployed and
+  production-verified (Costco driver demo on the deployed build: both disclosures collapsed, the
+  D&A caution chip visible, $263.25/share matching local) —
+  [decisions.md](docs/decisions.md#analysis-outputs-progressive-disclosure-and-where-warnings-live)
 - 2026-09-04 — **SEC period discovery: silent staleness, and a verified CapEx fallback.** Found by
   a bounded data-layer readiness review that was meant to choose the next *modelling* milestone
   and found a data-integrity defect instead. Period discovery anchored on a single tag,
