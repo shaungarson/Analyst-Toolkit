@@ -357,6 +357,47 @@ under-fires by design: it measures the dispersion of the ΔNWC/Δrevenue ratio, 
 one year is representative. Measured live, it flags Costco, Coca-Cola and Microsoft and stays
 silent on NVIDIA, whose $65B working-capital build accompanies 65% revenue growth.
 
+## DCF Professional Summary
+
+`frontend/src/features/dcf/DcfProfessionalSummary.jsx` plus the pure derivations in
+`professionalSummary.js` — a compact, print-oriented decision artifact covering identity, the
+conclusion, principal assumptions, what qualifies it, the tested sensitivity range, and provenance
+context that has to survive once the page leaves the workspace. One component serves **both**
+forecast modes, which the payloads make natural: `DCFResults` and `DriverDCFResults` differ only in
+`fcf_growth_warnings` versus `driver_warnings`.
+
+Computes nothing new — it reads already-returned values and reuses `valueContribution` and
+`baseYearRepresentativeness`. It obeys the existing `showActiveResults` staleness gate, so a stale
+run cannot be printed as a current one. No engine, payload or scenario-schema change.
+
+Mode differences are confined to two places. **Assumptions**: Quick shows base-year UFCF and its
+flat growth rate; Driver shows base-year revenue plus one line per driver, described from the
+row's actual values (start, end, and the range travelled) rather than from its mode label.
+**Price**: both modes show reference price, as-of date and implied upside/downside; Quick adds
+price-implied FCF growth, and Driver adds nothing — the Revenue Growth x EBIT Margin grid was
+considered as an analogue and rejected because it varies two of six drivers.
+
+Rendered as a collapsed preview between `analytical-row` and the Analysis Outputs card, with
+View/Hide Summary, Print Summary and Print Full Analysis replacing the previous lone Print button.
+The artifact stays mounted while collapsed (hidden with `.no-screen`), so `aria-controls` always
+resolves and Print Summary works without expanding it first. `printSummary()` toggles
+`body.print-summary-only`, which print.css uses to hide every direct child of `.workspace` except
+the panel. **Ordinary printing excludes the panel entirely** — required, not incidental, because
+`.no-screen { display: block !important }` in `@media print` otherwise reveals the collapsed
+summary on every print path, which is exactly the defect review caught.
+
+Quick-only content is gated on the mode rather than on props: the base-year representativeness
+caution, the historical UFCF CAGR qualification and the Quick demo case label all describe inputs
+or identities Driver mode does not use, and the workspace passes them in both modes because the
+underlying evidence is company-level.
+
+**Print overrides in `print.css` must out-specify workspace.css**, which is imported after it —
+equal-specificity rules lose the tie even inside `@media print`. Verified with real
+`Page.printToPDF` output at Letter and A4, and by computed style under `media: print` for both
+print paths. Tested outcomes: Quick, Driver and the demo each printed on one page; a
+warning-heavy run printed on two. One page is a target, not a guarantee. See "DCF Professional Summary" in
+`docs/decisions.md`.
+
 ## Explain This Valuation
 
 `frontend/src/features/dcf/explainValuation.js` - a pure function returning up to three

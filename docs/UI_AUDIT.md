@@ -6,6 +6,13 @@ further UI-audit work is scheduled.**
 
 ## Scope decisions
 
+> **Superseded for one component, 2026-09-04.** The DCF Professional Summary milestone is a
+> deliberately print-optimized artifact, so print *is* in scope for `.professional-summary` and its
+> panel, and was verified with real `Page.printToPDF` output at Letter and A4 rather than by
+> emulating `@media print`. The exclusion below still stands for every other surface, and the
+> Print controls and README wording it protected are unchanged. See "DCF Professional Summary" in
+> [`decisions.md`](decisions.md).
+
 **Print is out of scope and is not a tracked finding.** Print behaviour is excluded from every
 finding, phase and verification step below, and no print CSS is to be analysed, repaired or
 extended. The existing Print controls and the README's "print-friendly output" wording are

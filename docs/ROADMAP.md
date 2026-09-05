@@ -194,6 +194,26 @@ completed items, in the dependency order they were built:
     Quick DCF" in [`decisions.md`](decisions.md) and
     [`MODELING_CONVENTIONS.md`](MODELING_CONVENTIONS.md).
 
+17. ~~**DCF Professional Summary.**~~ **Done (2026-09-04).** The one structural gap against real
+    estate, which has had a deal summary and a one-page print path since its own milestone. A
+    compact, print-optimized decision artifact — identity, conclusion, principal assumptions,
+    qualifications, tested sensitivity range and provenance — served by **one component for both
+    forecast modes**, which the near-identical result payloads make natural. Collapsed preview by
+    default with View/Hide Summary, Print Summary and Print Full Analysis; the artifact stays
+    mounted while collapsed so Print Summary works without expanding it. **Driver mode shows
+    reference price, as-of date and implied upside/downside only** — the Revenue Growth × EBIT
+    Margin grid was proposed as its analogue to reverse DCF and rejected on review, because
+    varying two of six drivers cannot honestly describe what a price implies. Driver paths report
+    start, end and range rather than "Custom (5 years)". Sensitivity extrema are taken across
+    valid cells only and labelled a tested range, never a confidence interval. Warnings are never
+    filtered or capped. Quick-only content — the base-year caution, the historical CAGR
+    qualification and the demo case label — is gated on the mode, since Driver mode uses none of
+    those inputs. Ordinary Print Full Analysis excludes the summary; Print Summary includes it
+    even while collapsed. Verified with real `Page.printToPDF` output at Letter and A4 and by
+    computed style under print media on both paths. Tested outcomes: Quick, Driver and the demo
+    each printed on one page, a six-warning run on two — one page is a target, not a guarantee.
+    No engine, API or scenario-schema change. See "DCF Professional Summary" in [`decisions.md`](decisions.md).
+
 ## Later
 
 - **Alpha Vantage retest (operational follow-up, not a milestone).** **Retested 2026-09-04

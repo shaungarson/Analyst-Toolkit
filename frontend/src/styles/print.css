@@ -551,4 +551,146 @@
     min-width: 0 !important;
   }
 
+
+  /* --- DCF Professional Summary ------------------------------------------------------
+     Print Summary scopes the page to the artifact by hiding every other direct child of the
+     workspace. Written as a :not() over the workspace's children rather than a .full-detail
+     wrapper (Real Estate's approach) because the DCF page has six top-level regions and no
+     single wrapper around them - this way a region added later is excluded by default rather
+     than silently printing alongside the summary. */
+  body.print-summary-only .workspace > *:not(.professional-summary-panel) {
+    display: none !important;
+  }
+
+  /* Ordinary printing - the plain window.print() behind "Print Full Analysis" - must NOT include
+     the Professional Summary. It is a separate artifact with its own control, and the full
+     analysis already contains everything in it.
+     This exclusion is required, not incidental: `.no-screen { display: block !important }` above
+     unconditionally reveals every collapsed region when printing, so without this the collapsed
+     summary printed on top of the full analysis. Verified by real print-to-PDF on both paths. */
+  body:not(.print-summary-only) .professional-summary-panel {
+    display: none !important;
+  }
+
+  /* ...and in summary mode the panel prints whether or not its body was expanded on screen.
+     The generic .no-screen override already achieves this; stated explicitly here so the
+     requirement survives any future narrowing of that rule. */
+  body.print-summary-only .professional-summary-panel,
+  body.print-summary-only .professional-summary-panel .no-screen {
+    display: block !important;
+  }
+
+  /* body-scoped for the same source-order reason as the rules below: workspace.css is
+     imported after this file, so a bare .professional-summary-panel selector ties and loses.
+     Measured cost of losing it: 20px of panel margin plus 32px of .feature-page padding at the
+     top and 32px at the bottom - 84px of chrome that pushed a fitting artifact onto page two. */
+  body .professional-summary-panel {
+    border: none;
+    background: #fff;
+    margin-top: 0;
+  }
+
+  body.print-summary-only .feature-page {
+    padding: 0;
+  }
+
+  .professional-summary {
+    padding: 0;
+    color: #000;
+  }
+
+  /* Paper-only tightening. Measured: the Driver-mode artifact came to 975px against 960px of
+     usable Letter height - a 1.6% miss that pushed an otherwise one-page summary onto two.
+     Recovered from inter-section spacing alone; no type is shrunk and no content is dropped,
+     because one page is the common-case target and never a reason to remove material. A run
+     with several driver warnings still runs to two pages, which is the intended outcome. */
+  /* Scoped through .professional-summary-panel deliberately: workspace.css is imported after
+     this file, so an equal-specificity selector would lose the tie even inside @media print.
+     Extra specificity rather than !important, so a later rule can still override normally. */
+  .professional-summary-panel .professional-summary h3 {
+    margin-top: 0.7rem;
+  }
+
+  .professional-summary-panel .ps-headline {
+    margin: 0.7rem 0 0.4rem;
+    padding: 0.55rem 0;
+  }
+
+  .professional-summary-panel .ps-subhead {
+    margin-top: 0.5rem;
+  }
+
+  /* Measured at the real printed column width (7.5in), not at screen width - the narrower
+     column wraps more and the artifact came to 961px against 960px of usable Letter height.
+     These recover ~40px of inter-row spacing so one page is not a knife-edge outcome that a
+     different font or printer would tip over. Type size is untouched. */
+  .professional-summary-panel .ps-row {
+    padding: 0.1rem 0;
+  }
+
+  .professional-summary-panel .ps-qualifiers li,
+  .professional-summary-panel .ps-warnings li {
+    margin-bottom: 0.2rem;
+  }
+
+  .professional-summary-panel .ps-bridge-line {
+    margin-bottom: 0.5rem;
+  }
+
+  .professional-summary-panel .ps-footer {
+    margin-top: 0.6rem;
+    padding-top: 0.45rem;
+  }
+
+  /* One printed page is the common-case target, not a constraint. Warnings and provenance are
+     the two sections allowed to push to a second page - truncating either would remove exactly
+     what the artifact exists to carry once it leaves the workspace. */
+  .ps-header,
+  .ps-headline,
+  .ps-grid,
+  .ps-range,
+  .ps-footer {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .ps-warnings li,
+  .ps-qualifiers li {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .ps-headline {
+    border-color: #000;
+  }
+
+  .ps-headline-label,
+  .ps-row-label,
+  .ps-subtitle,
+  .ps-footer p {
+    color: #333;
+  }
+
+  .ps-headline-value,
+  .ps-row-value,
+  .ps-qualifiers,
+  .ps-warnings,
+  .ps-range,
+  .ps-none {
+    color: #000;
+  }
+
+  .ps-demo-flag,
+  .ps-warning-tier {
+    color: #000;
+    font-weight: 700;
+  }
+
+  .ps-row {
+    border-bottom-color: #ccc;
+  }
+
+  .ps-footer {
+    border-top-color: #000;
+  }
 }

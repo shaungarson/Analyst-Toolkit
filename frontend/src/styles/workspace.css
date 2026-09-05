@@ -3039,3 +3039,195 @@
 .reverse-dcf-historical-qualified {
   color: var(--flag);
 }
+
+/* --- DCF Professional Summary ---------------------------------------------------------
+   A distinct print artifact, not a second on-screen summary. The panel header stays visible
+   so the controls are always reachable; only the artifact body collapses, via .no-screen, so
+   it remains mounted for aria-controls and prints regardless of its screen state. */
+.professional-summary-panel {
+  margin-top: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel-bg);
+}
+
+.professional-summary-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.85rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.ps-panel-title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.professional-summary-controls .col-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.professional-summary-controls .col-actions button {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.74rem;
+}
+
+.professional-summary {
+  padding: 1.1rem 1.25rem 1.35rem;
+}
+
+.ps-header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--text-h);
+}
+
+.ps-ticker {
+  font-weight: 400;
+  color: var(--text);
+}
+
+.ps-subtitle {
+  margin: 0.2rem 0 0;
+  font-size: 0.74rem;
+  color: var(--text);
+}
+
+.ps-demo-flag {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  color: var(--flag);
+}
+
+.ps-headline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.6rem;
+  margin: 0.9rem 0 0.5rem;
+  padding: 0.7rem 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.ps-headline-label {
+  display: block;
+  font-size: 0.66rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.ps-headline-value {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.ps-bridge-line {
+  margin: 0 0 0.9rem;
+  font-size: 0.76rem;
+  color: var(--text);
+}
+
+.professional-summary h3 {
+  margin: 1rem 0 0.4rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-h);
+}
+
+.ps-subhead {
+  margin: 0.7rem 0 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.15rem 1.4rem;
+}
+
+.ps-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.16rem 0;
+  font-size: 0.76rem;
+  border-bottom: 1px dotted var(--border);
+}
+
+.ps-row-label {
+  color: var(--text);
+}
+
+.ps-row-value {
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.ps-qualifiers,
+.ps-warnings {
+  margin: 0;
+  padding-left: 1.05rem;
+  font-size: 0.76rem;
+  color: var(--text-h);
+}
+
+.ps-qualifiers li,
+.ps-warnings li {
+  margin-bottom: 0.3rem;
+  line-height: 1.45;
+}
+
+.ps-warning-tier {
+  display: inline-block;
+  margin-right: 0.4rem;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.ps-warning--caution .ps-warning-tier {
+  color: var(--flag);
+}
+
+.ps-warning--high .ps-warning-tier,
+.ps-warning--extreme .ps-warning-tier {
+  color: var(--flag);
+  text-decoration: underline;
+}
+
+.ps-range,
+.ps-none {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--text-h);
+}
+
+.ps-footer {
+  margin-top: 1rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
+}
+
+.ps-footer p {
+  margin: 0 0 0.3rem;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  color: var(--text);
+}

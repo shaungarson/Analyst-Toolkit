@@ -216,6 +216,17 @@ see [`docs/decisions.md`](docs/decisions.md).*
   reported wherever enterprise value is positive — including above 100% or below 0% — and no
   percentage is claimed at all where enterprise value is zero or negative, since a proportion of
   a non-positive total inverts the reading rather than describing it.
+- **Professional Summary:** a compact, print-ready read of a completed valuation — company,
+  forecast mode and case, the implied value per share against a dated reference price, the
+  principal assumptions, what drives and qualifies the conclusion, the tested sensitivity range,
+  and enough provenance to stand on its own once the page is separated from the app. One artifact
+  serves both forecast modes. Collapsed by default, with separate **Print Summary** and **Print
+  Full Analysis** controls. In Driver-Based mode it reports the reference-price comparison but no
+  price-implied growth rate, and says why: a multi-driver forecast has no single rate to solve a
+  price against. Checked against real print-to-PDF output at Letter and A4: a typical run came out
+  on one page and a warning-heavy run on two. One page is what it aims for, not a promise — model
+  warnings are never truncated to fit, and a long company name or a fuller provenance note can
+  push it over
 - Save, load, **duplicate**, and **compare named scenarios** side by side
 - CSV export and print-friendly output
 
@@ -268,7 +279,7 @@ Every calculation is a pure, tested function, separate from the API and UI layer
 Every calculation — cap rate, amortization, IRR, equity multiple, DSCR, debt yield, terminal
 value, enterprise value, unlevered FCF construction — is backed by automated tests checked
 against values computed independently by hand, not just "does the code agree with itself."
-265 backend tests and 316 frontend tests total, plus a GitHub Actions CI pipeline that runs
+265 backend tests and 341 frontend tests total, plus a GitHub Actions CI pipeline that runs
 the backend suite and the frontend lint/build checks on every push and pull request.
 
 ## Architecture

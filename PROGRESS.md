@@ -1,21 +1,19 @@
 # Analyst Toolkit — Progress
 
-**Last verified:** 2026-09-04 (Base-year representativeness — committed `740b940`, CI run #45
-green, deployed and production-verified). 265 backend and 316 frontend tests green, lint and
-production build clean.
+**Last verified:** 2026-09-04 (DCF Professional Summary — local verification complete; not yet
+committed, deployed or production-verified. Base-year representativeness before it was committed
+`740b940`, CI run #45 green, deployed and production-verified). 265 backend and 341 frontend tests
+green, lint and production build clean.
 
-Production verification, for reference: **KO cautioned** ($9.27B working-capital investment,
-"History spans 436.7pp against an aggregate of -96.6%"), its −42.44% CAGR shown with the
-**unstable**-tier qualification, and Explain This Valuation reduced to the analyst-case clause
-alone. **MSFT cautioned** ($12.92B investment, sign-change reason). **Costco demo cautioned** with
-a **$1.75B release** — the sign handled correctly in both directions on real data. **NVDA not
-cautioned**, CAGR unqualified, and its price-implied-growth-versus-historical comparison (50.9%
-vs 50.5%) correctly retained.
+Print verified with **real `Page.printToPDF` output** from headless Chrome at both Letter and A4,
+plus computed style under `media: print` for both print paths. Tested outcomes: **Quick, Driver
+and the Costco demo each printed on one page; a six-warning run printed on two.** One page is the
+target, not a guarantee — warnings are never truncated to hold it.
 
 ## Current Milestone
 
-**None in progress.** Base-year representativeness is complete, deployed and
-production-verified (see Recently Shipped).
+**DCF Professional Summary — code complete, awaiting review and deploy.** One component for both
+forecast modes, collapsed preview, no engine/API/scenario-schema change.
 
 ## Blockers / Frozen Areas
 
@@ -24,39 +22,57 @@ production-verified (see Recently Shipped).
 
 ## Recently Shipped
 
-- 2026-09-04 — **Base-year representativeness in Quick DCF.** The bounded product-readiness
-  review was meant to rank the next feature and found a defect on the default path instead: Quick
-  DCF seeded Base Year UFCF from the latest reported year, unnormalized and badged `SOURCED`, with
-  no signal about whether that year was typical. Live on the deployed app, **Coca-Cola returned
-  $6.65/share, a −90.5% implied downside, and 87.9%/yr price-implied growth**, with the
-  sensitivity grid, PV composition, bridge and Explain This Valuation all rendered confidently
-  around it — while KO's $9.27B ΔNWC sat displayed two panels above, unremarked. Nothing in the
-  engine was wrong; the workspace never said whether the starting figure was usable.
+- 2026-09-04 — **DCF Professional Summary.** The one structural gap against real estate, which has
+  had a deal summary and a one-page print path since its own milestone. A compact, print-optimized
+  decision artifact — identity, conclusion, principal assumptions, qualifications, tested
+  sensitivity range, provenance — served by **one component for both forecast modes**, which the
+  near-identical result payloads make natural (they differ only in `fcf_growth_warnings` vs
+  `driver_warnings`). Collapsed preview by default with View/Hide Summary, Print Summary and Print
+  Full Analysis; it stays **mounted** while collapsed, so `aria-controls` resolves and Print
+  Summary works without expanding it first.
 
-  **The fix reuses Driver mode's own working-capital verdict rather than inventing a second
-  statistic** — Driver mode already applied medians, reliability grading and outright refusal to
-  the same company, same data, same session. One trigger, two surfaces: a caution beside Base
-  Year UFCF naming the latest ΔNWC as a working-capital **investment** or **release** plus the
-  engine's stated reason, and a qualification on the historical UFCF CAGR that also stops Explain
-  This Valuation using it as a benchmark (the analyst-case clause, which does not depend on
-  working-capital history, is kept). **`SOURCED` is untouched** — provenance and representativeness
-  are different axes — but the caution is gated on the field still holding its sourced value.
+  **Driver mode shows reference price, as-of date and implied upside/downside only.** A proposal
+  to bracket the price on the Revenue Growth × EBIT Margin grid was rejected on review: that
+  surface varies **two of six** drivers, so bracketing a price on it would describe those two
+  while silently holding four fixed. Driver mode says instead that a multi-driver forecast has no
+  single rate to solve against. Driver paths report **start, end and range** rather than "Custom
+  (5 years)", derived from actual values rather than the row-mode label. Sensitivity extrema come
+  from **valid cells only** and are labelled a tested range, never a confidence interval. Warnings
+  are never filtered or capped and use the app's real tiers; the per-year chip was dropped after
+  reviewing real output, since every driver explanation already opens with "Year N…".
 
-  **Three corrections landed during scoping, all before implementation:** median-of-five UFCF
-  dollars is not the normalized truth and differences against it are not "errors"; a scale-aware
-  benchmark (median UFCF margin × latest revenue) was tested and **rejected** — it would assert
-  $87B against Microsoft's $35B actual during a disclosed capex regime change; and inferring a
-  working-capital artifact from UFCF-vs-revenue CAGR divergence was dropped as a heuristic dressed
-  as evidence. **No normalized value ships.** The trigger is a proxy that under-fires by design,
-  stated as such in the module. Live verification caught the one real defect — the suppression
-  flag was never wired into the `explainValuation` call, which the unit tests could not see. The
-  CAGR qualification is **tier-aware** — `unstable`, `thin` and `insufficient` each say what they
-  mean rather than all being called "unreliable", which was accurate for only one of the three —
-  and both the caution and the suppression key off the non-`ok` verdict itself rather than off
-  that copy, so an unrecognised future tier still withholds the benchmark. Committed `740b940`,
-  CI run #45 green, deployed and production-verified (see Last verified above) —
+  **Review found four defects after a first "verified" report**, all fixed: ordinary Print Full
+  Analysis was including the collapsed summary (`.no-screen` is force-shown in `@media print` and
+  the panel had no ordinary-print exclusion — my check had tested DOM presence *without* print
+  media, which proved nothing); base-year representativeness and the historical CAGR qualification
+  rendered in Driver mode, which starts from revenue and never uses Base Year UFCF; the Quick
+  demo case label printed on Driver summaries; and the solved price-implied growth never named the
+  analyst's own FCF growth assumption, which is always relevant even when the historical CAGR is
+  withheld as unreliable.
+
+  **Real print-to-PDF is what made this correct.** Verified with headless Chrome's own print
+  pipeline rather than emulating `@media print` in the CSSOM — the method earlier print work used,
+  and the reason `UI_AUDIT.md` had left print untracked. It found what emulation could not: the
+  artifact measured 933px against 960px of usable Letter height and still printed on two pages,
+  because `.feature-page`'s padding and the panel's margin survived into print. Both were the same
+  cause — workspace.css is imported *after* print.css, so equal-specificity print overrides lose
+  the tie — fixed with `body`-scoped selectors, not `!important`. An earlier measurement had also
+  understated height by measuring at screen width instead of the 7.5in printed column. Nothing was
+  truncated and no type shrunk; the ~84px recovered came from page chrome and spacing —
+  [decisions.md](docs/decisions.md#dcf-professional-summary)
+
+- 2026-09-04 — **Base-year representativeness in Quick DCF.** The product-readiness review found a
+  defect on the default path: Quick DCF seeded Base Year UFCF from the latest reported year with
+  no signal about whether it was typical, and **Coca-Cola returned $6.65/share with a −90.5%
+  implied downside**, every downstream output rendered confidently around it. The fix reuses
+  Driver mode's existing working-capital verdict rather than inventing a second statistic: a
+  caution naming the latest ΔNWC as an **investment** or **release** plus the engine's own reason,
+  and a tier-aware qualification on the historical UFCF CAGR that also stops Explain This
+  Valuation using it as a benchmark. `SOURCED` untouched; caution clears once the analyst edits
+  the field; no normalized value offered, both a median-dollar and a scale-aware margin benchmark
+  having been tested and rejected. Flags COST, KO and MSFT; correctly silent on NVDA. Committed
+  `740b940`, CI run #45 green, deployed and production-verified —
   [decisions.md](docs/decisions.md#base-year-representativeness-in-quick-dcf)
-
 - 2026-09-04 — **SEC D&A: component summation for filers with no combined tag.** Four basket
   filers — MSFT, GOOGL, TSLA, INTC — report **no** combined cash-flow D&A tag at any period, so
   D&A and therefore unlevered FCF were `None` for all five years. A combined fact is now always
@@ -157,24 +173,20 @@ Older entries (2026-08-31 → 2026-09-02) moved out of current state — see
 
 ## Next Actions
 
-1. **DCF Professional Summary** — the readiness review's top-ranked item of the six considered,
-   and the one structural gap against real estate, which has `RealEstateDealSummary.jsx` while DCF
-   has no equivalent. Deliberately sequenced after base-year representativeness: a summary makes a
-   valuation shareable, and shipping one first would have propagated the defect rather than
-   contained it. The summary can now carry a representativeness statement worth printing.
-2. **Then reassess further DCF work.** The readiness review ranked the remaining candidates:
+1. **Review, commit and deploy the DCF Professional Summary**, then verify on the deployed build:
+   Quick, Driver and demo summaries render, and Print Summary scopes the page correctly.
+2. **Reassess further DCF work.** The readiness review's remaining candidates, in its ranking:
    historical loss-year effective tax rate (5 tickers), terminal-year normalization (methodology
    sophistication rather than workflow improvement), another data-coverage milestone (diminishing).
-   Scenario/case management was found to be **already built** — save, load, duplicate, compare,
-   driver schedules included, Quick/Driver mixing guarded.
+   Scenario/case management was found **already built**. A candidate the summary itself surfaced:
+   the app retains a saved scenario's *data* but not its identity, so no scenario label could be
+   shown — worth its own small decision if named scenarios should be identifiable after load.
 3. **Alpha Vantage — retest on a later date.** Still no `market_data_provider` and no
-   `reference_price` as of 2026-09-04, while SEC fundamentals resolve normally. Reference-price
-   features were evaluated with a manually entered dated price and behaved correctly, so this is a
-   data-source outage rather than a product-design question.
-4. Out of scope from the coverage work, each needing its own decision: extension-tag ingestion
-   (the only route to Microsoft's and Tesla's own D&A lines, and to Alphabet's and Tesla's
-   coverage), **historical loss-year effective tax rate** (AMZN, T, MU, BA, INTC FY2024) —
-   distinct from forecast NOL carryforwards in `docs/ROADMAP.md`'s Later list — restricted-cash /
+   `reference_price` as of 2026-09-04, while SEC fundamentals resolve normally. A data-source
+   outage, not a product-design question.
+4. Out of scope from the coverage work, each needing its own decision: extension-tag ingestion,
+   **historical loss-year effective tax rate** (AMZN, T, MU, BA, INTC FY2024) — distinct from
+   forecast NOL carryforwards in `docs/ROADMAP.md`'s Later list — restricted-cash /
    short-term-investment mapping (PG, INTC FY2021–23), derived EBIT (JNJ), segment-dimensioned
    debt (F).
 5. Real estate: no action planned until the user has the CRE-professional conversation.

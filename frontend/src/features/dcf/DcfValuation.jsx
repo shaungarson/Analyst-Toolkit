@@ -18,6 +18,7 @@ import { companyDataToSourcedFields, sourceableFieldBadgeType } from './companyD
 import { historicalCagr } from './historicalGrowth'
 import { explainValuation } from './explainValuation'
 import DriverScheduleBuilder from './DriverScheduleBuilder'
+import DcfProfessionalSummary from './DcfProfessionalSummary'
 import DriverTornadoChart from './DriverTornadoChart'
 import DriverGrowthMarginGrid from './DriverGrowthMarginGrid'
 import ForecastContinuityChart from './ForecastContinuityChart'
@@ -176,6 +177,12 @@ function DcfValuation() {
   // Which of the three result tabs is active - doubles as "which case's FCF growth rate is
   // currently shown/editable in the Assumptions column" both before and after calculation.
   const [activeDemoCaseId, setActiveDemoCaseId] = useState(null)
+  // The Professional Summary is a distinct print artifact, not a second on-screen summary - the
+  // Valuation Summary in column 3 already fills that role - so its preview is collapsed by
+  // default. It stays MOUNTED while collapsed, hidden with .no-screen, which is what lets
+  // aria-controls always resolve and what makes Print Summary work without expanding anything
+  // first (print.css unconditionally overrides .no-screen back to visible).
+  const [showProfessionalSummary, setShowProfessionalSummary] = useState(false)
   // Each case's own FCF growth rate, independent of which tab is active - the one assumption
   // this demo treats as case-specific rather than shared. { low, base, high } once active.
   const [demoCaseGrowth, setDemoCaseGrowth] = useState(null)
@@ -674,6 +681,19 @@ function DcfValuation() {
   })
   const cagrQualification = historicalCagrQualification(history)
 
+  // The Costco demo's active case is the only case identity this app reliably has. Saved
+  // scenarios deliberately are NOT labelled here: the scenario manager restores a scenario's
+  // DATA without retaining which scenario it was, so any label would drift the moment a field
+  // changed. Introducing that tracking is its own decision, not part of this milestone.
+  // Quick mode only: activeDemoCaseId is the identity of Quick's Low/Base/High growth tabs, and
+  // it survives a switch to Driver-Based, where the demo is a single seeded Base Case with no
+  // case tabs at all. Printing "Base Growth case" on a Driver summary would name a case that
+  // mode does not have.
+  const demoCaseLabel =
+    forecastMode === 'quick' && isDemoSnapshot && activeDemoCaseId
+      ? (COSTCO_CASES.find((c) => c.id === activeDemoCaseId)?.label ?? null)
+      : null
+
   const yearLabels = forecastYearLabels(companyData, driverForm.driverYears.length)
 
   // What Initialize Forecast would do, shown for review before anything is written. Computed
@@ -882,6 +902,20 @@ function DcfValuation() {
     }
 
     downloadCsv('driver-dcf-valuation.csv', rows)
+  }
+
+  // Scopes window.print() to the Professional Summary by toggling a body class print.css uses
+  // to hide every other direct child of the workspace - the same mechanism Real Estate's
+  // "Print Summary" already uses. The collapsed-on-screen state is irrelevant here: .no-screen
+  // is overridden in print, so the artifact prints whether or not it was expanded.
+  const printSummary = () => {
+    document.body.classList.add('print-summary-only')
+    const cleanup = () => {
+      document.body.classList.remove('print-summary-only')
+      window.removeEventListener('afterprint', cleanup)
+    }
+    window.addEventListener('afterprint', cleanup)
+    window.print()
   }
 
   const exportCsv = () => {
@@ -1633,9 +1667,6 @@ function DcfValuation() {
                 <button type="button" className="secondary" onClick={exportCsv}>
                   CSV
                 </button>
-                <button type="button" className="secondary" onClick={() => window.print()}>
-                  Print
-                </button>
               </div>
             )}
           </div>
@@ -1873,6 +1904,52 @@ function DcfValuation() {
           </div>
         </section>
       </div>
+
+      {showActiveResults && (
+        <div className="professional-summary-panel">
+          <div className="professional-summary-controls no-print">
+            <h2 className="ps-panel-title">Professional Summary</h2>
+            <div className="col-actions">
+              <button
+                type="button"
+                className="secondary"
+                aria-expanded={showProfessionalSummary}
+                aria-controls="dcf-professional-summary"
+                onClick={() => setShowProfessionalSummary((v) => !v)}
+              >
+                {showProfessionalSummary ? 'Hide Summary' : 'View Summary'}
+              </button>
+              <button type="button" className="secondary" onClick={printSummary}>
+                Print Summary
+              </button>
+              <button type="button" className="secondary" onClick={() => window.print()}>
+                Print Full Analysis
+              </button>
+            </div>
+          </div>
+          <div
+            id="dcf-professional-summary"
+            className={showProfessionalSummary ? undefined : 'no-screen'}
+          >
+            <DcfProfessionalSummary
+              companyData={companyData}
+              isDemoSnapshot={isDemoSnapshot}
+              demoCaseLabel={demoCaseLabel}
+              forecastMode={forecastMode}
+              results={activeResults}
+              sensitivity={activeSensitivity}
+              form={form}
+              driverForm={driverForm}
+              baseYearRepresentativeness={baseYearRepresentativeness}
+              historicalFcfCagr={historicalFcfCagr}
+              historicalCagrQualification={cagrQualification}
+              reverseResult={reverseResult}
+              showReverseResult={showReverseResult}
+              generatedOn={new Date().toLocaleDateString()}
+            />
+          </div>
+        </div>
+      )}
 
       {companyData && companyData.periods.length > 1 && (
         <SourcedHistoryPanel periods={companyData.periods} visible={showHistory} />

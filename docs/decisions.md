@@ -2269,3 +2269,111 @@ observation still citing the unreliable CAGR.
 **Out of scope and unchanged:** the valuation engine, every payload, `SOURCED` semantics,
 blocking, auto-substitution, Driver-mode behaviour, provenance, scenarios, and the Quick-mode
 book-tax-rate caution.
+
+
+## DCF Professional Summary
+**Status:** Accepted
+
+The one structural gap against real estate, which has had `RealEstateDealSummary.jsx` and a
+one-page print path since its own milestone while DCF had neither. Ranked first of the six
+candidates the product-readiness review considered, and deliberately sequenced *after* base-year
+representativeness: a summary makes a valuation shareable, and shipping one before the base year
+carried a representativeness statement would have propagated that defect rather than contained it.
+
+**One component serves both modes, and the result payloads are why.** `DCFResults` and
+`DriverDCFResults` share `enterprise_value`, `equity_value`, `value_per_share`, `terminal_value`,
+`pv_terminal_value` and `terminal_growth_warnings`, differing only in `fcf_growth_warnings` versus
+`driver_warnings`, because both modes hand their schedule to one valuation core. So the
+conclusion, terminal dependence, sensitivity range, warnings and provenance are mode-agnostic.
+Exactly one section is mode-shaped (assumptions) and one is mode-enriched (the price comparison).
+Two components would have duplicated ~90% of one artifact and drifted.
+
+**Driver mode shows the reference price, its as-of date and implied upside/downside — and nothing
+else about price.** An earlier proposal used the Revenue Growth x EBIT Margin grid to bracket the
+price as Driver's analogue to reverse DCF. That was rejected on review and the rejection is the
+right one: the grid varies **two of six** drivers, so bracketing a price on it describes what the
+price implies about those two while silently holding the other four fixed — a claim the surface
+cannot support. Driver mode instead states plainly that a multi-driver forecast has no single
+growth rate to solve against. Quick mode keeps price-implied FCF growth, and cites the historical
+UFCF CAGR only under the reliability rule already shipped.
+
+**A collapsed preview, not a second on-screen summary.** DCF already has an on-screen Valuation
+Summary in column 3; this is a distinct print artifact and would be noise if permanently expanded.
+Three controls — View/Hide Summary, Print Summary, Print Full Analysis — replace the previous lone
+Print button. The artifact stays **mounted** while collapsed, hidden with `.no-screen`, which is
+what makes `aria-controls` always resolve *and* makes Print Summary work without expanding
+anything first: print.css unconditionally overrides `.no-screen` back to visible. Print Summary
+scopes the page by hiding every direct child of the workspace except the panel — a `:not()` over
+children rather than Real Estate's `.full-detail` wrapper, because the DCF page has nine top-level
+regions and no single wrapper, so a region added later is excluded by default rather than silently
+printing alongside the summary.
+
+**No saved-scenario label.** The scenario manager restores a scenario's *data* without retaining
+which scenario it was, so any label would drift the moment a field changed. The Costco demo case
+label is included because that identity is real and tracked. Introducing scenario-identity state
+is its own decision, not part of this milestone.
+
+**Driver paths are described from their values, not their row mode.** "Custom (5 years)" would
+conceal every intermediate assumption, and reading a row from its mode label would misreport one
+whose cells no longer match the mode that generated them. Each row reports start, end and the
+range it travelled — so a row running 8% → 2% that peaks at 14% in between says so. A row whose
+every year is equal reads as Flat.
+
+**Sensitivity is reported as a tested range over valid cells only.** Cells where WACC is at or
+below terminal growth are `null` — outside Gordon Growth's valid range — and are excluded from the
+extremes rather than crashing or reporting a bound the model never produced. The copy names it the
+span of assumptions tested and explicitly denies being a probability or confidence interval.
+
+**Warnings are never filtered or capped**, use the app's real tiers (`caution` / `high` /
+`extreme`), and are ordered most severe first. A printed page is exactly where dropping one would
+do the most damage, because the reader has no workspace to check against. The per-year chip was
+removed after review of the real output: every driver warning's own explanation already opens with
+"Year N...", so the chip printed the year twice.
+
+**One page is the common-case target, not a constraint — and real print-to-PDF is what proved it.**
+Verified with headless Chrome's own print pipeline (`Page.printToPDF`) at both Letter and A4, not
+by emulating `@media print` in the CSSOM, which is how earlier print work in this project was
+checked and which `UI_AUDIT.md` had left print untracked. That mattered: the artifact measured
+933px against 960px of usable Letter height and still printed on **two** pages, because
+`.feature-page`'s 32px padding and the panel's 20px margin survived into print. Both losses were
+the same cause — workspace.css is imported *after* print.css, so equal-specificity print overrides
+lose the tie — fixed with `body`-scoped selectors rather than `!important`. A first measurement
+also understated the height by taking it at screen width instead of the 7.5in printed column.
+
+Measured outcomes at Letter and A4: **Quick, Driver and the Costco demo each printed on one
+page; a run carrying six driver warnings printed on two.** One page is the design target and what
+these cases produced — **not a guarantee**. Longer company names, a fuller provenance footer, more
+warnings, or a different browser's print behaviour can each push the artifact onto a second page,
+and that is allowed. Nothing is truncated and no type is shrunk to prevent it; the ~84px recovered
+came from page chrome and inter-section spacing.
+
+### Four defects found in review, after the first "verified" report
+
+1. **Print Full Analysis included the Professional Summary.** `.no-screen { display: block
+   !important }` inside `@media print` unconditionally reveals every collapsed region when
+   printing, and the panel had no ordinary-print exclusion — so the plain `window.print()` path
+   printed the collapsed summary on top of the full analysis. The first report claimed this path
+   was unaffected; that check tested DOM presence *without* print media and proved nothing about
+   printing. Now excluded by `body:not(.print-summary-only) .professional-summary-panel`, with the
+   summary-mode reveal stated explicitly rather than relying on the generic rule, and verified by
+   computed style under `media: print` on both paths.
+2. **Base-year representativeness and the historical CAGR qualification rendered in Driver mode.**
+   Both describe Quick DCF's Base Year UFCF and the unlevered-FCF CAGR built from the same
+   periods; Driver mode starts from base-year revenue and never uses that figure, so on a
+   cautioned company it printed a qualification about an input the valuation did not use. Now
+   gated on the mode, not on the props — the workspace passes them in both modes because the
+   underlying evidence is company-level.
+3. **The Costco demo case label printed in Driver mode.** `activeDemoCaseId` is Quick's
+   Low/Base/High tab identity and survives a mode switch; Driver's demo is a single seeded Base
+   Case with no tabs, so "Base Growth case" named a case that mode does not have. Gated in both
+   the page and the component.
+4. **The solved price-implied growth did not name the analyst's own assumption.** The historical
+   CAGR comparison is withheld whenever working-capital history makes it unreliable, which could
+   leave the statement with no comparison at all — while the analyst's assumption is the thing the
+   reader is actually judging against and is always relevant. It is now always stated when a rate
+   exists; the historical CAGR still appears only when reliable.
+
+**Out of scope and unchanged:** the valuation engine, every API payload, the scenario schema, and
+all existing provenance semantics. The summary computes nothing new — it reads already-returned
+values and reuses `valueContribution` and `baseYearRepresentativeness` — and it obeys the existing
+`showActiveResults` staleness gate, so a stale run can never be printed as a current one.
