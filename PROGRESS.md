@@ -1,19 +1,26 @@
 # Analyst Toolkit — Progress
 
-**Last verified:** 2026-09-04 (DCF Professional Summary — local verification complete; not yet
-committed, deployed or production-verified. Base-year representativeness before it was committed
-`740b940`, CI run #45 green, deployed and production-verified). 265 backend and 341 frontend tests
-green, lint and production build clean.
+**Last verified:** 2026-09-05 (DCF Professional Summary — committed `ec64be5`, CI run #47 green,
+deployed and production-verified). 265 backend and 341 frontend tests green, lint and production
+build clean.
 
-Print verified with **real `Page.printToPDF` output** from headless Chrome at both Letter and A4,
-plus computed style under `media: print` for both print paths. Tested outcomes: **Quick, Driver
-and the Costco demo each printed on one page; a six-warning run printed on two.** One page is the
-target, not a guarantee — warnings are never truncated to hold it.
+Production verification covered every path: **Quick demo** — "Base Growth case" label and the
+analyst comparison ("22.7 percentage points above the 8.00%/yr assumption in this valuation"),
+with the historical CAGR correctly withheld since Costco's working-capital history is unstable.
+**Driver demo** — no Quick case label, no Base Year UFCF qualification, no CAGR qualification, no
+price-implied growth, and the multi-driver note present; $263.25 matching local. **Live KO in both
+modes**, with no provider price available: the reference-price block, implied upside/downside and
+price-implied growth are all absent and the artifact degrades cleanly to value-per-share plus the
+bridge line. **Print paths under real print media**: Print Full Analysis excludes the summary
+(panel `display: none`, 6 pages of analysis); Print Summary while collapsed prints the complete
+artifact alone on **one page at Letter and A4** (panel `block`, analysis hidden).
+
+**No production-only findings.** Production matched local verification in every case.
 
 ## Current Milestone
 
-**DCF Professional Summary — code complete, awaiting review and deploy.** One component for both
-forecast modes, collapsed preview, no engine/API/scenario-schema change.
+**None in progress.** The DCF Professional Summary is complete, deployed and production-verified
+(see Recently Shipped).
 
 ## Blockers / Frozen Areas
 
@@ -61,17 +68,15 @@ forecast modes, collapsed preview, no engine/API/scenario-schema change.
   truncated and no type shrunk; the ~84px recovered came from page chrome and spacing —
   [decisions.md](docs/decisions.md#dcf-professional-summary)
 
-- 2026-09-04 — **Base-year representativeness in Quick DCF.** The product-readiness review found a
-  defect on the default path: Quick DCF seeded Base Year UFCF from the latest reported year with
-  no signal about whether it was typical, and **Coca-Cola returned $6.65/share with a −90.5%
-  implied downside**, every downstream output rendered confidently around it. The fix reuses
-  Driver mode's existing working-capital verdict rather than inventing a second statistic: a
-  caution naming the latest ΔNWC as an **investment** or **release** plus the engine's own reason,
-  and a tier-aware qualification on the historical UFCF CAGR that also stops Explain This
-  Valuation using it as a benchmark. `SOURCED` untouched; caution clears once the analyst edits
-  the field; no normalized value offered, both a median-dollar and a scale-aware margin benchmark
-  having been tested and rejected. Flags COST, KO and MSFT; correctly silent on NVDA. Committed
-  `740b940`, CI run #45 green, deployed and production-verified —
+- 2026-09-04 — **Base-year representativeness in Quick DCF.** The readiness review found a defect
+  on the default path: Quick DCF seeded Base Year UFCF from the latest reported year with no signal
+  about whether it was typical, and **Coca-Cola returned $6.65/share with a −90.5% implied
+  downside**. The fix reuses Driver mode's existing working-capital verdict: a caution naming the
+  latest ΔNWC as an **investment** or **release** plus the engine's own reason, and a tier-aware
+  qualification on the historical UFCF CAGR that also stops Explain This Valuation using it as a
+  benchmark. `SOURCED` untouched; the caution clears once the analyst edits the field; no
+  normalized value offered. Flags COST, KO and MSFT; correctly silent on NVDA. Committed `740b940`,
+  CI run #45 green, deployed and production-verified —
   [decisions.md](docs/decisions.md#base-year-representativeness-in-quick-dcf)
 - 2026-09-04 — **SEC D&A: component summation for filers with no combined tag.** Four basket
   filers — MSFT, GOOGL, TSLA, INTC — report **no** combined cash-flow D&A tag at any period, so
@@ -173,17 +178,18 @@ Older entries (2026-08-31 → 2026-09-02) moved out of current state — see
 
 ## Next Actions
 
-1. **Review, commit and deploy the DCF Professional Summary**, then verify on the deployed build:
-   Quick, Driver and demo summaries render, and Print Summary scopes the page correctly.
-2. **Reassess further DCF work.** The readiness review's remaining candidates, in its ranking:
+1. **Reassess further DCF work** — the readiness review's remaining candidates, in its ranking:
    historical loss-year effective tax rate (5 tickers), terminal-year normalization (methodology
    sophistication rather than workflow improvement), another data-coverage milestone (diminishing).
-   Scenario/case management was found **already built**. A candidate the summary itself surfaced:
-   the app retains a saved scenario's *data* but not its identity, so no scenario label could be
-   shown — worth its own small decision if named scenarios should be identifiable after load.
+   Scenario/case management was found **already built**.
+2. **Scenario identity (small, surfaced by the summary milestone).** The app restores a saved
+   scenario's *data* but not its name, which is why the Professional Summary can label the Costco
+   demo case but not a saved scenario. Worth its own decision if named scenarios should stay
+   identifiable after load.
 3. **Alpha Vantage — retest on a later date.** Still no `market_data_provider` and no
-   `reference_price` as of 2026-09-04, while SEC fundamentals resolve normally. A data-source
-   outage, not a product-design question.
+   `reference_price` as of 2026-09-05, while SEC fundamentals resolve normally. Confirmed again
+   during this milestone's production verification: with no provider price, both modes degrade
+   cleanly. A data-source outage, not a product-design question.
 4. Out of scope from the coverage work, each needing its own decision: extension-tag ingestion,
    **historical loss-year effective tax rate** (AMZN, T, MU, BA, INTC FY2024) — distinct from
    forecast NOL carryforwards in `docs/ROADMAP.md`'s Later list — restricted-cash /
